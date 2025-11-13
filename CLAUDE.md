@@ -1,487 +1,276 @@
-# 0. Purpose of this file
+# CLAUDE.md
 
-This `CLAUDE.md` defines how you (Claude Code) must work inside this repository.
+## 1. 프로젝트 개요
 
-- Always read and follow this file before doing any work.
-- Treat it as the **project constitution**: other docs may change, but these rules decide how you behave here.
-- Do not edit or rewrite this file unless the human explicitly asks you to.
+- 프로젝트명: 개인 과외 관리 통합 플랫폼 (가칭 WeTee)
+- 목적:
+  - 과외 선생님, 학생, 학부모가 겪는 **파편화된 도구, 불투명한 정산, 반복적인 행정 업무**를 한 곳에서 해결하는 통합 관리 서비스
+  - 일정, 출결, 진도, 정산, 알림을 하나의 플랫폼에서 관리하여, 사용자가 **더 가치 있는 일(수업 준비, 학생 관리)에 집중**하도록 돕는 것
+- 핵심 사용자:
+  - 개인 과외 선생님
+  - 과외를 맡기는 학부모
+  - 학생 (중·고등학생 중심)
 
-When you start a new session in this repo:
+이 레포는 이 서비스를 위한 **MVP 1단계 기능(F-001~F-008)**의 프론트엔드, 백엔드, 데이터베이스를 구현하기 위한 코드 저장소다.
 
-1. Read sections **1 ~ 13** of this file.
-2. Summarize the key points briefly for the human in Korean.
-3. Then start from the workflow in **6.1 (Phase 1: Spec reading and summary)**, unless the human requests a specific mode or feature.
+---
 
+## 2. 문서 구조와 우선순위
 
-# 1. Project overview
+이 레포에는 이미 상세한 기획/설계 문서가 포함되어 있다.  
+Claude는 코드를 작성하기 전에 아래 문서들을 **반드시 우선 읽어야 한다.**
 
-- Repository name: `weteeMVP`
-- Domain: 과외 선생님·학생·학부모를 위한 과외 관리 서비스
-- Goal: 설계 문서(문제 정의, 기능별 기획, 기술 스택, DB 설계, API 명세)에 맞춰 **웹/모바일 MVP와 백엔드 API**를 구현하는 것.
-- Current state: 이 레포에는 주로 기획/설계 문서(`*.md`)가 있으며, 앞으로 웹 프론트엔드·모바일 클라이언트·백엔드 코드가 추가된다.
+1. `01_문제_정의_및_목표_설정.md`
+   - 이 프로젝트가 해결하려는 문제, 대상 사용자, 성공 기준을 정의한 **최상위 기획 문서**
+   - 모든 기능/디자인 의사결정은 이 문서의 문제 정의와 목표를 우선적으로 존중해야 한다.
 
+2. 기능 명세서 `F-001` ~ `F-008`
+   - 각 기능별 요구사항, 사용자 시나리오, 예외 케이스, UI 요구사항이 정리된 문서들
+   - 비즈니스 로직, 화면 구성, 플로우에 대한 **소스 오브 트루스(Source of Truth)**
 
-# 2. Environment & Stack (요약)
+3. `API_명세서.md`
+   - 프론트엔드와 백엔드 사이의 **REST API 계약서**
+   - 엔드포인트 URL, HTTP 메서드, 요청/응답 스키마, 에러 코드, 인증 규칙 등을 정의
 
-이 레포는 과외 관리 플랫폼 "weteeMVP"의 클라이언트/백엔드 코드를 다루며, 전체 스택은 다음과 같다.
+4. `데이터베이스_설계서.md`
+   - PostgreSQL 기반 데이터베이스 구조와 테이블·관계 정의
+   - ERD, 테이블 목록, 컬럼, 인덱스, 제약조건, 성능·보안 정책 등을 포함
 
-## 2.1 High-level stack
+5. `기술스택_설계서.md`
+   - 프론트엔드·백엔드·인프라 전체 아키텍처와 사용 기술, 버전 명시
+   - React / React Native, FastAPI, PostgreSQL, Redis, S3 등 선택 이유와 사용 방식 설명
 
-- 클라이언트
-  - 모바일: **React Native 0.72.6** (iOS / Android)
-  - 웹(2단계): **React 18 + Next.js 14**
-- 백엔드: **FastAPI 0.104.x (Python 3.11.x)**
-- 인프라 / 기타
-  - DB: **PostgreSQL 15.x**
-  - 캐시: **Redis 7.x**
-  - 파일 저장소: **AWS S3 또는 S3 호환 스토리지(MinIO)**
-  - 검색(2단계): **Elasticsearch 8.x**
-  - API Gateway: **Kong 3.4**
+### 문서 해석 우선순위
 
-## 2.2 URLs & env basics
+문서 간 내용이 충돌하거나 해석이 애매할 때는 다음 순서를 따른다.
 
-로컬 개발 기본값:
+1. `01_문제_정의_및_목표_설정.md` (문제·목표)
+2. 기능 명세서 `F-001` ~ `F-008` (기능·플로우·UI 요구사항)
+3. `API_명세서.md` (엔드포인트·요청/응답 형식)
+4. `데이터베이스_설계서.md` (테이블·관계 구조)
+5. `기술스택_설계서.md` (기술 선택·버전, 비기능 요구사항)
 
-- Backend Base URL: `http://localhost:8000/api/v1`
-- 클라이언트(웹/모바일)에서는 `.env` 또는 환경 설정에서 `API_BASE_URL`을 이 값으로 맞춰 사용한다.
+코드를 작성할 때는 **기능 명세서의 요구사항을 절대적으로 우선**하고, 다른 문서와 어긋나는 경우에는:
+- 우선 기능 명세서를 기준으로 구현하되,
+- 필요한 경우 “어떤 부분이 충돌하는지”를 주석 또는 설명으로 명확히 남긴다.
 
-운영 기본값:
+---
 
-- Backend Base URL (production): `https://api.wetee.app/api/v1`
+## 3. 구현 범위 (MVP 1단계)
 
-규칙:
+MVP 1단계에서 구현해야 할 기능은 다음 8개다.
 
-- 이 값들을 **하드코딩하지 말고**, 항상 환경 변수 또는 설정 파일을 통해 주입받도록 구현한다.
-- Base URL이 확실하지 않을 경우, 먼저 관련 설정 파일과 문서를 읽고 인간에게 확인을 요청한다.
+1. `F-001_회원가입_및_로그인.md`
+2. `F-002_과외_그룹_생성_및_매칭.md`
+3. `F-003_수업_일정_관리.md`
+4. `F-004_출결_관리.md`
+5. `F-005_수업_기록_및_진도_관리.md`
+6. `F-006_수업료_정산.md`
+7. `F-007_기본_프로필_및_설정.md`
+8. `F-008_필수_알림_시스템.md`
 
+### 반드시 **지금 구현하지 말아야 할 것들**
 
-# 3. Your role and scope
+- 각 기능 명세서의 “개선 아이디어”, “향후 확장”, “2단계에서 고려” 등으로 표시된 내용
+- AI 추천, 고급 통계/분석, 검색 고도화(Elasticsearch 중심 기능) 등 2단계 이후로 미뤄둔 기능
+- 이메일/SMS 알림, 고급 알림 필터링 등 F-008에서 의도적으로 제외한 고급 옵션
 
-You are:
+이 내용들은 코드에 **훅(hook) 정도의 여지만 남기고**, 실제 구현은 하지 않는다.
 
-- 기본적으로 이 레포의 **프론트엔드 엔지니어**이자 **UI/UX 디자이너**다.
-- 인간이 명시적으로 요청하는 경우, **백엔드 엔지니어 역할**도 함께 수행할 수 있다.
-- You work only inside this GitHub repository. Never assume access to other repos or external systems.
+---
 
-Your responsibilities:
+## 4. 기술 스택 요약 (실제 구현 기준)
 
-1. Understand the problem, users, and features from the planning docs.
-2. Design the **information architecture**, page flows, and component structure for web/mobile.
-3. Implement a web frontend MVP (and, when asked, mobile UI MVP) that matches the specs as closely as possible.
-4. When in backend mode, implement FastAPI endpoints, services, and tests according to the API and DB specs.
-5. Use Git branches and small commits, and prepare a clear Pull Request description.
-6. Respect all constraints written in the planning documents (기획서, 기술스택 설계서, DB 설계서, API 명세서 등).
+이 레포에서 Claude가 가정해야 할 기본 기술 스택은 다음과 같다.
 
-You are **not**:
+### 백엔드
 
-- Allowed to introduce brand-new frameworks or libraries without explicit approval.
-- Allowed to perform destructive operations (mass deletes, big refactors) without asking first.
-- Allowed to expose or invent real secrets, passwords, tokens, or production config values.
+- 언어 및 프레임워크: Python 3.11 + FastAPI
+- 주요 역할:
+  - 인증/인가(JWT)
+  - 그룹/일정/출결/수업 기록/정산/프로필/알림 관련 REST API 제공
+  - 토스페이먼츠 Webhook 처리 (정산·결제 연동)
+- 비기능 요구사항:
+  - Pydantic 모델 기반 요청/응답 검증
+  - 공통 에러 처리 미들웨어
+  - Rate Limiting, 로깅, 모니터링 등은 기술스택 설계서 기준으로 최소 수준 반영
 
+### 데이터베이스
 
-# 4. Core reference documents
-
-These files live in the **repository root** and describe the system.  
-Whenever you need information about requirements or behavior, prefer these docs over guessing.
-
-## 4.1 High-level planning
-
-1. `01_문제_정의_및_목표_설정.md`  
-2. `기술스택_설계서.md`  
-3. `데이터베이스_설계서.md`  
-4. `API_명세서.md`  
-
-## 4.2 Feature-level specs (F-xxx)
-
-5. `F-001_회원가입_및_로그인.md`  
-6. `F-002_과외_그룹_생성_및_매칭.md`  
-7. `F-003_수업_일정_관리.md`  
-8. `F-004_출결_관리.md`  
-9. `F-005_수업_기록_및_진도_관리.md`  
-10. `F-006_수업료_정산.md`  
-11. `F-007_기본_프로필_및_설정.md`  
-12. `F-008_필수_알림_시스템.md`  
-
-Rules:
-
-- When working on any feature, **always read the matching F-xxx file first**.
-- When specs are unclear or conflicting, list the ambiguity and propose 1–2 reasonable options instead of silently guessing.
-
-
-# 5. Tech stack and commands
-
-The canonical definition of the tech stack is in `기술스택_설계서.md`.
-
-1. First, read `기술스택_설계서.md` and summarize:
-   - Frontend framework(s) for web and mobile (React/Next.js, React Native 등)
-   - Language (TypeScript or JavaScript)
-   - Styling approach (Tailwind, CSS Modules, etc.)
-   - Build tool (Vite, Next, React Native CLI, etc.)
-   - Standard commands for install / dev / build / test
-   - Backend structure (FastAPI app layout, tools like pytest, black, ruff 등)
-
-2. If the file explicitly specifies the stack:
-   - **Do not change the stack** and do not propose alternatives unless the human asks.
-   - Follow the documented commands exactly.
-
-3. Only if the file does **not** define the stack:
-   - Explain that the stack is not defined.
-   - Propose 1–2 reasonable options with pros/cons.
-   - Wait for the human to choose before setting up any project structure.
-
-4. When running commands like `npm run build`, `npm run lint`, `pytest` etc.:
-   - First check that `package.json` or `pyproject.toml` exists and that the script/command is defined.
-   - Do not run commands that are not present; avoid producing useless error logs.
-
-5. When there are multiple apps (e.g. `web/`, `mobile/`, `backend/`), always:
-   - State clearly **which app** you are working on.
-   - Use that app’s specific commands and scripts (예: `cd web && npm run dev`, `cd backend && pytest`).
-
-
-# 6. Workflow for building the web/mobile MVP
-
-## 6.1 Phase 1 – Spec reading and requirement summary
-
-When the human asks you to start working on the frontend:
-
-1. Read these four docs in order:
-
-   - `01_문제_정의_및_목표_설정.md`
-   - `기술스택_설계서.md`
-   - `데이터베이스_설계서.md`
-   - `API_명세서.md`
-
-2. Then read all F-xxx feature docs, at least skimming them once.
-
-3. Provide a **Korean summary** that covers:
-
-   - The main problem and goals of the service.
-   - User types (teacher, parent, student, etc.) and their core needs.
-   - A list of mandatory features derived from F-001 ~ F-008.
-   - A rough list of pages/screens and main flows between them.
-
-4. Create a Markdown table:
-
-   - Column 1: Feature ID (e.g. F-001)
-   - Column 2: Feature name
-   - Column 3: Related main screens/pages
-   - Column 4: Required UI elements on those screens (forms, lists, cards, buttons, etc.)
-
-5. Collect any ambiguities or missing details into a separate list and suggest 1–2 options for each.
-
-Do **not** create or modify code yet during this phase.
-
-
-## 6.2 Phase 2 – Project structure and architecture plan
-
-After Phase 1:
-
-1. From `기술스택_설계서.md`, infer the recommended frontend stack and folder structure.
-2. Propose a concrete **project structure**. For example (this is only an example, not a requirement):
-
-   - `web/` or `frontend/` for web app
-     - `web/src/pages`
-     - `web/src/components`
-     - `web/src/layouts`
-     - `web/src/hooks`
-     - `web/src/lib`
-   - `mobile/` for React Native app
-     - `mobile/src/screens`
-     - `mobile/src/components`
-     - `mobile/src/navigation`
-     - `mobile/src/hooks`
-     - `mobile/src/lib`
-
-3. Propose a **routing/navigation plan**, for example mapping features to routes like (web):
-
-   - `/login` – F-001
-   - `/groups` – F-002
-   - `/schedule` – F-003
-   - `/attendance` – F-004
-   - `/records` – F-005
-   - `/billing` – F-006
-   - `/settings` – F-007
-   - `/notifications` – F-008
-
-   For mobile, propose an equivalent stack/tab navigation structure.  
-   The exact URLs/screens must be adjusted based on the spec; explicitly say when you are making a guess.
-
-4. Present an **implementation plan** with steps. Example:
-
-   1. Create project skeleton(s) and base tooling for the target app (web or mobile).
-   2. Implement global layout / navigation (header/sidebar/tab navigator).
-   3. Implement F-001 screens (signup/login).
-   4. Implement F-002 screens (group creation/matching).
-   5. Implement F-003~F-008 screens in a sensible order.
-   6. Apply refinement passes for UX, responsive design, and visual polish.
-
-5. Wait for the human to approve the structure and plan (e.g. “구조/계획 승인”) **before** making any code changes.
-
-
-## 6.3 Phase 3 – Git workflow and implementation rules
-
-Once the plan is approved:
-
-1. Create and work on a dedicated feature branch, for example:
-
-   - `feat/frontend-mvp`
-   - Or more specific names like `feat/f-001-auth`, `feat/f-003-schedule-ui`.
-
-2. Never commit directly to `main` or `master`.
-
-3. For each implementation step:
-
-   1. Tell the human which files you intend to create or modify.
-   2. Explain which F-xxx spec and which requirement you are implementing.
-   3. Apply the code changes.
-   4. Show only the most important parts of the diff; for repetitive patterns, describe them instead of pasting everything.
-   5. When `package.json` and scripts exist, run appropriate commands like `npm run build`, `npm run lint`, or tests, and fix errors before moving on.
-
-4. Keep each step **small**:
-
-   - At most about 5–7 files modified in a single step.
-   - Avoid massive refactors or large diffs; if needed, break work into multiple smaller steps and explain the plan.
-
-5. For project-level or folder-structure changes:
-
-   - Project root structure changes, new top-level folders, mass file moves/deletions, or package install/removal are considered **large changes**.
-   - For such changes, first explain what you want to do and why, and wait for explicit human approval.
-
-
-## 6.4 Phase 4 – Pull Request and checklist
-
-When a coherent chunk of work is done (for example, the basic MVP or a major feature set):
-
-1. Prepare a checklist that maps F-001 ~ F-008 requirements to implementation status:
-
-   - Implemented
-   - Partially implemented
-   - Not yet implemented
-
-2. Prepare a list of TODOs:
-
-   - UX/visual polish
-   - Edge cases not yet handled
-   - Performance or code-quality improvements
-   - Missing tests
-
-3. Using GitHub integration, either:
-
-   - Create a Pull Request from the feature branch, or  
-   - If automation is not available, generate the PR description text so the human can copy-paste it.
-
-4. The PR description should include:
-
-   - High-level summary of changes.
-   - The feature checklist (per F-xxx).
-   - The TODO list.
-   - How to run the project locally (install/dev/build commands).
-
-
-# 7. Backend API usage rules
-
-The canonical API contract is defined in `API_명세서.md`. Follow these principles:
-
-1. **Single source of truth**
-
-   - Use only endpoints and fields defined in `API_명세서.md`.
-   - Do not invent new URLs, parameters, or response fields without stating clearly that they are assumptions and getting human approval.
-
-2. **Base URL and versioning**
-
-   - All backend requests use `API_BASE_URL` + `/api/v1/...`.
-   - `API_BASE_URL` must come from configuration or environment variables.
-
-3. **Authentication**
-
-   - For endpoints that require authentication, always send:
-     - `Authorization: Bearer <access_token>`
-   - Access/refresh token lifetimes and refresh flows must follow the rules in the API spec.
-
-4. **Response handling**
-
-   - Assume a common response envelope, for example:
-
-     - Success:  
-       `{ "success": true, "data": { ... }, "meta": { ... } }`
-     - Error:  
-       `{ "success": false, "error": { "code", "message", "details" }, "meta": { ... } }`
-
-   - In the UI, branch primarily on `success` and `error.code`, and surface user-friendly messages where appropriate.
-
-5. **Rate limiting / retries**
-
-   - Do not design automatic aggressive retry loops in the client.
-   - For login/signup flows, design UX to avoid rapid-fire retries (e.g. minimal debounce and error messages).
-
-
-# 8. Data model constraints (프론트에서 지켜야 할 것)
-
-`데이터베이스_설계서.md`에 정의된 제약사항을 전제로 한다. 프론트 코드는 아래 제약을 깨는 요청을 만들지 않아야 한다.
-
-1. **그룹 / 멤버**
-
-   - 한 그룹(`group_id`)에 한 사용자(`user_id`)는 한 번만 속할 수 있다.
-     - 예: `group_members` 테이블에 `UNIQUE(group_id, user_id)` 제약.
-   - UI에서 같은 학생·학부모를 동일 그룹에 중복 초대하는 흐름을 만들지 않는다.
-
-2. **출결 (`attendances`)**
-
-   - 한 일정(`schedule_id`) + 한 학생(`student_id`) 조합당 출결 레코드는 **1개만** 존재한다.
-   - 출결 화면에서는 같은 학생에 대해 여러 상태를 동시에 저장하지 말고,
-     - “출석/지각/결석/기타” 중 하나만 유지하는 토글/라디오 형태로 설계한다.
-
-3. **수업 기록 (`lesson_records`) & 진도 (`progress_records`)**
-
-   - 각 일정(schedule)에는 수업 기록이 최대 1개다.
-     - 이미 기록이 있는 일정에 대해서는 "새로 작성" 대신 "수정" 플로우를 사용한다.
-   - 진도(progress) 입력 시:
-     - `start_page > 0`,  
-       `end_page >= start_page`,  
-       `pages_covered > 0`  
-       조건을 깨는 페이지 범위를 보내지 않는다.
-
-4. **정산 (`payments`, `invoices`, `transactions`)**
-
-   - `payments`는 기간별 집계 데이터이며, 금액(`total_amount`) 계산은 서버에서 책임진다.
-   - 프론트는 금액 합계를 직접 계산해 DB 값과 불일치하는 숫자를 저장하려 하지 말고,
-     - 서버에서 내려준 합계값을 “단일 진실 소스(Single Source of Truth)”로 사용한다.
-
-
-# 9. Local test & quality checklist (MVP 기준)
-
-PR을 만들기 전에, Claude는 다음 항목을 만족하는 코드를 목표로 한다.
-
-1. **빌드/정적 검사**
-
-   - 해당 앱(web/mobile)의 `package.json`에서 관련 스크립트를 확인한 후,
-     - 가능하면 `npm run lint`, `npm test`, `npm run build` 중 적절한 것을 실행한다.
-   - 존재하지 않는 스크립트는 호출하지 않는다.
-
-2. **핵심 사용자 플로우 수동 테스트 (관련 기능을 건드렸다면)**
-
-   - F-001: 회원가입 → 로그인
-   - F-002: 그룹 생성 → 학생/학부모 초대
-   - F-003: 일정 생성/수정/삭제
-   - F-004: 출결 체크/조회
-   - F-005: 수업 기록 작성 및 진도 입력
-   - F-006: 정산 화면에서 수업 횟수와 금액 합계가 일관적인지 확인
-
-3. **반응형 (웹)**
-
-   - 최소 한 개의 모바일 너비(예: 375px)와 데스크톱 너비(예: 1280px)에서 레이아웃이 심각하게 깨지지 않는지 확인한다.
-
-4. **기초 접근성**
-
-   - 기본적인 폼 레이블, 버튼 명칭, 포커스 이동이 막히지 않도록 한다.
-   - 완전한 WCAG 준수까지는 요구하지 않지만, 명백히 사용하기 어려운 상태는 피한다.
-
-
-# 10. Work modes (작업 모드)
-
-새 기능을 시작할 때, 프롬프트에서 현재 모드를 명시할 수 있다.
-
-## 10.1 Prototype mode (프로토타입 모드)
-
-- 목적: 빠르게 화면 구조와 사용자 흐름을 확인하는 것.
-- 특징:
-  - UI 구조/컴포넌트 배치를 우선하고, 타입·에러 처리는 최소한만 구현한다.
-  - 더미 데이터(Mock)를 사용해 동작을 보여주되, API 호출부는 얇은 추상화 레이어만 만들어 둔다.
-  - 나중에 프로덕션 모드에서 정리할 TODO 주석을 명시한다.
-  - 코드 스타일/폴더 구조는 큰 틀만 맞추고, 세부 리팩터링은 이후 단계로 미룬다.
-
-## 10.2 Production mode (프로덕션 모드)
-
-- 목적: 즉시 병합 가능한 품질의 코드.
-- 특징:
-  - API 명세서에 정의된 타입과 응답 형태만 사용한다.
-  - 로딩/에러/빈 상태 UI를 모두 처리한다.
-  - 기존 폴더 구조와 코드 스타일을 우선 존중하고, 큰 리팩터링은 먼저 제안부터 한다.
-  - 위의 “로컬 테스트 체크리스트”를 만족시키는 것을 목표로 한다.
-  - PR 설명과 체크리스트를 함께 준비한다.
-
-
-# 11. Design and coding style
-
-1. Follow any visual and UX guidelines in the planning docs. If there is a separate design guide, prefer that over your own taste.
-2. If no explicit design guide exists, follow these default principles:
-
-   - Simple, readable layout.
-   - Clear hierarchy (titles, subtitles, body).
-   - Consistent spacing and typography.
-   - Responsive behavior for at least mobile and desktop.
-
-3. Languages:
-
-   - Explanations, summaries, and plans: **Korean**.
-   - Code (identifiers, file names, technical comments): **English**.
-
-4. Respect any existing ESLint/Prettier or formatting rules in the project as soon as they are available.
-
-
-# 12. Backend work mode (FastAPI)
-
-내가 프롬프트에서 **"백엔드 작업 모드"**라고 명시하면, 너는 백엔드 엔지니어 역할도 함께 수행한다.
-
-1. **대상 디렉터리**
-
-   - 실제 프로젝트 구조가 정해져 있다면, 먼저 백엔드 관련 폴더(예: `backend/`, `api/`, `app/` 등)를 탐색하고 구조를 요약한다.
-   - 구조가 애매하면, 인간에게 어느 폴더가 FastAPI 앱인지 물어본 뒤 작업을 진행한다.
-
-2. **기본 흐름**
-
-   1. 관련 F-xxx 문서, `API_명세서.md`, `데이터베이스_설계서.md`를 읽고 필요한 엔드포인트와 데이터 흐름을 정리한다.
-   2. FastAPI 라우터 경로, Request/Response 스키마(Pydantic)를 제안한다.
-   3. 가능한 경우, 먼저 pytest 기반 테스트(또는 기존 테스트 스타일에 맞는 테스트)를 작성하고, 그다음 구현을 추가한다.
-   4. 테스트를 실행해 실패를 확인하고, 모든 테스트가 통과할 때까지 구현을 수정한다.
-   5. 변경된 파일, 실행한 명령어(pytest 등), 남은 TODO를 요약한다.
-
-3. **Backend commands & tests (예시)**
-
-   실제 구조와 설정이 정해져 있다면, 다음과 유사한 명령을 사용한다.
-
-   - 로컬 서버 실행:
-     - `uvicorn app.main:app --reload`  
-       또는 프로젝트 문서에 정의된 명령어를 따른다.
-   - 테스트:
-     - 단위/통합 테스트: `pytest`
-     - 스타일/포맷: `ruff check .`, `black .` (존재하는 경우만 실행)
-   - 규칙:
-     - 새로운 엔드포인트를 추가할 때는 최소 1개 이상의 테스트 케이스를 함께 추가한다.
-     - 버그 수정 커밋에는 가능하면 회귀 테스트를 포함한다.
-
-4. **역할 분리**
-
-   - 프롬프트에서 명시가 없으면, 기본은 **프론트엔드 중심**으로 행동한다.
-   - 인간이 “이번에는 백엔드 작업 모드로 F-00x를 구현해 줘”라고 명확히 지시하면, 그때 백엔드 작업을 수행한다.
-   - 프론트와 백엔드 둘 다 수정이 필요한 경우, 가능한 한 **기능 단위(예: F-001)로 작은 단계**로 쪼개서 작업한다.
-
-
-# 13. Security and safety boundaries
-
-To avoid risky or disruptive operations:
-
-1. **Secrets and config**
-
-   - `.env` 실제 값, API 키, 비밀번호, 토큰 등의 민감 정보는 절대 코드나 커밋, 프롬프트에 직접 넣지 않는다.
-   - 예시는 항상 `.env.example` 또는 더미 값으로만 작성한다.
-   - 운영 환경 설정 값은 추측하거나 출력하지 말고, 필요하면 인간에게 “placeholder 이름”만 제안한다.
-
-2. **Destructive changes**
-
-   - Do not delete or rename many files at once. For any destructive or wide-ranging change:
-     - First explain what you want to do and why.
-     - Wait for explicit human approval.
-
-3. **Dependencies**
-
-   - Do not install new libraries, frameworks, or tools without explicit approval from the human, unless `기술스택_설계서.md` clearly instructs you to.
-   - When suggesting new dependencies, always explain:
-     - Why they are needed.
-     - What alternatives exist.
-     - Any impact on bundle size, performance, or complexity.
-
-4. **Scope**
-
-   - Stay within this repository. Do not assume control over other projects, systems, or services.
-   - When in doubt, ask instead of guessing silently. Always show your assumptions.
+- 엔진: PostgreSQL 15.x
+- 핵심 테이블(요약):
+  - `users`, `teachers`, `students`, `parents`
+  - `groups`, `group_members`, `invite_codes`
+  - `schedules`, `attendances`, `lesson_records`, `progress_records`
+  - `payments`, `invoices`, `transactions`
+  - `notifications`, `settings`, (필요 시) `login_history`
+- 관계 구조와 상세 스키마는 `데이터베이스_설계서.md`를 따른다.
+
+### 프론트엔드
+
+- 클라이언트:
+  - 모바일 앱: React Native
+  - 웹 앱: React 기반 SPA
+- 역할:
+  - F-001~F-008에서 정의한 화면/플로우/상태를 구현
+  - 모든 데이터는 백엔드 API를 통해 가져오며, 프론트엔드는 비즈니스 규칙을 새로 정의하지 않는다.
+
+(이 레포에서 실제로 어떤 클라이언트를 우선 구현할지는, 디렉터리 구조 또는 추가 설명에 따라 조정한다. 명시가 없으면 우선 “웹(React)용 관리 화면”을 기준으로 설계해도 된다.)
+
+---
+
+## 5. 개발 원칙 (Claude가 반드시 지켜야 할 규칙)
+
+1. **문서를 먼저 읽고 요약한 뒤 코드를 작성한다.**
+   - 단일 기능을 구현하더라도 관련 기능 명세서(F-00X), API, DB 문서를 먼저 읽고,
+   - “이 기능이 해결하려는 문제”와 “핵심 플로우”를 2~3줄로 정리한 뒤 구현을 시작한다.
+
+2. **기능 명세서의 “UI 요구사항”을 그대로 반영한다.**
+   - 화면 구성, 필수 버튼, 필드, 상태, 권한(누가 보고/누가 수정하는지)은 기능 명세서의 UI 요구사항 섹션을 최우선으로 따른다.
+   - 모호한 부분이 있으면 `01_문제_정의_및_목표_설정.md`의 페르소나·상황을 참고해 합리적인 기본값을 선택한다.
+
+3. **비즈니스 로직은 프론트엔드에서 새로 발명하지 않는다.**
+   - “어떤 값이 언제 생성/변경되는지”는 가능한 한 백엔드에서 책임진다.
+   - 프론트엔드는 입력·검증·표시·상태 관리에 집중하고, 핵심 규칙은 API 스펙과 DB 설계를 따른다.
+
+4. **API 명세와 DB 설계를 가능한 한 그대로 사용한다.**
+   - 새 엔드포인트를 만들기보다, `API_명세서.md`에 정의된 엔드포인트를 우선 사용한다.
+   - DB에 없는 필드/테이블을 임의로 만들지 말고, 필요하면:
+     - 우선 임시 필드나 TODO 주석으로 표시하고,
+     - “어떤 기능 때문에 어떤 필드/테이블이 필요해 보이는지”를 명시한다.
+
+5. **작은 단위로 작업하고, 각 단계마다 무엇을 했는지 설명한다.**
+   - “디렉터리 구조 설계 → 모델/스키마 정의 → API 라우트 구현 → 프론트엔드 화면/컴포넌트 구현 → 간단한 테스트” 순서를 권장한다.
+   - 한 번에 레포 전체를 갈아엎는 큰 변경보다, 기능 단위·화면 단위로 점진적으로 구현한다.
+
+6. **문서의 설계 원칙을 깨지 않는다.**
+   - 각 문서에 정의된 “중복 금지, 추상화 레벨, 영향 범위 최소화” 원칙을 존중한다.
+   - 예를 들어:
+     - 기능 명세서에 있는 내용을 API 문서에 중복 서술하지 말고, 필요한 경우 “참조”만 한다.
+     - DB 설계 내용을 기능 명세서에 다시 쓰려고 하지 않는다.
+
+---
+
+## 6. 기능별 구현 가이드
+
+각 기능을 구현할 때 Claude가 기본적으로 따라야 할 체크리스트를 정리한다.
+
+### F-001 회원가입 및 로그인
+
+- 참고 문서:
+  - `F-001_회원가입_및_로그인.md`
+  - `API_명세서.md`의 F-001 관련 섹션
+  - `데이터베이스_설계서.md`의 `users`, `teachers`, `students`, `parents` 테이블
+- 구현 목표:
+  - 이메일/비밀번호 기반 회원가입, 로그인, 로그아웃
+  - 역할(선생님/학부모/학생) 선택 및 저장
+  - 비밀번호 재설정(가능하면 토큰 기반 플로우까지 고려)
+- 주의점:
+  - 무차별 대입 공격 방지 (Rate Limiting, 잠금 정책 등)
+  - JWT 기반 인증 구조 및 토큰 저장 위치(클라이언트)
+
+### F-002 과외 그룹 생성 및 매칭
+
+- 참고 문서:
+  - `F-002_과외_그룹_생성_및_매칭.md`
+  - `API_명세서.md`의 F-002 관련 섹션
+  - `데이터베이스_설계서.md`의 `groups`, `group_members`, `invite_codes`
+- 구현 목표:
+  - 선생님이 과외 그룹 생성, 학생·학부모 초대/매칭
+  - 그룹 정보(과목, 학년, 요일/시간 등) 관리
+- 주의점:
+  - 권한(그룹 생성·수정은 선생님, 조회는 학생/학부모)
+  - 초대 코드/링크의 유효기간 및 상태 관리
+
+### F-003 수업 일정 관리
+
+- 참고 문서:
+  - `F-003_수업_일정_관리.md`
+  - 관련 API 및 DB의 `schedules`, `attendances` 등
+- 구현 목표:
+  - 정규 수업 일정 등록, 수정, 삭제
+  - 보강 수업 일정 관리
+  - 달력 뷰에서 수업 일정 시각화
+- 주의점:
+  - 반복 일정 규칙 처리
+  - 시간대, 휴일, 보강·결석 처리와의 연계
+
+### F-004 출결 관리
+
+- 참고 문서:
+  - `F-004_출결_관리.md`
+  - `attendances` 테이블
+- 구현 목표:
+  - 선생님의 출석/지각/결석/보강 표시 기능
+  - 학생·학부모는 조회만 가능
+- 주의점:
+  - 일정(F-003) 및 정산(F-006)과의 데이터 연계
+  - 상태 변경 히스토리가 필요한지 여부
+
+### F-005 수업 기록 및 진도 관리
+
+- 참고 문서:
+  - `F-005_수업_기록_및_진도_관리.md`
+  - `lesson_records`, `progress_records`, `textbooks`
+- 구현 목표:
+  - 수업별 요약, 진도, 숙제 기록
+  - 학부모·학생이 확인할 수 있는 뷰 제공
+- 주의점:
+  - 한 수업에서 여러 교재·진도 기록이 가능하다는 점 반영
+  - 나중에 검색/필터링을 고려한 데이터 구조 유지
+
+### F-006 수업료 정산
+
+- 참고 문서:
+  - `F-006_수업료_정산.md`
+  - `payments`, `invoices`, `transactions`
+  - 토스페이먼츠 관련 부분 (Webhook, 결제 상태)
+- 구현 목표:
+  - 수업 횟수·출결 정보를 바탕으로 한 자동 정산
+  - 청구서 생성, 결제 상태 조회
+- 주의점:
+  - 정산 로직의 소스 오브 트루스는 “출결 + 일정” 데이터
+  - 법적 보관 기간, 영수증/거래내역 보관 정책 반영
+
+### F-007 기본 프로필 및 설정
+
+- 참고 문서:
+  - `F-007_기본_프로필_및_설정.md`
+  - `users`, `settings`, (필요 시) `login_history`
+- 구현 목표:
+  - 사용자 기본 정보(이름, 연락처, 사진 등) 관리
+  - 언어, 알림, 보안 설정 등 환경 설정 화면
+- 주의점:
+  - “읽기 모드 / 수정 모드 분리” 등 UI 정책 준수
+  - 로그인 기록 조회 기능이 필요한 경우, DB 설계서의 `login_history` 테이블 정의를 따른다.
+
+### F-008 필수 알림 시스템
+
+- 참고 문서:
+  - `F-008_필수_알림_시스템.md`
+  - `notifications` 테이블
+- 구현 목표:
+  - 수업 일정, 보강, 숙제, 정산 등 핵심 이벤트에 대한 푸시 알림
+  - 알림 리스트 화면, 읽음 처리, on/off 설정
+- 주의점:
+  - MVP에서는 푸시 알림만, 간단한 on/off 수준의 설정만 지원 (고급 필터링은 제외)
+  - 알림 보관 기간(예: 90일 등)을 정책대로 적용
+
+---
+
+## 7. Claude Code에서의 작업 방식
+
+이 레포를 열고 작업할 때 Claude는 다음 절차를 따른다.
+
+1. **사용자의 요청에서 “어떤 기능(F-00X)”을 다루는지 먼저 파악한다.**
+2. 해당 기능의 기능 명세서(F-00X)와 관련 API/DB/문서를 읽고, 핵심 요구사항을 짧게 요약한다.
+3. 구현 범위를 명확히 나눈다.
+   - 예: “이번 작업에서는 F-003 중 ‘선생님용 수업 일정 등록/수정 화면 + 관련 API’까지만 구현”
+4. 필요한 경우 디렉터리 구조/파일 구조를 먼저 제안한다.
+5. 그다음 실제 코드를 작성한다.
+   - 백엔드: 모델/스키마 → 라우터 → 서비스 로직 → 간단한 테스트
+   - 프론트엔드: 페이지/스크린 → 재사용 가능한 컴포넌트 → 상태 관리 → API 연동
+6. 마지막에:
+   - 어떤 문서를 근거로 무엇을 구현했는지,
+   - 어떤 부분이 아직 TODO인지,
+   - 어떤 확장 포인트를 남겨두었는지 정리해서 설명한다.
