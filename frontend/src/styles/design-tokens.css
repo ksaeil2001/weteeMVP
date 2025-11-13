@@ -1,0 +1,127 @@
+/**
+ * Design Tokens - WeTee MVP
+ * Based on: UX_UI_설계서.md Section 6 (디자인 시스템)
+ *
+ * These CSS variables define the core design system tokens including:
+ * - Colors (Primary, Secondary, Neutral, Semantic)
+ * - Typography (Font sizes, weights, line heights)
+ * - Spacing (Based on 4pt grid)
+ * - Shadows (Elevation levels)
+ * - Border Radius
+ */
+
+:root {
+  /* ==================== Colors ==================== */
+
+  /* Primary Colors */
+  --color-primary-50: #E3F2FD;
+  --color-primary-100: #BBDEFB;
+  --color-primary-500: #007AFF;
+  --color-primary-700: #0056B3;
+  --color-primary-900: #003A75;
+
+  /* Secondary/Semantic Colors */
+  --color-success: #4CAF50;
+  --color-warning: #FFC107;
+  --color-error: #F44336;
+  --color-info: #2196F3;
+
+  /* Neutral/Gray Colors */
+  --color-gray-50: #FAFAFA;
+  --color-gray-100: #F5F5F5;
+  --color-gray-200: #EEEEEE;
+  --color-gray-400: #BDBDBD;
+  --color-gray-600: #757575;
+  --color-gray-900: #212121;
+
+  /* Background & Surface */
+  --color-background: #FFFFFF;
+  --color-surface: #FFFFFF;
+  --color-overlay: rgba(0, 0, 0, 0.5);
+
+  /* ==================== Typography ==================== */
+
+  /* Font Family - System fonts for web */
+  --font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+                       "Helvetica Neue", Arial, sans-serif;
+
+  /* Font Sizes */
+  --font-size-h1: 32px;
+  --font-size-h2: 24px;
+  --font-size-h3: 20px;
+  --font-size-body1: 16px;
+  --font-size-body2: 14px;
+  --font-size-caption: 12px;
+  --font-size-button: 16px;
+  --font-size-overline: 10px;
+
+  /* Font Weights */
+  --font-weight-regular: 400;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Line Heights */
+  --line-height-h1: 40px;
+  --line-height-h2: 32px;
+  --line-height-h3: 28px;
+  --line-height-body1: 24px;
+  --line-height-body2: 20px;
+  --line-height-caption: 16px;
+  --line-height-button: 24px;
+  --line-height-overline: 16px;
+
+  /* Text Colors */
+  --text-primary: var(--color-gray-900);
+  --text-secondary: var(--color-gray-600);
+  --text-disabled: var(--color-gray-400);
+  --text-error: var(--color-error);
+  --text-link: var(--color-primary-500);
+
+  /* ==================== Spacing ==================== */
+
+  /* Base unit: 4px */
+  --spacing-xs: 4px;
+  --spacing-s: 8px;
+  --spacing-m: 12px;
+  --spacing-l: 16px;
+  --spacing-xl: 24px;
+  --spacing-xxl: 32px;
+
+  /* Common usage */
+  --spacing-screen-padding: var(--spacing-l); /* 16px */
+  --spacing-card-padding: var(--spacing-l); /* 16px */
+  --spacing-section-gap: var(--spacing-xl); /* 24px */
+  --spacing-card-gap: var(--spacing-m); /* 12px */
+
+  /* ==================== Shadows (Elevation) ==================== */
+
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.12);
+  --shadow-2: 0 2px 8px rgba(0, 0, 0, 0.15);
+  --shadow-3: 0 4px 16px rgba(0, 0, 0, 0.18);
+  --shadow-4: 0 8px 24px rgba(0, 0, 0, 0.22);
+
+  /* ==================== Border Radius ==================== */
+
+  --radius-small: 4px;
+  --radius-medium: 8px;
+  --radius-large: 12px;
+  --radius-xlarge: 16px;
+  --radius-circle: 50%;
+
+  /* ==================== Layout ==================== */
+
+  /* Common heights */
+  --height-navbar: 56px;
+  --height-button: 56px;
+  --height-input: 48px;
+  --height-tab-bar: 56px;
+
+  /* Z-index layers */
+  --z-index-dropdown: 1000;
+  --z-index-sticky: 1020;
+  --z-index-fixed: 1030;
+  --z-index-modal-backdrop: 1040;
+  --z-index-modal: 1050;
+  --z-index-popover: 1060;
+  --z-index-tooltip: 1070;
+}
