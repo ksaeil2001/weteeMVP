@@ -6,33 +6,29 @@
  *
  * 너비: 240px (고정)
  *
- * TODO (Step 3-4):
- * - 역할별 메뉴 동적 렌더링 (선생님/학생/학부모)
+ * 변경 이력:
+ * - Step 2: 임시로 선생님 기준 메뉴만 하드코딩 (tempTeacherMenu)
+ * - Step 4: 역할별 메뉴 구성을 navigation.ts로 분리, useAuth 훅으로 동적 렌더링
+ *
+ * TODO (Step 5):
  * - Next.js Link 컴포넌트 연결
  * - 현재 활성 메뉴 하이라이트
- * - 아이콘 추가 (SF Symbols/Material Icons)
- *
- * 현재: 임시로 선생님 기준 메뉴만 하드코딩
+ * - 아이콘을 이모지에서 아이콘 라이브러리로 교체
+ * - 메뉴 뱃지 (읽지 않은 알림 개수 등)
  */
 
+'use client';
+
 import React from 'react';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { getNavigationByRole } from '@/config/navigation';
 
 export const Sidebar: React.FC = () => {
-  // TODO (Step 3-4): 역할별 메뉴 구성
-  // 선생님: home, groups, schedule, attendance, lessons, payments, notifications, settings
-  // 학생: home, schedule, lessons, notifications, settings
-  // 학부모: home, schedule, payments, notifications, settings
+  // Step 4: useAuth 훅으로 현재 사용자 역할 가져오기
+  const { currentRole } = useAuth();
 
-  const tempTeacherMenu = [
-    { id: 'home', label: '홈', icon: '🏠', path: '/dashboard' },
-    { id: 'groups', label: '그룹 관리', icon: '👥', path: '/groups' },
-    { id: 'schedule', label: '수업 일정', icon: '📅', path: '/schedule' },
-    { id: 'attendance', label: '출결 관리', icon: '✅', path: '/attendance' },
-    { id: 'lessons', label: '수업 기록', icon: '📝', path: '/lessons' },
-    { id: 'payments', label: '정산', icon: '💰', path: '/payments' },
-    { id: 'notifications', label: '알림', icon: '🔔', path: '/notifications' },
-    { id: 'settings', label: '설정', icon: '⚙️', path: '/settings' },
-  ];
+  // Step 4: 역할에 따른 메뉴 동적 선택
+  const menuItems = getNavigationByRole(currentRole);
 
   return (
     <aside
@@ -41,12 +37,13 @@ export const Sidebar: React.FC = () => {
     >
       <nav className="p-4">
         <ul className="space-y-1">
-          {tempTeacherMenu.map((item) => (
+          {menuItems.map((item) => (
             <li key={item.id}>
-              {/* TODO (Step 3-4): Replace with Next.js Link component */}
+              {/* TODO (Step 5): Replace with Next.js Link component */}
               <button
                 type="button"
                 className="w-full text-left px-4 py-3 rounded-lg hover:bg-white hover:shadow-sm transition-all flex items-center gap-3"
+                title={item.description}
               >
                 <span className="text-xl">{item.icon}</span>
                 <span className="text-sm font-medium text-gray-700">

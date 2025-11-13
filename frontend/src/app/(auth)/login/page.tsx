@@ -2,28 +2,50 @@
  * Login Page - WeTee MVP (임시)
  * Screen: S-003 (로그인 화면)
  *
- * Step 3 테스트용 임시 로그인 페이지
+ * 변경 이력:
+ * - Step 3: Route Guard 테스트용 임시 페이지 (쿠키만 설정)
+ * - Step 4: useAuth 훅으로 authStore에 가짜 사용자 정보 세팅 추가
+ *
  * TODO (Step 5): 실제 로그인 UI 구현 (UX_UI_설계서.md Section 4.2 참조)
  * TODO: 이메일/비밀번호 입력 폼
- * TODO: 소셜 로그인 버튼
+ * TODO: 소셜 로그인 버튼 (구글, 카카오)
  * TODO: 회원가입 링크
  * TODO: 비밀번호 찾기 링크
+ * TODO: 실제 로그인 API 연동 시 handleTestLogin을 실제 API 호출로 교체
  */
 
 'use client';
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
 
-  // 테스트용 가짜 로그인 (쿠키 설정)
+  // 테스트용 가짜 로그인
+  // TODO: 실제 로그인 API 연동 시 이 부분을 교체
   const handleTestLogin = () => {
-    // 쿠키에 임시 토큰 설정 (1일 유효)
+    // Step 4: authStore에 가짜 사용자 정보 세팅
+    const dummyToken = 'dummy_token_for_testing';
+    const dummyUser = {
+      id: 'demo-teacher-1',
+      email: 'demo-teacher@example.com',
+      name: '데모 선생님',
+      role: 'teacher' as const,
+      profileImage: undefined,
+      phoneNumber: '010-1234-5678',
+      createdAt: new Date().toISOString(),
+    };
+
+    // authStore에 로그인 정보 저장
+    login(dummyToken, dummyUser);
+
+    // 쿠키에도 임시 토큰 설정 (1일 유효)
     const expires = new Date();
     expires.setDate(expires.getDate() + 1);
-    document.cookie = `wetee_access_token=dummy_token_for_testing; expires=${expires.toUTCString()}; path=/`;
+    document.cookie = `wetee_access_token=${dummyToken}; expires=${expires.toUTCString()}; path=/`;
 
     // 메인 페이지로 이동
     router.push('/');
