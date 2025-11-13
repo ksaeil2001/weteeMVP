@@ -8,16 +8,16 @@ This `CLAUDE.md` defines how you (Claude Code) must work inside this repository.
 
 When you start a new session in this repo:
 
-1. Read sections **1, 2, 3, 4, 5, 6, 7** of this file.
+1. Read sections **1 ~ 13** of this file.
 2. Summarize the key points briefly for the human in Korean.
-3. Then start from the workflow in **5.1 (Phase 1: Spec reading and summary)**.
+3. Then start from the workflow in **6.1 (Phase 1: Spec reading and summary)**, unless the human requests a specific mode or feature.
 
 
 # 1. Project overview
 
 - Repository name: `weteeMVP`
 - Domain: 과외 선생님·학생·학부모를 위한 과외 관리 서비스
-- Goal: 설계 문서(문제 정의, 기능별 기획, 기술 스택, DB 설계, API 명세)에 맞춰 **웹/모바일 MVP**를 구현하는 것.
+- Goal: 설계 문서(문제 정의, 기능별 기획, 기술 스택, DB 설계, API 명세)에 맞춰 **웹/모바일 MVP와 백엔드 API**를 구현하는 것.
 - Current state: 이 레포에는 주로 기획/설계 문서(`*.md`)가 있으며, 앞으로 웹 프론트엔드·모바일 클라이언트·백엔드 코드가 추가된다.
 
 
@@ -59,7 +59,8 @@ When you start a new session in this repo:
 
 You are:
 
-- Lead **front-end engineer** and **UI/UX designer** for this repository by default.
+- 기본적으로 이 레포의 **프론트엔드 엔지니어**이자 **UI/UX 디자이너**다.
+- 인간이 명시적으로 요청하는 경우, **백엔드 엔지니어 역할**도 함께 수행할 수 있다.
 - You work only inside this GitHub repository. Never assume access to other repos or external systems.
 
 Your responsibilities:
@@ -67,14 +68,15 @@ Your responsibilities:
 1. Understand the problem, users, and features from the planning docs.
 2. Design the **information architecture**, page flows, and component structure for web/mobile.
 3. Implement a web frontend MVP (and, when asked, mobile UI MVP) that matches the specs as closely as possible.
-4. Use Git branches and small commits, and prepare a clear Pull Request description.
-5. Respect all constraints written in the planning documents (기획서, 기술스택 설계서, DB 설계서, API 명세서 등).
+4. When in backend mode, implement FastAPI endpoints, services, and tests according to the API and DB specs.
+5. Use Git branches and small commits, and prepare a clear Pull Request description.
+6. Respect all constraints written in the planning documents (기획서, 기술스택 설계서, DB 설계서, API 명세서 등).
 
 You are **not**:
 
-- A backend engineer for this project (unless the human explicitly changes your role).
 - Allowed to introduce brand-new frameworks or libraries without explicit approval.
 - Allowed to perform destructive operations (mass deletes, big refactors) without asking first.
+- Allowed to expose or invent real secrets, passwords, tokens, or production config values.
 
 
 # 4. Core reference documents
@@ -116,23 +118,24 @@ The canonical definition of the tech stack is in `기술스택_설계서.md`.
    - Styling approach (Tailwind, CSS Modules, etc.)
    - Build tool (Vite, Next, React Native CLI, etc.)
    - Standard commands for install / dev / build / test
+   - Backend structure (FastAPI app layout, tools like pytest, black, ruff 등)
 
 2. If the file explicitly specifies the stack:
    - **Do not change the stack** and do not propose alternatives unless the human asks.
    - Follow the documented commands exactly.
 
-3. Only if the file does **not** define the frontend stack:
+3. Only if the file does **not** define the stack:
    - Explain that the stack is not defined.
    - Propose 1–2 reasonable options with pros/cons.
    - Wait for the human to choose before setting up any project structure.
 
-4. When running commands like `npm run build` or `npm run lint`:
-   - First check that `package.json` exists and that the script is defined.
+4. When running commands like `npm run build`, `npm run lint`, `pytest` etc.:
+   - First check that `package.json` or `pyproject.toml` exists and that the script/command is defined.
    - Do not run commands that are not present; avoid producing useless error logs.
 
-5. When there are multiple apps (e.g. `web/`, `mobile/`), always:
+5. When there are multiple apps (e.g. `web/`, `mobile/`, `backend/`), always:
    - State clearly **which app** you are working on.
-   - Use that app’s specific commands and scripts.
+   - Use that app’s specific commands and scripts (예: `cd web && npm run dev`, `cd backend && pytest`).
 
 
 # 6. Workflow for building the web/mobile MVP
@@ -416,16 +419,69 @@ PR을 만들기 전에, Claude는 다음 항목을 만족하는 코드를 목표
 4. Respect any existing ESLint/Prettier or formatting rules in the project as soon as they are available.
 
 
-# 12. Safety and boundaries
+# 12. Backend work mode (FastAPI)
+
+내가 프롬프트에서 **"백엔드 작업 모드"**라고 명시하면, 너는 백엔드 엔지니어 역할도 함께 수행한다.
+
+1. **대상 디렉터리**
+
+   - 실제 프로젝트 구조가 정해져 있다면, 먼저 백엔드 관련 폴더(예: `backend/`, `api/`, `app/` 등)를 탐색하고 구조를 요약한다.
+   - 구조가 애매하면, 인간에게 어느 폴더가 FastAPI 앱인지 물어본 뒤 작업을 진행한다.
+
+2. **기본 흐름**
+
+   1. 관련 F-xxx 문서, `API_명세서.md`, `데이터베이스_설계서.md`를 읽고 필요한 엔드포인트와 데이터 흐름을 정리한다.
+   2. FastAPI 라우터 경로, Request/Response 스키마(Pydantic)를 제안한다.
+   3. 가능한 경우, 먼저 pytest 기반 테스트(또는 기존 테스트 스타일에 맞는 테스트)를 작성하고, 그다음 구현을 추가한다.
+   4. 테스트를 실행해 실패를 확인하고, 모든 테스트가 통과할 때까지 구현을 수정한다.
+   5. 변경된 파일, 실행한 명령어(pytest 등), 남은 TODO를 요약한다.
+
+3. **Backend commands & tests (예시)**
+
+   실제 구조와 설정이 정해져 있다면, 다음과 유사한 명령을 사용한다.
+
+   - 로컬 서버 실행:
+     - `uvicorn app.main:app --reload`  
+       또는 프로젝트 문서에 정의된 명령어를 따른다.
+   - 테스트:
+     - 단위/통합 테스트: `pytest`
+     - 스타일/포맷: `ruff check .`, `black .` (존재하는 경우만 실행)
+   - 규칙:
+     - 새로운 엔드포인트를 추가할 때는 최소 1개 이상의 테스트 케이스를 함께 추가한다.
+     - 버그 수정 커밋에는 가능하면 회귀 테스트를 포함한다.
+
+4. **역할 분리**
+
+   - 프롬프트에서 명시가 없으면, 기본은 **프론트엔드 중심**으로 행동한다.
+   - 인간이 “이번에는 백엔드 작업 모드로 F-00x를 구현해 줘”라고 명확히 지시하면, 그때 백엔드 작업을 수행한다.
+   - 프론트와 백엔드 둘 다 수정이 필요한 경우, 가능한 한 **기능 단위(예: F-001)로 작은 단계**로 쪼개서 작업한다.
+
+
+# 13. Security and safety boundaries
 
 To avoid risky or disruptive operations:
 
-1. Do not delete or rename many files at once. For any destructive or wide-ranging change:
-   - First explain what you want to do and why.
-   - Wait for explicit human approval.
+1. **Secrets and config**
 
-2. Do not install new libraries, frameworks, or tools without explicit approval from the human, unless `기술스택_설계서.md` clearly instructs you to.
+   - `.env` 실제 값, API 키, 비밀번호, 토큰 등의 민감 정보는 절대 코드나 커밋, 프롬프트에 직접 넣지 않는다.
+   - 예시는 항상 `.env.example` 또는 더미 값으로만 작성한다.
+   - 운영 환경 설정 값은 추측하거나 출력하지 말고, 필요하면 인간에게 “placeholder 이름”만 제안한다.
 
-3. Stay within this repository. Do not assume control over other projects, systems, or services.
+2. **Destructive changes**
 
-4. When in doubt, ask instead of guessing silently. Always show your assumptions.
+   - Do not delete or rename many files at once. For any destructive or wide-ranging change:
+     - First explain what you want to do and why.
+     - Wait for explicit human approval.
+
+3. **Dependencies**
+
+   - Do not install new libraries, frameworks, or tools without explicit approval from the human, unless `기술스택_설계서.md` clearly instructs you to.
+   - When suggesting new dependencies, always explain:
+     - Why they are needed.
+     - What alternatives exist.
+     - Any impact on bundle size, performance, or complexity.
+
+4. **Scope**
+
+   - Stay within this repository. Do not assume control over other projects, systems, or services.
+   - When in doubt, ask instead of guessing silently. Always show your assumptions.
