@@ -35,9 +35,11 @@ import { refreshAccessToken } from '@/lib/authApi';
 /**
  * 토큰 저장 키 상수
  * Step 14: 토큰 키 이름 중앙 관리
+ * Step 14.1: User 정보 저장 키 추가 (hydration 지원)
  */
 const WETEE_ACCESS_TOKEN_KEY = 'wetee_access_token';
 const WETEE_REFRESH_TOKEN_KEY = 'wetee_refresh_token';
+const WETEE_USER_KEY = 'wetee_user'; // User 정보 저장 키
 const WETEE_TOKEN_EXPIRES_DAYS = 1; // Access Token 쿠키 유효기간 (일)
 
 /**
@@ -120,6 +122,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // TODO: httpOnly 쿠키 또는 보안 스토리지로 변경 고려
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(WETEE_REFRESH_TOKEN_KEY, refreshToken);
+      // Step 14.1: User 정보도 localStorage에 저장 (페이지 새로고침 시 복원용)
+      window.localStorage.setItem(WETEE_USER_KEY, JSON.stringify(user));
     }
   },
 
@@ -152,10 +156,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   /**
    * 로그아웃 시 모든 인증 정보 삭제
    * Step 14: 클라이언트에서만 처리하는 로그아웃
+   * Step 14.1: User 정보 localStorage 삭제 추가
    *
    * - Zustand 상태 초기화
    * - Access Token 쿠키 제거
    * - Refresh Token localStorage 제거
+   * - User 정보 localStorage 제거
    * - 재호출 안전성: 여러 번 호출해도 에러 없이 동작
    *
    * 주의: 서버 API 호출 없이 클라이언트에서만 토큰 정리
@@ -173,9 +179,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       document.cookie = `${WETEE_ACCESS_TOKEN_KEY}=; Max-Age=0; path=/`;
     }
 
-    // Refresh Token localStorage 제거
+    // Refresh Token & User 정보 localStorage 제거
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(WETEE_REFRESH_TOKEN_KEY);
+      window.localStorage.removeItem(WETEE_USER_KEY);
     }
 
     // accessTokenProvider에서 토큰이 더 이상 제공되지 않도록 상태 반영 완료
@@ -272,6 +279,54 @@ setAccessTokenProvider(() => {
   const state = useAuthStore.getState();
   return state.accessToken ?? null;
 });
+
+/**
+ * 페이지 로드 시 인증 상태 복원 (Hydration)
+ * Step 14.1: localStorage에서 토큰과 사용자 정보 복원
+ *
+ * - 쿠키에 accessToken이 있고
+ * - localStorage에 refreshToken과 user 정보가 있으면
+ * - Zustand 상태를 복원
+ *
+ * 주의: 클라이언트에서만 실행 (SSR 시 window 없음)
+ */
+if (typeof window !== 'undefined') {
+  const hydrateAuthState = () => {
+    try {
+      // 쿠키에서 accessToken 읽기
+      const cookieAccessToken = document.cookie
+        .split('; ')
+        .find((row) => row.startsWith(`${WETEE_ACCESS_TOKEN_KEY}=`))
+        ?.split('=')[1];
+
+      // localStorage에서 refreshToken과 user 읽기
+      const storedRefreshToken = window.localStorage.getItem(WETEE_REFRESH_TOKEN_KEY);
+      const storedUserStr = window.localStorage.getItem(WETEE_USER_KEY);
+
+      // 모든 정보가 있을 때만 복원
+      if (cookieAccessToken && storedRefreshToken && storedUserStr) {
+        const storedUser = JSON.parse(storedUserStr) as User;
+
+        useAuthStore.setState({
+          accessToken: cookieAccessToken,
+          refreshToken: storedRefreshToken,
+          user: storedUser,
+        });
+
+        console.log('[Auth Hydration] 인증 상태 복원 완료:', storedUser.email);
+      } else {
+        console.log('[Auth Hydration] 복원할 인증 정보 없음 (비로그인 상태)');
+      }
+    } catch (error) {
+      console.error('[Auth Hydration] 인증 상태 복원 실패:', error);
+      // 복원 실패 시 안전하게 로그아웃 처리
+      useAuthStore.getState().logout();
+    }
+  };
+
+  // 즉시 실행
+  hydrateAuthState();
+}
 
 /**
  * useAuth 훅 반환 타입
