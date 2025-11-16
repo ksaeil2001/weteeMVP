@@ -349,6 +349,109 @@ curl -X GET http://localhost:8000/api/v1/auth/account
 
 ---
 
+## 🔧 Troubleshooting
+
+### 1. DB 스키마 에러 (sqlite3.OperationalError: no such column)
+
+**문제:** 로그인/회원가입 시 "no such column: users.password_hash" 에러 발생
+
+**원인:** 기존 DB 파일이 이전 스키마로 생성되었거나 손상됨
+
+**해결책:**
+```bash
+cd /home/user/weteeMVP/backend
+
+# 1. 기존 DB 백업 (선택사항)
+cp wetee.db wetee.db.backup_$(date +%Y%m%d_%H%M%S)
+
+# 2. 기존 DB 삭제
+rm wetee.db
+
+# 3. 서버 재시작 (새 DB 자동 생성)
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Windows PowerShell:**
+```powershell
+# backend 디렉터리로 이동
+cd C:\Users\ksaei\Projects\weteeMVP\backend
+
+# 가상환경 활성화
+.\.venv\Scripts\activate
+
+# 기존 DB 삭제
+del .\wetee.db
+
+# 서버 재시작
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### 2. bcrypt 관련 에러 (ValueError: password cannot be longer than 72 bytes)
+
+**문제:** 회원가입/로그인 시 bcrypt 72바이트 제한 에러 발생
+
+**원인:** bcrypt 5.x 버전과 passlib 호환성 문제
+
+**해결책:**
+```bash
+# bcrypt 다운그레이드
+pip uninstall -y bcrypt
+pip install 'bcrypt>=4.0.0,<5.0.0'
+
+# 서버 재시작
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### 3. 서버 실행 표준 명령어
+
+**공식 표준 실행 방법:**
+
+```bash
+cd /home/user/weteeMVP/backend
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Windows PowerShell 표준 실행 방법:**
+
+```powershell
+# backend 디렉터리로 이동
+PS C:\Users\ksaei\Projects\weteeMVP> cd backend
+
+# 가상환경 활성화
+PS C:\Users\ksaei\Projects\weteeMVP\backend> .\.venv\Scripts\activate
+
+# 서버 실행
+PS C:\Users\ksaei\Projects\weteeMVP\backend> python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**주의사항:**
+- ❌ `backend/main.py`는 삭제되었습니다. 사용하지 마세요.
+- ✅ `backend/app/main.py`가 공식 엔트리포인트입니다.
+- 항상 `python -m uvicorn app.main:app` 형식으로 실행하세요.
+
+### 4. DB 스키마 확인 방법
+
+```bash
+cd /home/user/weteeMVP/backend
+
+# SQLite DB 스키마 확인
+python3 << 'EOF'
+import sqlite3
+conn = sqlite3.connect('wetee.db')
+cur = conn.cursor()
+print("=== Users Table Schema ===\n")
+print(f"{'Column Name':<25} {'Type':<20} {'Not Null':<10}")
+print("-" * 60)
+for row in cur.execute('PRAGMA table_info(users)'):
+    cid, name, dtype, notnull, default_val, pk = row
+    notnull_str = "NOT NULL" if notnull else ""
+    print(f"{name:<25} {dtype:<20} {notnull_str:<10}")
+conn.close()
+EOF
+```
+
+---
+
 ## 📧 문의
 
 구현 관련 질문이나 이슈가 있으면 Claude Code에 문의하세요.
