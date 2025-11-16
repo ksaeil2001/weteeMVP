@@ -127,16 +127,30 @@ export async function apiRequest<T>(
   });
 
   // JSON 파싱 시도 (실패하면 null)
-  const json = await response.json().catch(() => null);
+  let json: any = null;
+  try {
+    json = await response.json();
+  } catch (parseError) {
+    // JSON 파싱 실패 → 서버가 HTML 에러 페이지를 반환했을 가능성
+    if (!response.ok) {
+      const err: ApiError = new Error(
+        `서버 오류가 발생했습니다 (HTTP ${response.status})`,
+      );
+      err.status = response.status;
+      err.code = `HTTP_${response.status}`;
+      throw err;
+    }
+  }
 
   // 공통 응답 구조: { success: boolean, data, error, meta }
   // success가 false이거나 HTTP 상태가 오류인 경우 에러 발생
   if (!response.ok || !json?.success) {
     const err: ApiError = new Error(
-      json?.error?.message ?? '요청 처리 중 오류가 발생했습니다.',
+      json?.error?.message ??
+        `요청 처리 중 오류가 발생했습니다 (HTTP ${response.status})`,
     );
     err.status = response.status;
-    err.code = json?.error?.code;
+    err.code = json?.error?.code ?? `HTTP_${response.status}`;
     err.details = json?.error?.details;
     throw err;
   }

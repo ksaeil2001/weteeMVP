@@ -57,22 +57,12 @@ import type {
 export async function loginWithEmail(
   payload: LoginRequestPayload,
 ): Promise<LoginResponseData> {
-  // deviceInfo가 없으면 기본 값 보완
-  const deviceInfo = payload.deviceInfo ?? {
-    deviceType: 'web',
-    os: typeof window !== 'undefined' ? navigator.platform : 'web',
-    appVersion: 'web-1.0.0',
-  };
-
-  // 백엔드 API 요청 형식 (snake_case)으로 변환
+  // 백엔드 API 요청 형식
+  // MVP 1단계에서는 email/password만 전송 (F-001 기준)
+  // device_info는 백엔드 LoginRequest 스키마에 정의되지 않았으므로 제거
   const requestBody = {
     email: payload.email,
     password: payload.password,
-    device_info: {
-      device_type: deviceInfo.deviceType,
-      os: deviceInfo.os,
-      app_version: deviceInfo.appVersion,
-    },
   };
 
   // API 호출
