@@ -9,9 +9,10 @@
  * - Step 4: useAuth 훅으로 authStore에 가짜 사용자 정보 세팅 추가
  * - Step 5: 실제 서비스용 로그인 UI 구현 (이메일/비밀번호 입력, 회원가입 링크)
  * - Step 11: F-001 로그인 API 연동 (POST /api/v1/auth/login)
+ * - Step 13: login 시그니처 변경 (토큰 저장 책임 useAuth로 위임), 쿠키 직접 설정 제거
  *
  * TODO (향후):
- * - 토큰 저장 및 자동 재발급 로직 개선 (Step 13~14)
+ * - 토큰 자동 재발급 로직 (401/403 응답 시 자동 갱신)
  * - 소셜 로그인 버튼 (구글, 카카오)
  * - 비밀번호 찾기 기능
  * - 이메일 형식 검증 강화
@@ -38,6 +39,7 @@ export default function LoginPage() {
   /**
    * 로그인 폼 제출 핸들러
    * Step 11: 실제 로그인 API 연동
+   * Step 13: login 시그니처 변경 및 토큰 저장 책임 useAuth로 위임
    */
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,32 +47,31 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Step 11: 실제 로그인 API 호출
+      // 로그인 API 호출
       const result = await loginWithEmail({
         email,
         password,
         // deviceInfo는 생략 시 authApi에서 기본값을 채움
       });
 
-      // TODO Step 13~14: 이후 accessToken/refreshToken 저장 로직 개선 예정
-      // 현재는 우선 기존 dummy 로그인 로직을 API 성공 이후에만 실행
-
-      // authStore에 로그인 정보 저장
-      login(result.accessToken, {
-        id: result.user.userId,
-        email: result.user.email,
-        name: result.user.name,
-        role: result.user.role.toLowerCase() as 'teacher' | 'student' | 'parent',
-        profileImage: undefined,
-        phoneNumber: undefined,
-        createdAt: new Date().toISOString(),
+      // Step 13: login 시그니처 변경 (accessToken, refreshToken, user 모두 전달)
+      // 토큰 저장(쿠키, localStorage)은 useAuth.login 내부에서 처리
+      login({
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        user: {
+          id: result.user.userId,
+          email: result.user.email,
+          name: result.user.name,
+          role: result.user.role.toLowerCase() as
+            | 'teacher'
+            | 'student'
+            | 'parent',
+          profileImage: undefined,
+          phoneNumber: undefined,
+          createdAt: new Date().toISOString(),
+        },
       });
-
-      // 쿠키에도 토큰 설정 (1일 유효)
-      // TODO Step 13~14: refresh token 관리 및 자동 갱신 로직 추가
-      const expires = new Date();
-      expires.setDate(expires.getDate() + 1);
-      document.cookie = `wetee_access_token=${result.accessToken}; expires=${expires.toUTCString()}; path=/`;
 
       // 메인 페이지로 이동
       router.push('/');
@@ -186,23 +187,28 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* 개발자용 안내 (Step 11 업데이트) */}
+        {/* 개발자용 안내 (Step 13 업데이트) */}
         <details className="text-center">
           <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
             개발자 테스트 안내
           </summary>
           <div className="mt-2 p-3 bg-gray-50 rounded text-xs text-gray-600 text-left">
             <p className="mb-2">
-              <strong>현재 상태:</strong> Step 11 - 로그인 API 연동 완료
+              <strong>현재 상태:</strong> Step 13 - 토큰 저장/갱신 및
+              Authorization 헤더 자동 첨부 완료
             </p>
             <p className="mb-2">
-              실제 백엔드 API (POST /api/v1/auth/login)를 호출합니다.
+              - 실제 백엔드 API (POST /api/v1/auth/login)를 호출합니다.
             </p>
             <p className="mb-2">
-              백엔드가 실행 중이지 않으면 네트워크 에러가 발생합니다.
+              - accessToken/refreshToken을 쿠키와 localStorage에 자동 저장합니다.
+            </p>
+            <p className="mb-2">
+              - 이후 모든 API 호출에 Authorization 헤더가 자동으로 첨부됩니다.
             </p>
             <p>
-              <strong>다음 단계:</strong> 토큰 저장/갱신, 회원가입, 비밀번호 재설정 (Step 13~14)
+              <strong>다음 단계:</strong> 토큰 자동 갱신 (401 응답 시),
+              비밀번호 재설정
             </p>
           </div>
         </details>

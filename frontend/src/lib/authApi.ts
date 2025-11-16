@@ -1,17 +1,16 @@
 /**
  * Auth API Module
- * Step 11-12: Auth API 모듈 (로그인 & 회원가입 연동)
+ * Step 11-13: Auth API 모듈 (로그인, 회원가입, 토큰 갱신)
  *
  * 역할:
- * - 인증 관련 API 호출(로그인, 회원가입)을 담당하는 모듈
+ * - 인증 관련 API 호출(로그인, 회원가입, 토큰 갱신)을 담당하는 모듈
  * - 컴포넌트에서 직접 fetch를 호출하지 않고, authApi를 통해서만 인증 API를 부르는 구조
  *
  * 관련 문서:
  * - F-001_회원가입_및_로그인.md
  * - API_명세서.md - F-001 섹션
  *
- * TODO: 토큰 갱신, 로그아웃, 비밀번호 재설정 등으로 확장 예정
- * - refreshAccessToken: 토큰 갱신 (POST /api/v1/auth/refresh)
+ * TODO: 로그아웃, 비밀번호 재설정 등으로 확장 예정
  * - logout: 로그아웃 (POST /api/v1/auth/logout)
  * - requestPasswordReset: 비밀번호 재설정 요청
  * - confirmPasswordReset: 비밀번호 재설정 확인
@@ -25,6 +24,8 @@ import type {
   LoginResponseData,
   RegisterRequestPayload,
   RegisterResponseData,
+  RefreshTokenRequestPayload,
+  RefreshTokenResponseData,
 } from '@/types/auth';
 
 /**
@@ -176,6 +177,59 @@ export async function registerWithEmail(
     name: responseData.name,
     role: responseData.role.toUpperCase() as 'TEACHER' | 'STUDENT' | 'PARENT',
     emailVerified: responseData.email_verified,
+  };
+
+  return result;
+}
+
+/**
+ * 토큰 갱신 API 호출
+ *
+ * @param payload refreshToken 기반 토큰 갱신 요청 페이로드
+ * @returns 갱신된 accessToken / refreshToken 쌍
+ *
+ * @throws {ApiError} 갱신 실패 시 에러 발생
+ * - 401/403: 리프레시 토큰 만료/무효
+ * - 기타 네트워크/서버 에러
+ *
+ * @example
+ * ```ts
+ * try {
+ *   const result = await refreshAccessToken({
+ *     refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+ *   });
+ *   console.log(result.accessToken); // 새로운 Access Token
+ *   console.log(result.refreshToken); // 새로운 Refresh Token
+ * } catch (error) {
+ *   const err = error as ApiError;
+ *   if (err.status === 401 || err.status === 403) {
+ *     // 리프레시 토큰 만료 → 재로그인 필요
+ *     alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+ *   }
+ * }
+ * ```
+ */
+export async function refreshAccessToken(
+  payload: RefreshTokenRequestPayload,
+): Promise<RefreshTokenResponseData> {
+  // 백엔드 API 요청 형식 (snake_case)으로 변환
+  const requestBody = {
+    refresh_token: payload.refreshToken,
+  };
+
+  // API 호출
+  const responseData = await apiRequest<{
+    access_token: string;
+    refresh_token: string;
+  }>('/auth/refresh', {
+    method: 'POST',
+    body: JSON.stringify(requestBody),
+  });
+
+  // snake_case → camelCase 변환
+  const result: RefreshTokenResponseData = {
+    accessToken: responseData.access_token,
+    refreshToken: responseData.refresh_token,
   };
 
   return result;
