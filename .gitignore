@@ -1,0 +1,51 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# =====================
+# backend (Python)
+/backend/.venv/          # 백엔드용 가상환경
+/backend/venv/
+/backend/env/
+
+__pycache__/             # 파이썬 캐시 폴더 전체
+*.py[cod]                # 컴파일된 파이썬 바이트코드
+/backend/.pytest_cache/  # pytest 캐시
+/backend/.mypy_cache/    # mypy 캐시
+
+# backend env files
+/backend/.env
+/backend/.env.*
