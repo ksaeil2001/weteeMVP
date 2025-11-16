@@ -137,13 +137,13 @@ export default function NotificationsPage() {
 
       {/* 섹션 2: 필터 탭 (목업 - 현재는 UI만) */}
       <div className="flex items-center gap-2">
-        <button className="px-3 py-1.5 text-sm rounded-full bg-primary-600 text-white font-medium">
+        <button className="px-3 py-1.5 text-sm rounded-full bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors">
           전체
         </button>
-        <button className="px-3 py-1.5 text-sm rounded-full bg-gray-100 text-gray-700">
+        <button className="px-3 py-1.5 text-sm rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors">
           읽지 않음
         </button>
-        <button className="px-3 py-1.5 text-sm rounded-full bg-gray-100 text-gray-700">
+        <button className="px-3 py-1.5 text-sm rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors">
           읽음
         </button>
       </div>
