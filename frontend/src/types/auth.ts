@@ -1,0 +1,91 @@
+/**
+ * Auth Type Definitions
+ * Step 11: 인증(Auth) 관련 타입 기본 정의
+ *
+ * 역할:
+ * - F-001(회원가입 및 로그인) API 연동을 위한 공통 타입 정의
+ * - 로그인 요청/응답, 사용자 정보 타입 등 프론트엔드에서 재사용되는 타입의 단일 소스
+ *
+ * 관련 문서:
+ * - F-001_회원가입_및_로그인.md
+ * - API_명세서.md - F-001 섹션
+ *
+ * TODO: 추후 회원가입, 토큰 갱신, 비밀번호 재설정 등 F-001 전체 플로우로 확장 예정
+ * - RegisterRequestPayload / RegisterResponseData
+ * - RefreshTokenRequest / RefreshTokenResponse
+ * - PasswordResetRequest / PasswordResetConfirmPayload
+ * - AuthErrorShape (code, message 등)
+ */
+
+/**
+ * 사용자 역할 코드
+ * - TEACHER: 선생님
+ * - STUDENT: 학생
+ * - PARENT: 학부모
+ */
+export type UserRoleCode = 'TEACHER' | 'STUDENT' | 'PARENT';
+
+/**
+ * 인증된 사용자 정보
+ *
+ * 참고: 백엔드 응답은 snake_case(user_id)이지만,
+ * 프론트엔드에서는 camelCase(userId)로 변환하여 사용
+ */
+export interface AuthUser {
+  /** 사용자 ID (백엔드 user_id) */
+  userId: string;
+
+  /** 이메일 주소 */
+  email: string;
+
+  /** 사용자 이름 */
+  name: string;
+
+  /** 역할 코드 */
+  role: UserRoleCode;
+}
+
+/**
+ * 로그인 요청 페이로드
+ *
+ * API 엔드포인트: POST /api/v1/auth/login
+ */
+export interface LoginRequestPayload {
+  /** 이메일 주소 */
+  email: string;
+
+  /** 비밀번호 */
+  password: string;
+
+  /**
+   * 디바이스 정보 (선택)
+   * 생략 시 authApi에서 기본값('web') 자동 설정
+   */
+  deviceInfo?: {
+    /** 디바이스 타입 (예: 'web', 'mobile') */
+    deviceType: string;
+
+    /** OS 정보 (예: 'Windows', 'macOS', 'iOS', 'Android') */
+    os: string;
+
+    /** 앱 버전 (예: 'web-1.0.0') */
+    appVersion: string;
+  };
+}
+
+/**
+ * 로그인 응답 데이터
+ *
+ * 참고: 백엔드 응답 구조는 { success: true, data: LoginResponseData }
+ * 여기서는 data 필드 내부 구조만 정의
+ */
+export interface LoginResponseData {
+  /** Access Token (JWT) */
+  accessToken: string;
+
+  /** Refresh Token */
+  refreshToken: string;
+
+  /** 로그인한 사용자 정보 */
+  user: AuthUser;
+}
