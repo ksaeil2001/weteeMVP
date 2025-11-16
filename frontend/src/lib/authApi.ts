@@ -234,3 +234,53 @@ export async function refreshAccessToken(
 
   return result;
 }
+
+/**
+ * 현재 로그인한 사용자 정보 조회
+ *
+ * Authorization 헤더의 Access Token을 사용하여 현재 로그인한 사용자의 정보를 가져옵니다.
+ * 앱 초기 로드 시 localStorage에 토큰이 있을 때 사용자 정보를 복원하는 용도로 사용됩니다.
+ *
+ * @returns 현재 로그인한 사용자 정보
+ *
+ * @throws {ApiError} 조회 실패 시 에러 발생
+ * - 401: Access Token 없음/만료/유효하지 않음
+ * - 기타 네트워크/서버 에러
+ *
+ * @example
+ * ```ts
+ * try {
+ *   const user = await getCurrentAccount();
+ *   console.log(user.name); // 사용자 이름
+ * } catch (error) {
+ *   const err = error as ApiError;
+ *   if (err.status === 401) {
+ *     // 토큰 만료 → 재로그인 필요
+ *     console.error('로그인이 필요합니다.');
+ *   }
+ * }
+ * ```
+ */
+export async function getCurrentAccount(): Promise<RegisterResponseData> {
+  // API 호출 (Authorization 헤더는 apiClient에서 자동 추가)
+  const responseData = await apiRequest<{
+    user_id: string;
+    email: string;
+    name: string;
+    role: string;
+    is_email_verified: boolean;
+  }>('/auth/account', {
+    method: 'GET',
+  });
+
+  // snake_case → camelCase 변환
+  const result: RegisterResponseData = {
+    userId: responseData.user_id,
+    email: responseData.email,
+    name: responseData.name,
+    role: responseData.role.toUpperCase() as 'TEACHER' | 'STUDENT' | 'PARENT',
+    emailVerified: responseData.is_email_verified,
+  };
+
+  return result;
+}
