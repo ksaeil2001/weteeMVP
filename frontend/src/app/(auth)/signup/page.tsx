@@ -4,15 +4,19 @@
  *
  * Based on: F-001_회원가입_및_로그인.md
  *
- * 현재 상태: 스켈레톤 (UI만 구현, 실제 API 연동 전)
+ * 현재 상태: Step 12 - 실제 회원가입 API 연동 완료
+ *
+ * 구현 사항:
+ * - POST /api/v1/auth/register 실제 API 연동
+ * - 로딩 상태 관리
+ * - 에러/성공 메시지 표시
+ * - 회원가입 성공 시 로그인 페이지로 이동
  *
  * TODO (향후):
- * - 실제 회원가입 API 연동 (POST /api/auth/signup)
- * - 이메일 중복 검사
- * - 비밀번호 강도 체크
  * - 이메일 인증 플로우
- * - 입력값 검증 (이메일 형식, 비밀번호 일치 등)
- * - 에러 메시지 표시
+ * - 비밀번호 강도 체크 UI
+ * - 실시간 이메일 중복 검사
+ * - 폼 필드별 상세 검증 메시지
  */
 
 'use client';
@@ -20,6 +24,9 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { registerWithEmail } from '@/lib/authApi';
+import type { ApiError } from '@/lib/apiClient';
+import type { UserRoleCode } from '@/types/auth';
 
 type UserRole = 'teacher' | 'student' | 'parent';
 
@@ -31,9 +38,12 @@ export default function SignupPage() {
     email: '',
     password: '',
     passwordConfirm: '',
+    phone: '',
     role: 'teacher' as UserRole,
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -42,28 +52,63 @@ export default function SignupPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // TODO: 실제 회원가입 API 연동 시 이 함수를 교체
+  /**
+   * 회원가입 처리 핸들러
+   * POST /api/v1/auth/register 실제 API 호출
+   */
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
 
-    // 간단한 클라이언트 검증
+    // 이전 메시지 초기화
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    // 클라이언트 검증
     if (formData.password !== formData.passwordConfirm) {
-      alert('비밀번호가 일치하지 않습니다.');
-      setIsLoading(false);
+      setErrorMessage('비밀번호와 비밀번호 확인이 일치하지 않습니다.');
       return;
     }
 
-    // 임시 지연 (실제 API 호출 시뮬레이션)
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    setIsLoading(true);
 
-    console.log('TODO: 회원가입 API 연동', formData);
+    try {
+      // 역할 코드 매핑: 'teacher' → 'TEACHER'
+      const roleCode = formData.role.toUpperCase() as UserRoleCode;
 
-    // 임시: 회원가입 후 로그인 페이지로 이동
-    alert('회원가입이 완료되었습니다! (테스트 모드)');
-    router.push('/login');
+      // 회원가입 API 호출
+      const result = await registerWithEmail({
+        email: formData.email,
+        password: formData.password,
+        name: formData.name,
+        phone: formData.phone,
+        role: roleCode,
+        // profile은 현재 폼에서 수집하지 않으므로 생략
+        // 추후 확장 시 선택적으로 추가
+      });
 
-    setIsLoading(false);
+      // 성공 메시지 표시
+      setSuccessMessage(
+        '회원가입이 완료되었습니다. 이메일로 전송된 인증 메일을 확인한 후 로그인해 주세요.'
+      );
+
+      // 2초 후 로그인 페이지로 이동
+      setTimeout(() => {
+        router.push('/login');
+      }, 2000);
+    } catch (error) {
+      const err = error as ApiError;
+
+      // HTTP 상태 코드별 에러 메시지 처리
+      if (err.status === 409) {
+        setErrorMessage('이미 가입된 이메일입니다. 로그인 화면으로 이동해 주세요.');
+      } else if (err.status === 400) {
+        setErrorMessage(err.message ?? '입력값을 다시 확인해 주세요.');
+      } else {
+        setErrorMessage(err.message ?? '회원가입 중 오류가 발생했습니다.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -162,6 +207,27 @@ export default function SignupPage() {
               />
             </div>
 
+            {/* 전화번호 */}
+            <div>
+              <label
+                htmlFor="phone"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                전화번호
+              </label>
+              <input
+                id="phone"
+                name="phone"
+                type="tel"
+                autoComplete="tel"
+                required
+                value={formData.phone}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                placeholder="010-1234-5678"
+              />
+            </div>
+
             {/* 역할 선택 */}
             <div>
               <label
@@ -184,13 +250,27 @@ export default function SignupPage() {
               </select>
             </div>
 
+            {/* 에러 메시지 */}
+            {errorMessage && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">{errorMessage}</p>
+              </div>
+            )}
+
+            {/* 성공 메시지 */}
+            {successMessage && (
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-700">{successMessage}</p>
+              </div>
+            )}
+
             {/* 회원가입 버튼 */}
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition-colors mt-6"
+              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors mt-6"
             >
-              {isLoading ? '처리 중...' : '회원가입'}
+              {isLoading ? '회원가입 중...' : '회원가입'}
             </button>
           </form>
 
@@ -213,12 +293,30 @@ export default function SignupPage() {
           <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
             개발자 테스트 안내
           </summary>
-          <div className="mt-2 p-3 bg-gray-50 rounded text-xs text-gray-600 text-left">
-            <p className="mb-2">
-              <strong>현재 상태:</strong> 스켈레톤 UI (실제 API 연동 전)
+          <div className="mt-2 p-3 bg-gray-50 rounded text-xs text-gray-600 text-left space-y-2">
+            <p>
+              <strong>현재 상태:</strong> Step 12 - 회원가입 API 연동 완료
             </p>
             <p>
-              <strong>TODO:</strong> 실제 회원가입 API 연동, 이메일 검증, 비밀번호 강도 체크
+              <strong>API 엔드포인트:</strong> POST /api/v1/auth/register
+            </p>
+            <p>
+              <strong>기능:</strong> 실제 백엔드 API 호출, 로딩 상태 관리, 에러/성공 메시지 표시
+            </p>
+            <p>
+              <strong>주의:</strong> 백엔드가 실행 중이지 않으면 네트워크 에러 발생
+            </p>
+            <div className="pt-2 border-t border-gray-300">
+              <p className="font-semibold mb-1">테스트 시나리오:</p>
+              <ul className="list-disc list-inside space-y-1 pl-2">
+                <li>정상 회원가입: 모든 필드 입력 후 제출</li>
+                <li>이메일 중복(409): 이미 가입된 이메일 사용</li>
+                <li>입력값 오류(400): 잘못된 형식의 이메일/비밀번호</li>
+                <li>비밀번호 불일치: 비밀번호 확인 불일치 시 클라이언트 검증</li>
+              </ul>
+            </div>
+            <p className="pt-2 border-t border-gray-300">
+              <strong>다음 단계:</strong> 이메일 인증, 비밀번호 강도 체크 UI, 토큰 관리 고도화
             </p>
           </div>
         </details>
