@@ -7,11 +7,13 @@ Based on:
 - API_명세서.md: API 엔드포인트 구조
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from datetime import datetime
 from uuid import uuid4
+import traceback
 
 from app.config import settings
 from app.database import init_db
@@ -144,17 +146,53 @@ def on_shutdown():
 
 
 # ==========================
-# Global Exception Handler (Optional)
+# Global Exception Handler
 # ==========================
 
-# TODO: 추후 추가
-# @app.exception_handler(Exception)
-# def global_exception_handler(request, exc):
-#     return error_response(
-#         status_code=500,
-#         code="INTERNAL_ERROR",
-#         message="서버 내부 오류가 발생했습니다.",
-#     )
+
+@app.exception_handler(RequestValidationError)
+def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    Pydantic Validation 에러 처리
+
+    400 Bad Request를 JSON 형식으로 반환
+    """
+    return error_response(
+        status_code=400,
+        code="VALIDATION_ERROR",
+        message="입력값이 올바르지 않습니다.",
+        details=exc.errors(),
+    )
+
+
+@app.exception_handler(Exception)
+def global_exception_handler(request: Request, exc: Exception):
+    """
+    전역 예외 핸들러
+
+    모든 예상하지 못한 에러를 500 JSON 응답으로 변환
+    개발 환경에서는 traceback을 포함
+    """
+    # 로깅 (운영 환경에서는 Sentry 등으로 전송)
+    print(f"🔥 Unhandled Exception: {exc}")
+    if settings.DEBUG:
+        traceback.print_exc()
+
+    # 개발 환경에서는 상세 에러 메시지 포함
+    details = None
+    if settings.DEBUG:
+        details = {
+            "type": type(exc).__name__,
+            "message": str(exc),
+            "traceback": traceback.format_exc(),
+        }
+
+    return error_response(
+        status_code=500,
+        code="INTERNAL_ERROR",
+        message="서버 내부 오류가 발생했습니다.",
+        details=details,
+    )
 
 
 if __name__ == "__main__":

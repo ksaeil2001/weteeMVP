@@ -80,12 +80,31 @@ export default function LoginPage() {
       // API 에러 처리
       const err = error as ApiError;
 
-      if (err.code === 'AUTH004') {
-        setErrorMessage('이메일 또는 비밀번호가 올바르지 않습니다.');
-      } else if (err.code === 'AUTH006') {
-        setErrorMessage('계정이 일시적으로 잠겼습니다. 잠시 후 다시 시도해주세요.');
+      // HTTP 상태 코드별 처리
+      if (err.status === 400 || err.status === 401) {
+        // 인증 실패
+        if (err.code === 'AUTH004') {
+          setErrorMessage('이메일 또는 비밀번호가 올바르지 않습니다.');
+        } else if (err.code === 'AUTH006') {
+          setErrorMessage(
+            '계정이 일시적으로 잠겼습니다. 잠시 후 다시 시도해주세요.',
+          );
+        } else {
+          setErrorMessage('로그인 정보를 확인해주세요.');
+        }
+      } else if (err.status === 500) {
+        // 서버 내부 오류
+        setErrorMessage(
+          '서버에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.',
+        );
+        console.error('Server error:', err);
       } else {
-        setErrorMessage(err.message ?? '로그인 중 오류가 발생했습니다.');
+        // 기타 오류 (네트워크, 타임아웃 등)
+        setErrorMessage(
+          err.message ??
+            '로그인 중 오류가 발생했습니다. 네트워크 연결을 확인해주세요.',
+        );
+        console.error('Login error:', err);
       }
     } finally {
       setIsLoading(false);
