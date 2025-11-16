@@ -76,7 +76,7 @@ export default function SignupPage() {
       const roleCode = formData.role.toUpperCase() as UserRoleCode;
 
       // 회원가입 API 호출
-      const result = await registerWithEmail({
+      await registerWithEmail({
         email: formData.email,
         password: formData.password,
         name: formData.name,
