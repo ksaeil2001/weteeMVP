@@ -30,7 +30,7 @@
 
 import { create } from 'zustand';
 import { setAccessTokenProvider } from '@/lib/apiClient';
-import { refreshAccessToken } from '@/lib/authApi';
+import { refreshAccessToken, getCurrentAccount } from '@/lib/authApi';
 
 /**
  * 토큰 저장 키 상수
@@ -78,6 +78,7 @@ interface AuthState {
   }) => void;
   setTokens: (tokens: { accessToken: string; refreshToken: string }) => void;
   logout: () => void;
+  loadMe: () => Promise<void>;
   refreshSession: () => Promise<void>;
   setUser: (user: User) => void;
   setLoading: (loading: boolean) => void;
@@ -187,6 +188,59 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // accessTokenProvider에서 토큰이 더 이상 제공되지 않도록 상태 반영 완료
     // (Zustand 상태가 null로 설정되었으므로 자동으로 처리됨)
+  },
+
+  /**
+   * 현재 사용자 정보 로드 (/auth/account 호출)
+   *
+   * - accessToken이 있을 때만 호출 가능
+   * - 백엔드에서 최신 사용자 정보를 가져와서 상태 업데이트
+   * - 앱 초기 로드 시 localStorage에서 토큰만 있고 user 정보가 없을 때 사용
+   *
+   * @throws {ApiError} 사용자 정보 로드 실패 시 에러 발생
+   */
+  loadMe: async () => {
+    const state = get();
+
+    if (!state.accessToken) {
+      // Access Token이 없으면 로드 불가
+      console.warn('[useAuth.loadMe] Access Token이 없습니다.');
+      return;
+    }
+
+    try {
+      set({ isLoading: true });
+
+      // 백엔드에서 현재 사용자 정보 조회
+      const userData = await getCurrentAccount();
+
+      // 사용자 정보 업데이트
+      const user: User = {
+        id: userData.userId,
+        email: userData.email,
+        name: userData.name,
+        role: userData.role.toLowerCase() as UserRole,
+        profileImage: undefined,
+        phoneNumber: undefined,
+        createdAt: undefined,
+      };
+
+      set({ user });
+
+      // localStorage에도 저장 (페이지 새로고침 시 복원용)
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(WETEE_USER_KEY, JSON.stringify(user));
+      }
+
+      console.log('[useAuth.loadMe] 사용자 정보 로드 완료:', user.email);
+    } catch (error) {
+      console.error('[useAuth.loadMe] 사용자 정보 로드 실패:', error);
+      // 로드 실패 시 로그아웃 처리
+      get().logout();
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
   },
 
   /**
@@ -348,6 +402,7 @@ export interface UseAuthReturn {
     user: User;
   }) => void;
   logout: () => void;
+  loadMe: () => Promise<void>;
   updateUser: (user: User) => void;
   refreshSession: () => Promise<void>;
 }
@@ -362,6 +417,7 @@ export function useAuth(): UseAuthReturn {
     isLoading,
     login,
     logout,
+    loadMe,
     setUser,
     refreshSession,
   } = useAuthStore();
@@ -379,6 +435,7 @@ export function useAuth(): UseAuthReturn {
     // 액션
     login,
     logout,
+    loadMe,
     updateUser: setUser,
     refreshSession,
   };
