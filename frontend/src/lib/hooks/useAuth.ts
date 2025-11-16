@@ -1,6 +1,6 @@
 /**
  * useAuth Hook - WeTee MVP
- * Step 3-13: 인증 상태 관리 (Zustand 기반)
+ * Step 3-14: 인증 상태 관리 (Zustand 기반)
  *
  * 역할:
  * - 인증 상태(accessToken, refreshToken, user)를 중앙에서 관리
@@ -10,6 +10,7 @@
  * 변경 이력:
  * - Step 3: authStore 기본 구현 (accessToken, user)
  * - Step 13: refreshToken 추가, login 시그니처 변경, setTokens/logout/refreshSession 구현
+ * - Step 14: logout 정리, 토큰 키 상수화
  *
  * 사용 예시:
  * ```tsx
@@ -30,6 +31,14 @@
 import { create } from 'zustand';
 import { setAccessTokenProvider } from '@/lib/apiClient';
 import { refreshAccessToken } from '@/lib/authApi';
+
+/**
+ * 토큰 저장 키 상수
+ * Step 14: 토큰 키 이름 중앙 관리
+ */
+const WETEE_ACCESS_TOKEN_KEY = 'wetee_access_token';
+const WETEE_REFRESH_TOKEN_KEY = 'wetee_refresh_token';
+const WETEE_TOKEN_EXPIRES_DAYS = 1; // Access Token 쿠키 유효기간 (일)
 
 /**
  * 사용자 역할 타입
@@ -100,17 +109,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user,
     });
 
-    // Access Token 쿠키 저장 (Route Guard용, 1일 유효)
+    // Access Token 쿠키 저장 (Route Guard용)
     if (typeof document !== 'undefined') {
       const expires = new Date();
-      expires.setDate(expires.getDate() + 1);
-      document.cookie = `wetee_access_token=${accessToken}; expires=${expires.toUTCString()}; path=/`;
+      expires.setDate(expires.getDate() + WETEE_TOKEN_EXPIRES_DAYS);
+      document.cookie = `${WETEE_ACCESS_TOKEN_KEY}=${accessToken}; expires=${expires.toUTCString()}; path=/`;
     }
 
     // Refresh Token은 localStorage에 저장 (임시 전략)
     // TODO: httpOnly 쿠키 또는 보안 스토리지로 변경 고려
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem('wetee_refresh_token', refreshToken);
+      window.localStorage.setItem(WETEE_REFRESH_TOKEN_KEY, refreshToken);
     }
   },
 
@@ -130,39 +139,47 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Access Token 쿠키 갱신
     if (typeof document !== 'undefined') {
       const expires = new Date();
-      expires.setDate(expires.getDate() + 1);
-      document.cookie = `wetee_access_token=${accessToken}; expires=${expires.toUTCString()}; path=/`;
+      expires.setDate(expires.getDate() + WETEE_TOKEN_EXPIRES_DAYS);
+      document.cookie = `${WETEE_ACCESS_TOKEN_KEY}=${accessToken}; expires=${expires.toUTCString()}; path=/`;
     }
 
     // Refresh Token localStorage 갱신
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem('wetee_refresh_token', refreshToken);
+      window.localStorage.setItem(WETEE_REFRESH_TOKEN_KEY, refreshToken);
     }
   },
 
   /**
    * 로그아웃 시 모든 인증 정보 삭제
+   * Step 14: 클라이언트에서만 처리하는 로그아웃
    *
    * - Zustand 상태 초기화
    * - Access Token 쿠키 제거
    * - Refresh Token localStorage 제거
+   * - 재호출 안전성: 여러 번 호출해도 에러 없이 동작
+   *
+   * 주의: 서버 API 호출 없이 클라이언트에서만 토큰 정리
    */
   logout: () => {
+    // Zustand 상태 초기화
     set({
       accessToken: null,
       refreshToken: null,
       user: null,
     });
 
-    // Access Token 쿠키 제거 (과거로 만료일 설정)
+    // Access Token 쿠키 제거 (Max-Age=0으로 즉시 만료)
     if (typeof document !== 'undefined') {
-      document.cookie = 'wetee_access_token=; Max-Age=0; path=/';
+      document.cookie = `${WETEE_ACCESS_TOKEN_KEY}=; Max-Age=0; path=/`;
     }
 
     // Refresh Token localStorage 제거
     if (typeof window !== 'undefined') {
-      window.localStorage.removeItem('wetee_refresh_token');
+      window.localStorage.removeItem(WETEE_REFRESH_TOKEN_KEY);
     }
+
+    // accessTokenProvider에서 토큰이 더 이상 제공되지 않도록 상태 반영 완료
+    // (Zustand 상태가 null로 설정되었으므로 자동으로 처리됨)
   },
 
   /**
@@ -203,11 +220,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // 쿠키/localStorage 갱신
       if (typeof document !== 'undefined') {
         const expires = new Date();
-        expires.setDate(expires.getDate() + 1);
-        document.cookie = `wetee_access_token=${result.accessToken}; expires=${expires.toUTCString()}; path=/`;
+        expires.setDate(expires.getDate() + WETEE_TOKEN_EXPIRES_DAYS);
+        document.cookie = `${WETEE_ACCESS_TOKEN_KEY}=${result.accessToken}; expires=${expires.toUTCString()}; path=/`;
       }
       if (typeof window !== 'undefined') {
-        window.localStorage.setItem('wetee_refresh_token', result.refreshToken);
+        window.localStorage.setItem(WETEE_REFRESH_TOKEN_KEY, result.refreshToken);
       }
     } catch (error) {
       // 갱신 실패 시 세션 정리
@@ -219,10 +236,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // 쿠키/localStorage 정리
       if (typeof document !== 'undefined') {
-        document.cookie = 'wetee_access_token=; Max-Age=0; path=/';
+        document.cookie = `${WETEE_ACCESS_TOKEN_KEY}=; Max-Age=0; path=/`;
       }
       if (typeof window !== 'undefined') {
-        window.localStorage.removeItem('wetee_refresh_token');
+        window.localStorage.removeItem(WETEE_REFRESH_TOKEN_KEY);
       }
 
       // 에러는 호출자에게 전파 (선택적으로 처리 가능)
