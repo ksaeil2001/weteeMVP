@@ -1,20 +1,22 @@
 /**
  * Auth Type Definitions
- * Step 11: 인증(Auth) 관련 타입 기본 정의
+ * Step 11-12: 인증(Auth) 관련 타입 정의
  *
  * 역할:
  * - F-001(회원가입 및 로그인) API 연동을 위한 공통 타입 정의
- * - 로그인 요청/응답, 사용자 정보 타입 등 프론트엔드에서 재사용되는 타입의 단일 소스
+ * - 로그인/회원가입 요청/응답, 사용자 정보 타입 등 프론트엔드에서 재사용되는 타입의 단일 소스
  *
  * 관련 문서:
  * - F-001_회원가입_및_로그인.md
  * - API_명세서.md - F-001 섹션
  *
- * TODO: 추후 회원가입, 토큰 갱신, 비밀번호 재설정 등 F-001 전체 플로우로 확장 예정
- * - RegisterRequestPayload / RegisterResponseData
+ * TODO: 추후 토큰 갱신, 비밀번호 재설정, 이메일 인증 등으로 확장 예정
+ * - EmailVerificationRequest / EmailVerificationResponse
+ * - ResendVerificationEmailPayload
  * - RefreshTokenRequest / RefreshTokenResponse
  * - PasswordResetRequest / PasswordResetConfirmPayload
- * - AuthErrorShape (code, message 등)
+ * - RegisterValidationErrorShape (필드별 에러 매핑용)
+ * - SocialRegisterPayload (구글/카카오 등 소셜 회원가입)
  */
 
 /**
@@ -88,4 +90,65 @@ export interface LoginResponseData {
 
   /** 로그인한 사용자 정보 */
   user: AuthUser;
+}
+
+/**
+ * 회원가입 요청 페이로드
+ *
+ * API 엔드포인트: POST /api/v1/auth/register
+ *
+ * 참고:
+ * - role은 반드시 대문자 형태('TEACHER' | 'STUDENT' | 'PARENT')로 전송
+ * - profile은 선택 필드이며, 값이 없을 경우 요청 바디에서 생략 가능
+ */
+export interface RegisterRequestPayload {
+  /** 이메일 주소 */
+  email: string;
+
+  /** 비밀번호 */
+  password: string;
+
+  /** 사용자 이름 */
+  name: string;
+
+  /** 전화번호 */
+  phone: string;
+
+  /** 역할 코드 */
+  role: UserRoleCode;
+
+  /**
+   * 프로필 추가 정보 (선택)
+   * 선생님/학생의 경우 과목, 학교 정보 등을 포함
+   */
+  profile?: {
+    /** 과목 목록 (예: ['수학', '영어']) */
+    subjects?: string[];
+
+    /** 학교 이름 (재학 중인 학교 또는 출신 학교) */
+    school?: string;
+  };
+}
+
+/**
+ * 회원가입 응답 데이터
+ *
+ * 참고: 백엔드 응답 구조는 { success: true, data: RegisterResponseData }
+ * 여기서는 data 필드 내부 구조만 정의
+ */
+export interface RegisterResponseData {
+  /** 생성된 사용자 ID */
+  userId: string;
+
+  /** 이메일 주소 */
+  email: string;
+
+  /** 사용자 이름 */
+  name: string;
+
+  /** 역할 코드 */
+  role: UserRoleCode;
+
+  /** 이메일 인증 여부 (가입 직후에는 false) */
+  emailVerified: boolean;
 }
