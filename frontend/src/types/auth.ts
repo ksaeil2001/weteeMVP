@@ -10,13 +10,15 @@
  * - F-001_회원가입_및_로그인.md
  * - API_명세서.md - F-001 섹션
  *
- * TODO: 추후 토큰 갱신, 비밀번호 재설정, 이메일 인증 등으로 확장 예정
+ * TODO: 추후 비밀번호 재설정, 이메일 인증 등으로 확장 예정
+ * - AuthSession 타입 (사용자 + 토큰 + 만료 정보)
+ * - TokenMeta (expiresAt, issuedAt 등)
+ * - AuthErrorShape (code, message, fieldErrors 등)
  * - EmailVerificationRequest / EmailVerificationResponse
  * - ResendVerificationEmailPayload
- * - RefreshTokenRequest / RefreshTokenResponse
  * - PasswordResetRequest / PasswordResetConfirmPayload
  * - RegisterValidationErrorShape (필드별 에러 매핑용)
- * - SocialRegisterPayload (구글/카카오 등 소셜 회원가입)
+ * - SocialLoginPayload / SocialRegisterPayload (구글/카카오 등)
  */
 
 /**
@@ -151,4 +153,35 @@ export interface RegisterResponseData {
 
   /** 이메일 인증 여부 (가입 직후에는 false) */
   emailVerified: boolean;
+}
+
+/**
+ * 인증 토큰 쌍
+ *
+ * - accessToken: API 호출 시 Authorization 헤더에 사용
+ * - refreshToken: accessToken 만료 시 갱신 요청에 사용
+ */
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
+/**
+ * 토큰 갱신 요청 페이로드
+ *
+ * API 엔드포인트: POST /api/v1/auth/refresh
+ */
+export interface RefreshTokenRequestPayload {
+  refreshToken: string;
+}
+
+/**
+ * 토큰 갱신 응답 데이터
+ *
+ * 참고: 백엔드 응답 구조는 { success: true, data: RefreshTokenResponseData }
+ * 여기서는 data 필드 내부 구조만 정의
+ */
+export interface RefreshTokenResponseData {
+  accessToken: string;
+  refreshToken: string;
 }
