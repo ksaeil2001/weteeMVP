@@ -308,18 +308,26 @@ def refresh_tokens(payload: RefreshRequest):
     }
 
 
-@router.post("/logout", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-def logout():
+@router.post("/logout", status_code=status.HTTP_200_OK)
+def logout(current_user: User = Depends(get_current_user)):
     """
     로그아웃
 
     POST /api/v1/auth/logout
 
-    **TODO**: F-001에서 구현 예정
-    - Refresh Token 무효화 (Redis 블랙리스트 또는 DB 삭제)
+    **기능**:
+    - 클라이언트 측에서 토큰 삭제 필요
+    - MVP 단계에서는 stateless JWT 사용 (서버에서 별도 무효화 불필요)
+
+    **향후 개선** (TODO):
+    - Refresh Token을 Redis 블랙리스트나 DB에 저장하여 서버 측 무효화
+    - 토큰 만료 전까지의 보안 강화
+
+    Related: F-001, API_명세서.md
     """
     return {
-        "message": "로그아웃 기능은 추후 구현 예정입니다. (TODO: F-001)"
+        "success": True,
+        "message": "로그아웃되었습니다. 클라이언트에서 토큰을 삭제해주세요."
     }
 
 
