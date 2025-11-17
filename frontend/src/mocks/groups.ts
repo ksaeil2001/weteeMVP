@@ -60,13 +60,13 @@ export const mockGroups: Group[] = [
     level: '고2',
     feePerSession: 55000,
     sessionDuration: 100,
-    description: null,
+    description: undefined,
     teacher: {
       userId: 'teacher-1',
       name: '김선생',
     },
     memberCount: 0, // 학생 초대 대기 중
-    nextLessonSummary: null,
+    nextLessonSummary: undefined,
     createdAt: '2025-11-10T08:00:00Z',
   },
 ];
