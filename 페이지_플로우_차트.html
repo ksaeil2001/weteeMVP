@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WeTee 페이지 플로우 차트</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            opacity: 0.9;
+            font-size: 16px;
+        }
+        
+        .controls {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .control-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        label {
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        select, button {
+            padding: 8px 16px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        select:hover, button:hover {
+            border-color: #667eea;
+        }
+        
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            font-weight: 600;
+        }
+        
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .stats {
+            display: flex;
+            gap: 20px;
+            padding: 20px 30px;
+            background: #fff;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .stat-card {
+            flex: 1;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            color: white;
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .chart-container {
+            padding: 30px;
+            background: white;
+            overflow-x: auto;
+        }
+        
+        .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+        
+        .legend {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-top: 2px solid #e9ecef;
+        }
+        
+        .legend-title {
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #495057;
+        }
+        
+        .legend-items {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+        
+        .info-panel {
+            padding: 20px 30px;
+            background: #e7f3ff;
+            border-top: 2px solid #bee5eb;
+        }
+        
+        .info-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #004085;
+        }
+        
+        .info-content {
+            color: #004085;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 WeTee 페이지 플로우 차트</h1>
+            <p class="subtitle">과외 관리 통합 플랫폼 - 전체 화면 흐름 시각화</p>
+        </header>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="viewSelect">보기:</label>
+                <select id="viewSelect" onchange="changeView()">
+                    <option value="full">전체 플로우</option>
+                    <option value="onboarding">온보딩 플로우</option>
+                    <option value="main">메인 네비게이션</option>
+                    <option value="lesson">수업 관리</option>
+                    <option value="settlement">정산 플로우</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="roleFilter">역할:</label>
+                <select id="roleFilter">
+                    <option value="all">전체</option>
+                    <option value="teacher">선생님</option>
+                    <option value="student">학생</option>
+                    <option value="parent">학부모</option>
+                </select>
+            </div>
+            
+            <button onclick="resetView()">초기화</button>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number">43</div>
+                <div class="stat-label">총 페이지</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">8</div>
+                <div class="stat-label">핵심 기능</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">4</div>
+                <div class="stat-label">메인 탭</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">3</div>
+                <div class="stat-label">사용자 역할</div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <div id="flowchart" class="mermaid"></div>
+        </div>
+        
+        <div class="legend">
+            <div class="legend-title">범례</div>
+            <div class="legend-items">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #667eea;"></div>
+                    <span>인증 & 온보딩</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #f093fb;"></div>
+                    <span>그룹 관리</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #4facfe;"></div>
+                    <span>일정 관리</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #43e97b;"></div>
+                    <span>출결 & 수업 기록</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ffa751;"></div>
+                    <span>정산</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #fa709a;"></div>
+                    <span>프로필 & 설정</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="info-panel">
+            <div class="info-title">📌 사용 안내</div>
+            <div class="info-content">
+                • 상단 "보기" 드롭다운으로 특정 플로우만 볼 수 있습니다.<br>
+                • "역할" 필터로 역할별 접근 가능한 페이지를 확인할 수 있습니다.<br>
+                • 차트는 확대/축소가 가능합니다 (마우스 휠 또는 핀치 제스처).<br>
+                • 각 상자는 페이지를 나타내며, 화살표는 페이지 간 이동 경로입니다.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mermaid 초기화
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+
+        const flows = {
+            full: `
+                graph TD
+                    START[앱 시작] --> S001[S-001<br/>스플래시]
+                    S001 --> S002[S-002<br/>온보딩]
+                    S002 --> S003[S-003<br/>로그인]
+                    S003 --> S004[S-004<br/>회원가입]
+                    S003 --> S005[S-005<br/>비밀번호 재설정]
+                    S004 --> S003
+                    S003 --> S012[S-012<br/>달력 메인 홈]
+                    
+                    S012 --> S013[S-013<br/>정규 수업 등록]
+                    S012 --> S014[S-014<br/>일정 상세]
+                    S012 --> S017[S-017<br/>보강 예약]
+                    S012 --> S019[S-019<br/>출결 체크]
+                    S012 --> S041[S-041<br/>알림 센터]
+                    S012 --> S034[S-034<br/>프로필]
+                    
+                    S014 --> S022[S-022<br/>수업 기록 작성]
+                    S022 --> S023[S-023<br/>수업 기록 상세]
+                    
+                    S034 --> S006[S-006<br/>그룹 생성]
+                    S034 --> S010[S-010<br/>초대 코드 입력]
+                    S034 --> S008[S-008<br/>그룹 상세]
+                    S034 --> S027[S-027<br/>정산 메인]
+                    S034 --> S036[S-036<br/>설정 메인]
+                    
+                    S027 --> S028[S-028<br/>청구서 생성]
+                    S027 --> S029[S-029<br/>청구서 상세]
+                    S029 --> S030[S-030<br/>결제하기]
+                    S030 --> S031[S-031<br/>결제 완료]
+                    S031 --> S032[S-032<br/>영수증 상세]
+                    
+                    S008 --> S025[S-025<br/>진도 히스토리]
+                    S025 --> S026[S-026<br/>진도 리포트]
+                    
+                    style S001 fill:#667eea,stroke:#333,stroke-width:2px,color:#fff
+                    style S002 fill:#667eea,stroke:#333,stroke-width:2px,color:#fff
+                    style S003 fill:#667eea,stroke:#333,stroke-width:2px,color:#fff
+                    style S004 fill:#667eea,stroke:#333,stroke-width:2px,color:#fff
+                    style S005 fill:#667eea,stroke:#333,stroke-width:2px,color:#fff
+                    
+                    style S006 fill:#f093fb,stroke:#333,stroke-width:2px,color:#fff
+                    style S008 fill:#f093fb,stroke:#333,stroke-width:2px,color:#fff
+                    style S010 fill:#f093fb,stroke:#333,stroke-width:2px,color:#fff
+                    
+                    style S012 fill:#4facfe,stroke:#333,stroke-width:3px,color:#fff
+                    style S013 fill:#4facfe,stroke:#333,stroke-width:2px,color:#fff
+                    style S014 fill:#4facfe,stroke:#333,stroke-width:2px,color:#fff
+                    style S017 fill:#4facfe,stroke:#333,stroke-width:2px,color:#fff
+                    
+                    style S019 fill:#43e97b,stroke:#333,stroke-width:2px,color:#fff
+                    style S022 fill:#43e97b,stroke:#333,stroke-width:2px,color:#fff
+                    style S023 fill:#43e97b,stroke:#333,stroke-width:2px,color:#fff
+                    style S025 fill:#43e97b,stroke:#333,stroke-width:2px,color:#fff
+                    style S026 fill:#43e97b,stroke:#333,stroke-width:2px,color:#fff
+                    
+                    style S027 fill:#ffa751,stroke:#333,stroke-width:2px,color:#fff
+                    style S028 fill:#ffa751,stroke:#333,stroke-width:2px,color:#fff
+                    style S029 fill:#ffa751,stroke:#333,stroke-width:2px,color:#fff
+                    style S030 fill:#ffa751,stroke:#333,stroke-width:2px,color:#fff
+                    style S031 fill:#ffa751,stroke:#333,stroke-width:2px,color:#fff
+                    style S032 fill:#ffa751,stroke:#333,stroke-width:2px,color:#fff
+                    
+                    style S034 fill:#fa709a,stroke:#333,stroke-width:2px,color:#fff
+                    style S036 fill:#fa709a,stroke:#333,stroke-width:2px,color:#fff
+                    style S041 fill:#fa709a,stroke:#333,stroke-width:2px,color:#fff
+            `,
+            
+            onboarding: `
+                graph TD
+                    START[앱 설치 후<br/>첫 실행] --> S001[S-001<br/>스플래시 2초]
+                    S001 --> CHECK{토큰<br/>확인}
+                    CHECK -->|없음| S002[S-002<br/>온보딩<br/>3개 슬라이드]
+                    CHECK -->|있음| S012[S-012<br/>달력 메인]
+                    
+                    S002 --> SKIP{사용자<br/>선택}
+                    SKIP -->|건너뛰기| S003[S-003<br/>로그인]
+                    SKIP -->|시작하기| S003
+                    
+                    S003 --> LOGIN{선택}
+                    LOGIN -->|로그인| AUTH[인증 처리]
+                    LOGIN -->|회원가입| S004[S-004<br/>회원가입]
+                    LOGIN -->|비번 찾기| S005[S-005<br/>비밀번호 재설정]
+                    
+                    S004 --> EMAIL[이메일<br/>인증]
+                    EMAIL --> S003B[S-003<br/>로그인<br/>재진입]
+                    S003B --> AUTH
+                    
+                    S005 --> S003C[S-003<br/>로그인]
+                    
+                    AUTH --> S012
+                    
+                    S012 --> FIRST{첫 로그인?}
+                    FIRST -->|Yes| GUIDE[그룹 생성<br/>또는 참여 안내]
+                    FIRST -->|No| DONE[홈 화면]
+                    
+                    GUIDE -->|선생님| S006[S-006<br/>그룹 생성]
+                    GUIDE -->|학생/학부모| S010[S-010<br/>초대 코드 입력]
+                    
+                    S006 --> DONE2[온보딩 완료]
+                    S010 --> DONE2
+                    
+                    style START fill:#667eea,stroke:#333,stroke-width:3px,color:#fff
+                    style S001 fill:#667eea,stroke:#333,stroke-width:2px,color:#fff
+                    style S002 fill:#667eea,stroke:#333,stroke-width:2px,color:#fff
+                    style S003 fill:#667eea,stroke:#333,stroke-width:2px,color:#fff
+                    style S004 fill:#667eea,stroke:#333,stroke-width:2px,color:#fff
+                    style S005 fill:#667eea,stroke:#333,stroke-width:2px,color:#fff
+                    style S012 fill:#4facfe,stroke:#333,stroke-width:3px,color:#fff
+                    style S006 fill:#f093fb,stroke:#333,stroke-width:2px,color:#fff
+                    style S010 fill:#f093fb,stroke:#333,stroke-width:2px,color:#fff
+                    style CHECK fill:#ffe66d,stroke:#333,stroke-width:2px
+                    style SKIP fill:#ffe66d,stroke:#333,stroke-width:2px
+                    style LOGIN fill:#ffe66d,stroke:#333,stroke-width:2px
+                    style FIRST fill:#ffe66d,stroke:#333,stroke-width:2px
+            `,
+            
+            main: `
+                graph TD
+                    S012[S-012<br/>달력 메인<br/>🏠 홈 탭]
+                    S012_2[S-012<br/>달력 메인<br/>📅 일정 탭]
+                    S041[S-041<br/>알림 센터<br/>🔔 알림 탭]
+                    S034[S-034<br/>프로필<br/>👤 내정보 탭]
+                    
+                    S012 -.탭 전환.-> S012_2
+                    S012_2 -.탭 전환.-> S041
+                    S041 -.탭 전환.-> S034
+                    S034 -.탭 전환.-> S012
+                    
+                    S012 -->|수업 카드| S014[S-014<br/>일정 상세]
+                    S012 -->|+ 버튼| MENU{액션<br/>선택}
+                    S012 -->|출결 체크| S019[S-019<br/>출결 체크]
+                    
+                    MENU -->|선생님| S013[S-013<br/>정규 수업 등록]
+                    MENU -->|학생| S017[S-017<br/>보강 예약]
+                    MENU -->|모두| S018[S-018<br/>시험 일정 등록]
+                    
+                    S014 -->|수업 기록| S022[S-022<br/>수업 기록 작성]
+                    S022 --> S023[S-023<br/>수업 기록 상세]
+                    
+                    S041 -->|알림 탭| S042[S-042<br/>알림 상세]
+                    S041 -->|푸시 알림| TARGET[해당 페이지<br/>직접 이동]
+                    
+                    S034 -->|그룹 카드| S008[S-008<br/>그룹 상세]
+                    S034 -->|그룹 생성| S006[S-006<br/>그룹 생성]
+                    S034 -->|설정| S036[S-036<br/>설정 메인]
+                    S034 -->|정산| S027[S-027<br/>정산 메인]
+                    
+                    S008 --> S025[S-025<br/>진도 히스토리]
+                    
+                    style S012 fill:#4facfe,stroke:#333,stroke-width:4px,color:#fff
+                    style S012_2 fill:#4facfe,stroke:#333,stroke-width:4px,color:#fff
+                    style S041 fill:#fa709a,stroke:#333,stroke-width:4px,color:#fff
+                    style S034 fill:#fa709a,stroke:#333,stroke-width:4px,color:#fff
+                    
+                    style S013 fill:#4facfe,stroke:#333,stroke-width:2px,color:#fff
+                    style S014 fill:#4facfe,stroke:#333,stroke-width:2px,color:#fff
+                    style S017 fill:#4facfe,stroke:#333,stroke-width:2px,color:#fff
+                    style S018 fill:#4facfe,stroke:#333,stroke-width:2px,color:#fff
+                    style S019 fill:#43e97b,stroke:#333,stroke-width:2px,color:#fff
+                    style S022 fill:#43e97b,stroke:#333,stroke-width:2px,color:#fff
+                    style S023 fill:#43e97b,stroke:#333,stroke-width:2px,color:#fff
+                    style S006 fill:#f093fb,stroke:#333,stroke-width:2px,color:#fff
+                    style S008 fill:#f093fb,stroke:#333,stroke-width:2px,color:#fff
+                    style S025 fill:#43e97b,stroke:#333,stroke-width:2px,color:#fff
+                    style S027 fill:#ffa751,stroke:#333,stroke-width:2px,color:#fff
+                    style S036 fill:#fa709a,stroke:#333,stroke-width:2px,color:#fff
+                    style S042 fill:#fa709a,stroke:#333,stroke-width:2px,color:#fff
+                    style MENU fill:#ffe66d,stroke:#333,stroke-width:2px
+            `,
+            
+            lesson: `
+                graph TD
+                    S012[S-012<br/>달력 메인] -->|수업 카드<br/>클릭| S014[S-014<br/>일정 상세]
+                    
+                    S014 --> ACT{사용자<br/>액션}
+                    
+                    ACT -->|출결 체크| S019[S-019<br/>출결 체크<br/>바텀시트]
+                    ACT -->|수업 기록| S022[S-022<br/>수업 기록 작성]
+                    ACT -->|일정 수정| S015[S-015<br/>일정 수정]
+                    
+                    S019 -->|출석/지각/결석<br/>선택| S014B[S-014<br/>상태 업데이트]
+                    
+                    S022 --> INPUT{작성}
+                    INPUT -->|임시 저장| LOCAL[로컬 저장]
+                    INPUT -->|저장 및 공유| S023[S-023<br/>수업 기록 상세]
+                    
+                    S023 --> NOTI[학생/학부모<br/>알림 발송]
+                    NOTI --> S041[S-041<br/>알림 수신]
+                    
+                    S023 -->|이전 기록| S025[S-025<br/>진도 히스토리]
+                    S025 -->|리포트 생성| S026[S-026<br/>진도 리포트]
+                    S026 -->|학부모 공유| NOTI2[학부모<br/>알림 발송]
+                    
+                    S014B --> S023B{기록<br/>작성?}
+                    S023B -->|Yes| VIEW[수업 기록<br/>확인]
+                    S023B -->|No| PROMPT[작성 권유]
+                    
+                    LOCAL -.3분마다.-> SYNC[서버 동기화]
+                    
+                    style S012 fill:#4facfe,stroke:#333,stroke-width:3px,color:#fff
+                    style S014 fill:#4facfe,stroke:#333,stroke-width:2px,color:#fff
+                    style S015 fill:#4facfe,stroke:#333,stroke-width:2px,color:#fff
+                    style S019 fill:#43e97b,stroke:#333,stroke-width:2px,color:#fff
+                    style S022 fill:#43e97b,stroke:#333,stroke-width:2px,color:#fff
+                    style S023 fill:#43e97b,stroke:#333,stroke-width:2px,color:#fff
+                    style S025 fill:#43e97b,stroke:#333,stroke-width:2px,color:#fff
+                    style S026 fill:#43e97b,stroke:#333,stroke-width:2px,color:#fff
+                    style S041 fill:#fa709a,stroke:#333,stroke-width:2px,color:#fff
+                    style ACT fill:#ffe66d,stroke:#333,stroke-width:2px
+                    style INPUT fill:#ffe66d,stroke:#333,stroke-width:2px
+                    style S023B fill:#ffe66d,stroke:#333,stroke-width:2px
+            `,
+            
+            settlement: `
+                graph TD
+                    T[선생님] --> S027T[S-027<br/>정산 메인<br/>선생님 뷰]
+                    P[학부모] --> S027P[S-027<br/>정산 메인<br/>학부모 뷰]
+                    
+                    S027T -->|청구서 생성| S028[S-028<br/>청구서 생성]
+                    S028 -->|그룹 선택| SELECT[그룹/기간<br/>선택]
+                    SELECT -->|수업 선택| CALC[금액 자동<br/>계산]
+                    CALC -->|발송| S029T[S-029<br/>청구서 상세<br/>선생님]
+                    
+                    S029T -->|알림 발송| NOTI[학부모<br/>푸시 알림]
+                    NOTI --> S041P[S-041<br/>알림 센터<br/>학부모]
+                    
+                    S041P -->|알림 탭| S029P[S-029<br/>청구서 상세<br/>학부모]
+                    S027P -->|청구서 목록| S029P
+                    
+                    S029P -->|내용 확인| CHECK{확인}
+                    CHECK -->|결제하기| S030[S-030<br/>결제하기]
+                    CHECK -->|문의| CONTACT[카톡/전화]
+                    
+                    S030 -->|토스페이먼츠| TOSS[결제창]
+                    TOSS -->|성공| S031[S-031<br/>결제 완료]
+                    TOSS -->|실패| ERROR[에러 처리]
+                    
+                    S031 -->|3초 후| S032[S-032<br/>영수증 상세]
+                    S032 -->|다운로드| PDF[PDF 생성]
+                    S032 -->|공유| SHARE[카톡/이메일]
+                    
+                    S031 -->|알림 발송| NOTI2[선생님<br/>푸시 알림]
+                    NOTI2 --> S041T[S-041<br/>알림 센터<br/>선생님]
+                    S041T --> S029T2[S-029<br/>청구서 상세<br/>결제 완료 표시]
+                    
+                    S027T -->|통계| S033T[S-033<br/>정산 통계<br/>수입]
+                    S027P -->|통계| S033P[S-033<br/>정산 통계<br/>지출]
+                    
+                    style S027T fill:#ffa751,stroke:#333,stroke-width:3px,color:#fff
+                    style S027P fill:#ffa751,stroke:#333,stroke-width:3px,color:#fff
+                    style S028 fill:#ffa751,stroke:#333,stroke-width:2px,color:#fff
+                    style S029T fill:#ffa751,stroke:#333,stroke-width:2px,color:#fff
+                    style S029P fill:#ffa751,stroke:#333,stroke-width:2px,color:#fff
+                    style S030 fill:#ffa751,stroke:#333,stroke-width:2px,color:#fff
+                    style S031 fill:#ffa751,stroke:#333,stroke-width:2px,color:#fff
+                    style S032 fill:#ffa751,stroke:#333,stroke-width:2px,color:#fff
+                    style S033T fill:#ffa751,stroke:#333,stroke-width:2px,color:#fff
+                    style S033P fill:#ffa751,stroke:#333,stroke-width:2px,color:#fff
+                    style S041T fill:#fa709a,stroke:#333,stroke-width:2px,color:#fff
+                    style S041P fill:#fa709a,stroke:#333,stroke-width:2px,color:#fff
+                    style CHECK fill:#ffe66d,stroke:#333,stroke-width:2px
+                    style T fill:#667eea,stroke:#333,stroke-width:2px,color:#fff
+                    style P fill:#667eea,stroke:#333,stroke-width:2px,color:#fff
+            `
+        };
+
+        function changeView() {
+            const select = document.getElementById('viewSelect');
+            const view = select.value;
+            const chartContainer = document.getElementById('flowchart');
+            
+            chartContainer.innerHTML = flows[view];
+            chartContainer.removeAttribute('data-processed');
+            mermaid.init(undefined, chartContainer);
+        }
+
+        function resetView() {
+            document.getElementById('viewSelect').value = 'full';
+            document.getElementById('roleFilter').value = 'all';
+            changeView();
+        }
+
+        // 초기 로드
+        window.addEventListener('DOMContentLoaded', function() {
+            changeView();
+        });
+    </script>
+</body>
+</html>
