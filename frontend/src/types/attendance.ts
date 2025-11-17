@@ -153,3 +153,30 @@ export const ATTENDANCE_STATUS_ICONS: Record<AttendanceStatus, string> = {
   LATE: '⏰',
   ABSENT: '✗',
 };
+
+/**
+ * 출결 요약 카운트 (UI 표시용)
+ * TODO(F-004): 실제 구현에서 사용
+ */
+export interface AttendanceSummaryCounts {
+  totalStudents: number;
+  present: number;
+  late: number;
+  absent: number;
+  makeup?: number;
+  excused?: number;
+}
+
+/**
+ * 출결 변경 로그 항목 (UI 표시용)
+ * TODO(F-004): 실제 구현에서 사용
+ */
+export interface AttendanceChangeLogItem {
+  changeId: string;
+  attendanceId: string;
+  changedAt: string;
+  changedBy: string;
+  previousStatus: AttendanceStatus;
+  newStatus: AttendanceStatus;
+  reason?: string;
+}
