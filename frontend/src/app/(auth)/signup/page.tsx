@@ -25,7 +25,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { registerWithEmail } from '@/lib/authApi';
-import type { ApiError } from '@/lib/apiClient';
+import { isApiError, type ApiError } from '@/lib/apiClient';
 import type { UserRoleCode } from '@/types/auth';
 
 type UserRole = 'teacher' | 'student' | 'parent';
@@ -98,38 +98,47 @@ export default function SignupPage() {
         router.push('/login');
       }, 2000);
     } catch (error) {
-      const err = error as ApiError;
-
       // 개발 환경에서는 콘솔에 전체 에러 출력
       if (process.env.NODE_ENV === 'development') {
-        console.error('회원가입 에러:', err);
+        console.error('회원가입 에러:', error);
       }
 
-      // 에러 상세 정보 저장 (개발 환경용)
-      setErrorDetails(err);
+      // ApiError 타입 가드로 에러 타입 검증
+      if (isApiError(error)) {
+        // 에러 상세 정보 저장 (개발 환경용)
+        setErrorDetails(error);
 
-      // HTTP 상태 코드별 에러 메시지 처리
-      if (err.status === 409) {
-        setErrorMessage('이미 가입된 이메일입니다. 로그인 화면으로 이동해 주세요.');
-      } else if (err.status === 400) {
-        setErrorMessage(err.message ?? '입력값을 다시 확인해 주세요.');
-      } else if (err.status === 500) {
-        // 서버 내부 오류
-        const detailMsg =
-          process.env.NODE_ENV === 'development' && err.code
-            ? ` (에러 코드: ${err.code})`
-            : '';
-        setErrorMessage(
-          `서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.${detailMsg}`
-        );
-      } else if (err.status === undefined) {
-        // 네트워크 오류 (서버 미응답)
-        setErrorMessage(
-          '서버에 연결할 수 없습니다. 백엔드가 실행 중인지 확인해 주세요.'
-        );
+        // HTTP 상태 코드별 에러 메시지 처리
+        if (error.status === 409) {
+          // ✅ 중복 이메일 전용 메시지 (사용자 친화적)
+          setErrorMessage('이미 가입된 이메일입니다. 다른 이메일을 사용해 주세요.');
+        } else if (error.status === 400 || error.status === 422) {
+          // 입력값 검증 실패
+          setErrorMessage(error.message ?? '입력값을 다시 확인해 주세요.');
+        } else if (error.status === 500) {
+          // 서버 내부 오류
+          const detailMsg =
+            process.env.NODE_ENV === 'development' && error.code
+              ? ` (에러 코드: ${error.code})`
+              : '';
+          setErrorMessage(
+            `서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.${detailMsg}`
+          );
+        } else if (error.status === undefined) {
+          // 네트워크 오류 (서버 미응답, 백엔드 다운 등)
+          setErrorMessage(
+            '서버에 연결할 수 없습니다. 백엔드가 실행 중인지 확인해 주세요.'
+          );
+        } else {
+          // 기타 HTTP 에러 (401, 403, 404 등)
+          setErrorMessage(
+            error.message ?? '회원가입 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
+          );
+        }
       } else {
-        // 기타 오류
-        setErrorMessage(err.message ?? '회원가입 중 오류가 발생했습니다.');
+        // ApiError가 아닌 일반 에러 (예: 예상치 못한 클라이언트 에러)
+        console.error('예상치 못한 에러:', error);
+        setErrorMessage('알 수 없는 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
       }
     } finally {
       setIsLoading(false);

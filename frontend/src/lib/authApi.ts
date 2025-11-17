@@ -154,7 +154,8 @@ export async function registerWithEmail(
     email: string;
     name: string;
     role: string;
-    email_verified: boolean;
+    is_email_verified: boolean;
+    created_at?: string; // 백엔드에서 반환하지만 현재 사용하지 않음
   }>('/auth/register', {
     method: 'POST',
     body: JSON.stringify(requestBody),
@@ -166,7 +167,7 @@ export async function registerWithEmail(
     email: responseData.email,
     name: responseData.name,
     role: responseData.role.toUpperCase() as 'TEACHER' | 'STUDENT' | 'PARENT',
-    emailVerified: responseData.email_verified,
+    emailVerified: responseData.is_email_verified,
   };
 
   return result;
