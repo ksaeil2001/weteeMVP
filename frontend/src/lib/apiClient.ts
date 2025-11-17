@@ -143,8 +143,9 @@ export async function apiRequest<T>(
   }
 
   // 공통 응답 구조: { success: boolean, data, error, meta }
-  // success가 false이거나 HTTP 상태가 오류인 경우 에러 발생
-  if (!response.ok || !json?.success) {
+  // HTTP 상태 코드가 오류(4xx, 5xx)이거나 success가 명시적으로 false인 경우 에러 발생
+  // 참고: HTTP 2xx (200 OK, 201 Created 등)는 모두 성공으로 처리
+  if (!response.ok || json?.success === false) {
     const err: ApiError = new Error(
       json?.error?.message ??
         `요청 처리 중 오류가 발생했습니다 (HTTP ${response.status})`,
