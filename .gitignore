@@ -50,3 +50,9 @@ __pycache__/             # 파이썬 캐시 폴더 전체
 /backend/.env
 /backend/.env.*
 *.pyc
+
+# backend database files (SQLite - dev only)
+/backend/*.db
+/backend/*.db-journal
+/backend/*.db-wal
+/backend/*.db-shm
