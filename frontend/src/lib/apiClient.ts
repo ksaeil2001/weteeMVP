@@ -82,6 +82,30 @@ export interface ApiError extends Error {
 }
 
 /**
+ * ApiError 타입 가드
+ *
+ * unknown 타입의 에러 객체가 ApiError 인터페이스를 구현하는지 확인합니다.
+ * 주로 catch 블록에서 에러 타입을 좁혀서 status, code 등을 안전하게 접근할 때 사용합니다.
+ *
+ * @param error 검사할 에러 객체
+ * @returns ApiError 타입이면 true, 아니면 false
+ *
+ * @example
+ * ```ts
+ * try {
+ *   await registerWithEmail({ ... });
+ * } catch (error) {
+ *   if (isApiError(error) && error.status === 409) {
+ *     alert('이미 가입된 이메일입니다.');
+ *   }
+ * }
+ * ```
+ */
+export function isApiError(error: unknown): error is ApiError {
+  return error instanceof Error && 'status' in error;
+}
+
+/**
  * 공통 API 요청 함수
  *
  * @param path API 경로 (예: '/auth/login', '/groups')
