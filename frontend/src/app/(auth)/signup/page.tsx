@@ -44,6 +44,7 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<ApiError | null>(null);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -62,6 +63,7 @@ export default function SignupPage() {
     // 이전 메시지 초기화
     setErrorMessage(null);
     setSuccessMessage(null);
+    setErrorDetails(null);
 
     // 클라이언트 검증
     if (formData.password !== formData.passwordConfirm) {
@@ -98,12 +100,35 @@ export default function SignupPage() {
     } catch (error) {
       const err = error as ApiError;
 
+      // 개발 환경에서는 콘솔에 전체 에러 출력
+      if (process.env.NODE_ENV === 'development') {
+        console.error('회원가입 에러:', err);
+      }
+
+      // 에러 상세 정보 저장 (개발 환경용)
+      setErrorDetails(err);
+
       // HTTP 상태 코드별 에러 메시지 처리
       if (err.status === 409) {
         setErrorMessage('이미 가입된 이메일입니다. 로그인 화면으로 이동해 주세요.');
       } else if (err.status === 400) {
         setErrorMessage(err.message ?? '입력값을 다시 확인해 주세요.');
+      } else if (err.status === 500) {
+        // 서버 내부 오류
+        const detailMsg =
+          process.env.NODE_ENV === 'development' && err.code
+            ? ` (에러 코드: ${err.code})`
+            : '';
+        setErrorMessage(
+          `서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.${detailMsg}`
+        );
+      } else if (err.status === undefined) {
+        // 네트워크 오류 (서버 미응답)
+        setErrorMessage(
+          '서버에 연결할 수 없습니다. 백엔드가 실행 중인지 확인해 주세요.'
+        );
       } else {
+        // 기타 오류
         setErrorMessage(err.message ?? '회원가입 중 오류가 발생했습니다.');
       }
     } finally {
@@ -254,6 +279,27 @@ export default function SignupPage() {
             {errorMessage && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
                 <p className="text-sm text-red-600">{errorMessage}</p>
+
+                {/* 개발 환경에서만 상세 정보 표시 */}
+                {process.env.NODE_ENV === 'development' && errorDetails && (
+                  <details className="mt-2">
+                    <summary className="text-xs text-red-500 cursor-pointer hover:text-red-700">
+                      🔍 개발자 정보 (상세)
+                    </summary>
+                    <pre className="mt-2 p-2 bg-red-100 rounded text-xs text-red-800 overflow-auto max-h-40">
+                      {JSON.stringify(
+                        {
+                          status: errorDetails.status,
+                          code: errorDetails.code,
+                          message: errorDetails.message,
+                          details: errorDetails.details,
+                        },
+                        null,
+                        2
+                      )}
+                    </pre>
+                  </details>
+                )}
               </div>
             )}
 

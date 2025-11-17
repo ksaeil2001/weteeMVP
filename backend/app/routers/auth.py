@@ -4,8 +4,10 @@ API_명세서.md 6.1 기반 인증 엔드포인트 구현
 """
 
 from datetime import datetime
+import traceback
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import OperationalError, IntegrityError
 
 from app.database import get_db
 from app.dependencies import get_current_user
@@ -49,64 +51,121 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     Related: F-001, API_명세서.md 6.1.1
     """
 
-    # 1. 이메일 중복 확인
-    existing_user = db.query(User).filter(User.email == payload.email.lower()).first()
-    if existing_user:
+    try:
+        # 1. 이메일 중복 확인
+        existing_user = db.query(User).filter(User.email == payload.email.lower()).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "AUTH001",
+                    "message": "이미 가입된 이메일입니다.",
+                },
+            )
+
+        # 2. 역할 변환 (대문자 -> 소문자)
+        role_map = {
+            "TEACHER": UserRole.TEACHER,
+            "STUDENT": UserRole.STUDENT,
+            "PARENT": UserRole.PARENT,
+        }
+        role = role_map.get(payload.role)
+
+        # 3. MVP 1차에서는 TEACHER만 가입 허용
+        # TODO: F-002에서 초대 코드 시스템 구현 후 STUDENT/PARENT 가입 활성화
+        if role != UserRole.TEACHER:
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail={
+                    "code": "COMMON001",
+                    "message": "학생/학부모 초대 코드 가입은 아직 구현되지 않았습니다. (TODO: F-002)",
+                },
+            )
+
+        # 4. 비밀번호 해싱
+        password_hash = hash_password(payload.password)
+
+        # 5. User 생성
+        new_user = User(
+            email=payload.email.lower(),
+            password_hash=password_hash,
+            name=payload.name,
+            phone=payload.phone,
+            role=role,
+            is_active=True,
+            is_email_verified=False,  # TODO: 이메일 인증 구현 후 활성화
+        )
+
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+
+        # 6. 응답 생성
+        # TODO: 이메일 인증 코드 발송 (F-001 6.1.2)
+        return UserResponse(
+            user_id=new_user.id,
+            email=new_user.email,
+            name=new_user.name,
+            role=new_user.role.value,
+            is_email_verified=new_user.is_email_verified,
+            created_at=new_user.created_at,
+        )
+
+    except HTTPException:
+        # HTTPException은 그대로 재전송 (이미 올바른 에러 응답)
+        raise
+
+    except OperationalError as e:
+        # DB 스키마 오류 (컬럼 불일치 등)
+        db.rollback()
+        print(f"❌ Database OperationalError: {e}")
+        traceback.print_exc()
+
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
-                "code": "AUTH001",
-                "message": "이미 가입된 이메일입니다.",
+                "code": "DB_SCHEMA_ERROR",
+                "message": "데이터베이스 스키마 오류가 발생했습니다. 관리자에게 문의하세요.",
             },
         )
 
-    # 2. 역할 변환 (대문자 -> 소문자)
-    role_map = {
-        "TEACHER": UserRole.TEACHER,
-        "STUDENT": UserRole.STUDENT,
-        "PARENT": UserRole.PARENT,
-    }
-    role = role_map.get(payload.role)
+    except IntegrityError as e:
+        # DB 무결성 제약 위반 (UNIQUE, NOT NULL 등)
+        db.rollback()
+        print(f"❌ Database IntegrityError: {e}")
 
-    # 3. MVP 1차에서는 TEACHER만 가입 허용
-    # TODO: F-002에서 초대 코드 시스템 구현 후 STUDENT/PARENT 가입 활성화
-    if role != UserRole.TEACHER:
+        # UNIQUE 제약 위반 (이메일 중복)
+        if "email" in str(e).lower() or "unique" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "AUTH001",
+                    "message": "이미 가입된 이메일입니다.",
+                },
+            )
+
+        # 기타 무결성 오류
         raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail={
-                "code": "COMMON001",
-                "message": "학생/학부모 초대 코드 가입은 아직 구현되지 않았습니다. (TODO: F-002)",
+                "code": "VALIDATION_ERROR",
+                "message": "입력값이 올바르지 않습니다.",
             },
         )
 
-    # 4. 비밀번호 해싱
-    password_hash = hash_password(payload.password)
+    except Exception as e:
+        # 예상하지 못한 에러
+        db.rollback()
+        print(f"❌ Unexpected error during registration: {e}")
+        traceback.print_exc()
 
-    # 5. User 생성
-    new_user = User(
-        email=payload.email.lower(),
-        password_hash=password_hash,
-        name=payload.name,
-        phone=payload.phone,
-        role=role,
-        is_active=True,
-        is_email_verified=False,  # TODO: 이메일 인증 구현 후 활성화
-    )
-
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    # 6. 응답 생성
-    # TODO: 이메일 인증 코드 발송 (F-001 6.1.2)
-    return UserResponse(
-        user_id=new_user.id,
-        email=new_user.email,
-        name=new_user.name,
-        role=new_user.role.value,
-        is_email_verified=new_user.is_email_verified,
-        created_at=new_user.created_at,
-    )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "INTERNAL_ERROR",
+                "message": "회원가입 처리 중 오류가 발생했습니다.",
+            },
+        )
 
 
 @router.post("/login", response_model=LoginResponse)

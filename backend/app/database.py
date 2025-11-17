@@ -45,5 +45,25 @@ def init_db():
     Initialize database - create all tables
     테이블 생성 (개발 환경용, 운영에서는 Alembic 사용)
     """
+    import os
     from app.models import user  # Import models to register them
+    from app.config import settings
+
+    # DB 파일 경로 확인 (SQLite인 경우)
+    if "sqlite" in settings.DATABASE_URL:
+        db_path = settings.DATABASE_URL.replace("sqlite:///", "")
+        abs_path = os.path.abspath(db_path)
+        print(f"📁 Database file: {abs_path}")
+
+        # DB 파일이 이미 존재하는지 확인
+        if os.path.exists(abs_path):
+            print(f"✅ Existing database found")
+        else:
+            print(f"🆕 Creating new database file...")
+
+    # 테이블 생성
     Base.metadata.create_all(bind=engine)
+
+    # 생성된 테이블 목록 출력
+    table_names = Base.metadata.tables.keys()
+    print(f"📊 Tables in database: {', '.join(table_names)}")
