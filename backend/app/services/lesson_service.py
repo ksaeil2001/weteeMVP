@@ -92,7 +92,7 @@ class LessonService:
         membership = db.query(GroupMember).filter(
             GroupMember.group_id == group.id,
             GroupMember.user_id == user.id,
-            GroupMember.member_role == GroupMemberRole.TEACHER,
+            GroupMember.role == GroupMemberRole.TEACHER,
             GroupMember.invite_status == GroupMemberInviteStatus.ACCEPTED,
         ).first()
 
@@ -205,7 +205,7 @@ class LessonService:
             recipient_ids = [
                 row[0] for row in db.query(GroupMember.user_id).filter(
                     GroupMember.group_id == group.id,
-                    GroupMember.member_role.in_([GroupMemberRole.STUDENT, GroupMemberRole.PARENT]),
+                    GroupMember.role.in_([GroupMemberRole.STUDENT, GroupMemberRole.PARENT]),
                     GroupMember.invite_status == GroupMemberInviteStatus.ACCEPTED,
                 ).all()
             ]
@@ -284,10 +284,10 @@ class LessonService:
             )
 
         # 읽음 상태 업데이트 (학부모/학생인 경우)
-        if membership.member_role == GroupMemberRole.PARENT and not lesson_record.parent_viewed_at:
+        if membership.role == GroupMemberRole.PARENT and not lesson_record.parent_viewed_at:
             lesson_record.parent_viewed_at = datetime.utcnow()
             db.commit()
-        elif membership.member_role == GroupMemberRole.STUDENT and not lesson_record.student_viewed_at:
+        elif membership.role == GroupMemberRole.STUDENT and not lesson_record.student_viewed_at:
             lesson_record.student_viewed_at = datetime.utcnow()
             db.commit()
 
