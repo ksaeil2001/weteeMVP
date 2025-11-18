@@ -159,28 +159,40 @@ export type NotificationEventType =
 /**
  * 알림 설정
  * DB: settings 테이블
- * API: GET /api/v1/users/me/notification-settings
+ * API: GET /api/v1/users/me/settings
+ *
+ * Note: 백엔드 스키마에 맞춰 구조 변경
+ * - notification_categories로 카테고리별 알림 관리
+ * - push_enabled, email_enabled로 채널별 제어
  */
 export type NotificationSettings = {
-  // 전체 알림 on/off
-  notification_enabled: boolean;
+  // 채널별 알림 설정
+  push_enabled: boolean;
+  email_enabled: boolean;
 
-  // 이벤트별 알림 설정
-  lesson_reminder_enabled: boolean; // 수업 리마인더
-  attendance_alert_enabled: boolean; // 출결 알림
-  payment_alert_enabled: boolean; // 정산 알림 (끌 수 없음)
+  // 카테고리별 알림 설정
+  notification_categories: {
+    schedule: boolean;    // 일정 알림
+    attendance: boolean;  // 출결 알림
+    payment: boolean;     // 정산 알림 (끌 수 없음)
+    group: boolean;       // 그룹 알림
+  };
 
   // 야간 알림 제한 (F-008)
   night_mode_enabled: boolean;
-  night_start_time: string; // HH:mm 형식 (예: "22:00")
-  night_end_time: string; // HH:mm 형식 (예: "07:00")
+  night_mode_start: string; // HH:mm 형식 (예: "22:00")
+  night_mode_end: string; // HH:mm 형식 (예: "08:00")
 
-  updated_at: string;
+  // 앱 설정
+  theme: 'light' | 'dark' | 'auto';
+  default_screen: string | null;
+
+  updated_at: string | null;
 };
 
 /**
  * 알림 설정 수정 요청
- * API: PATCH /api/v1/users/me/notification-settings
+ * API: PATCH /api/v1/users/me/settings
  */
 export type UpdateNotificationSettingsPayload = Partial<
   Omit<NotificationSettings, 'updated_at'>
