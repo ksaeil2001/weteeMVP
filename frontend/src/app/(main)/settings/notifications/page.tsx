@@ -41,24 +41,25 @@ export default function NotificationSettingsPage() {
     }
   }
 
-  // 설정 변경 및 자동 저장
-  async function handleToggle(key: keyof NotificationSettings, value: boolean) {
+  // 채널 토글 (push/email)
+  async function handleChannelToggle(
+    channel: 'push_enabled' | 'email_enabled',
+    value: boolean
+  ) {
     if (!settings) return;
 
     const updatedSettings = {
       ...settings,
-      [key]: value,
+      [channel]: value,
     };
     setSettings(updatedSettings);
 
-    // 자동 저장
     try {
       setSaving(true);
-      const result = await updateNotificationSettings({ [key]: value });
+      const result = await updateNotificationSettings({ [channel]: value });
       setSettings(result);
     } catch (error) {
       console.error('알림 설정 저장 실패:', error);
-      // 실패 시 이전 값으로 복원
       setSettings(settings);
       alert('설정 저장에 실패했습니다. 다시 시도해주세요.');
     } finally {
@@ -66,9 +67,64 @@ export default function NotificationSettingsPage() {
     }
   }
 
-  // 시간 변경
+  // 카테고리별 알림 토글
+  async function handleCategoryToggle(category: string, value: boolean) {
+    if (!settings) return;
+
+    const updatedCategories = {
+      ...settings.notification_categories,
+      [category]: value,
+    };
+
+    const updatedSettings = {
+      ...settings,
+      notification_categories: updatedCategories,
+    };
+    setSettings(updatedSettings);
+
+    try {
+      setSaving(true);
+      const result = await updateNotificationSettings({
+        notification_categories: updatedCategories,
+      });
+      setSettings(result);
+    } catch (error) {
+      console.error('알림 설정 저장 실패:', error);
+      setSettings(settings);
+      alert('설정 저장에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // 야간 모드 토글
+  async function handleNightModeToggle(value: boolean) {
+    if (!settings) return;
+
+    const updatedSettings = {
+      ...settings,
+      night_mode_enabled: value,
+    };
+    setSettings(updatedSettings);
+
+    try {
+      setSaving(true);
+      const result = await updateNotificationSettings({
+        night_mode_enabled: value,
+      });
+      setSettings(result);
+    } catch (error) {
+      console.error('야간 모드 설정 저장 실패:', error);
+      setSettings(settings);
+      alert('설정 저장에 실패했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // 야간 시간 변경
   async function handleTimeChange(
-    key: 'night_start_time' | 'night_end_time',
+    key: 'night_mode_start' | 'night_mode_end',
     value: string
   ) {
     if (!settings) return;
@@ -121,49 +177,63 @@ export default function NotificationSettingsPage() {
         )}
       </div>
 
-      {/* 전체 알림 on/off */}
+      {/* 알림 채널 설정 */}
       <div className="bg-white border rounded-lg p-6">
-        <ToggleItem
-          label="전체 알림 받기"
-          description="모든 알림을 수신합니다"
-          checked={settings.notification_enabled}
-          onChange={(checked) =>
-            handleToggle('notification_enabled', checked)
-          }
-        />
-      </div>
-
-      {/* 세부 알림 설정 */}
-      <div className="bg-white border rounded-lg p-6">
-        <h2 className="text-lg font-semibold mb-4">세부 알림 설정</h2>
+        <h2 className="text-lg font-semibold mb-4">알림 채널 설정</h2>
         <div className="space-y-4">
           <ToggleItem
-            label="수업 리마인더"
-            description="수업 1시간 전 알림"
-            checked={settings.lesson_reminder_enabled}
-            onChange={(checked) =>
-              handleToggle('lesson_reminder_enabled', checked)
-            }
-            disabled={!settings.notification_enabled}
+            label="푸시 알림"
+            description="모바일 앱 또는 브라우저 푸시 알림"
+            checked={settings.push_enabled}
+            onChange={(checked) => handleChannelToggle('push_enabled', checked)}
           />
 
           <ToggleItem
-            label="출결 변동 알림"
-            description="출결 수정 시 알림"
-            checked={settings.attendance_alert_enabled}
+            label="이메일 알림"
+            description="이메일로 알림 수신"
+            checked={settings.email_enabled}
             onChange={(checked) =>
-              handleToggle('attendance_alert_enabled', checked)
+              handleChannelToggle('email_enabled', checked)
             }
-            disabled={!settings.notification_enabled}
+          />
+        </div>
+      </div>
+
+      {/* 카테고리별 알림 설정 */}
+      <div className="bg-white border rounded-lg p-6">
+        <h2 className="text-lg font-semibold mb-4">카테고리별 알림</h2>
+        <div className="space-y-4">
+          <ToggleItem
+            label="일정 알림"
+            description="수업 일정 변경 및 리마인더"
+            checked={settings.notification_categories.schedule}
+            onChange={(checked) => handleCategoryToggle('schedule', checked)}
+            disabled={!settings.push_enabled && !settings.email_enabled}
+          />
+
+          <ToggleItem
+            label="출결 알림"
+            description="출결 수정 및 변동 알림"
+            checked={settings.notification_categories.attendance}
+            onChange={(checked) => handleCategoryToggle('attendance', checked)}
+            disabled={!settings.push_enabled && !settings.email_enabled}
           />
 
           <ToggleItem
             label="정산 알림 (끌 수 없음)"
             description="청구서 발행, 결제 완료 등 정산 관련 알림"
-            checked={settings.payment_alert_enabled}
+            checked={settings.notification_categories.payment}
             onChange={() => {}}
             disabled={true}
             notice="정산 알림은 중요하므로 끌 수 없습니다"
+          />
+
+          <ToggleItem
+            label="그룹 알림"
+            description="그룹 초대 및 멤버 변동 알림"
+            checked={settings.notification_categories.group}
+            onChange={(checked) => handleCategoryToggle('group', checked)}
+            disabled={!settings.push_enabled && !settings.email_enabled}
           />
         </div>
       </div>
@@ -176,8 +246,8 @@ export default function NotificationSettingsPage() {
           label="야간에는 알림을 받지 않습니다"
           description="설정한 시간 동안 알림이 발송되지 않습니다"
           checked={settings.night_mode_enabled}
-          onChange={(checked) => handleToggle('night_mode_enabled', checked)}
-          disabled={!settings.notification_enabled}
+          onChange={(checked) => handleNightModeToggle(checked)}
+          disabled={!settings.push_enabled && !settings.email_enabled}
         />
 
         {settings.night_mode_enabled && (
@@ -188,9 +258,9 @@ export default function NotificationSettingsPage() {
               </label>
               <input
                 type="time"
-                value={settings.night_start_time}
+                value={settings.night_mode_start}
                 onChange={(e) =>
-                  handleTimeChange('night_start_time', e.target.value)
+                  handleTimeChange('night_mode_start', e.target.value)
                 }
                 className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
               />
@@ -202,16 +272,16 @@ export default function NotificationSettingsPage() {
               </label>
               <input
                 type="time"
-                value={settings.night_end_time}
+                value={settings.night_mode_end}
                 onChange={(e) =>
-                  handleTimeChange('night_end_time', e.target.value)
+                  handleTimeChange('night_mode_end', e.target.value)
                 }
                 className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             <p className="text-sm text-gray-600">
-              {settings.night_start_time}부터 {settings.night_end_time}까지
+              {settings.night_mode_start}부터 {settings.night_mode_end}까지
               알림이 발송되지 않으며, 대신 종료 직후 요약 알림이 발송됩니다.
             </p>
           </div>
@@ -219,13 +289,13 @@ export default function NotificationSettingsPage() {
       </div>
 
       {/* 안내 */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
-        <p className="text-blue-900">
-          <strong>ℹ️ F-007 & F-008 알림 설정</strong>
+      <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm">
+        <p className="text-green-900">
+          <strong>✓ F-007 & F-008 알림 설정 - 백엔드 연동 완료</strong>
         </p>
-        <p className="text-blue-800 mt-1">
-          현재 목업 데이터로 동작합니다. 변경사항은 자동으로 저장되며, 실제 API
-          연동 시 즉시 적용됩니다.
+        <p className="text-green-800 mt-1">
+          변경사항은 자동으로 저장되며 즉시 적용됩니다. 정산 알림은 중요하므로
+          끌 수 없습니다.
         </p>
       </div>
     </div>

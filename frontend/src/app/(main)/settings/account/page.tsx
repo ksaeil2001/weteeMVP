@@ -252,12 +252,13 @@ export default function AccountSettingsPage() {
       </div>
 
       {/* 안내 */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
-        <p className="text-blue-900">
-          <strong>ℹ️ F-007 계정 설정</strong>
+      <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm">
+        <p className="text-green-900">
+          <strong>✓ F-007 계정 설정 - 백엔드 연동 완료</strong>
         </p>
-        <p className="text-blue-800 mt-1">
-          현재 목업 데이터로 동작합니다. 실제 API 연동 시 비밀번호가 변경되고 자동 로그아웃됩니다.
+        <p className="text-green-800 mt-1">
+          비밀번호가 성공적으로 변경되면 자동으로 로그아웃됩니다. 새 비밀번호로
+          다시 로그인해주세요.
         </p>
       </div>
     </div>

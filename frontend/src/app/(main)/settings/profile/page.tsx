@@ -320,13 +320,13 @@ export default function ProfileSettingsPage() {
       </div>
 
       {/* 안내 */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
-        <p className="text-blue-900">
-          <strong>ℹ️ F-007 프로필 설정</strong>
+      <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm">
+        <p className="text-green-900">
+          <strong>✓ F-007 프로필 설정 - 백엔드 연동 완료</strong>
         </p>
-        <p className="text-blue-800 mt-1">
-          현재 목업 데이터로 동작합니다. 실제 API 연동 시 변경사항이 서버에
-          저장됩니다.
+        <p className="text-green-800 mt-1">
+          프로필 변경사항이 실시간으로 서버에 저장됩니다. 이메일 주소는 변경할
+          수 없습니다.
         </p>
       </div>
     </div>
