@@ -38,8 +38,10 @@ export default function LoginPage() {
 
   /**
    * 로그인 폼 제출 핸들러
-   * Step 11: 실제 로그인 API 연동
-   * Step 13: login 시그니처 변경 및 토큰 저장 책임 useAuth로 위임
+   *
+   * 보안 강화:
+   * - 토큰은 백엔드에서 httpOnly 쿠키로 설정 (XSS 방지)
+   * - 프론트엔드는 사용자 정보만 sessionStorage에 저장
    */
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,30 +49,21 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // 로그인 API 호출
-      const result = await loginWithEmail({
+      // 로그인 API 호출 (토큰은 쿠키로 자동 설정됨)
+      const userData = await loginWithEmail({
         email,
         password,
-        // deviceInfo는 생략 시 authApi에서 기본값을 채움
       });
 
-      // Step 13: login 시그니처 변경 (accessToken, refreshToken, user 모두 전달)
-      // 토큰 저장(쿠키, localStorage)은 useAuth.login 내부에서 처리
+      // 사용자 정보만 저장 (토큰은 백엔드에서 쿠키로 설정됨)
       login({
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
-        user: {
-          id: result.user.userId,
-          email: result.user.email,
-          name: result.user.name,
-          role: result.user.role.toLowerCase() as
-            | 'teacher'
-            | 'student'
-            | 'parent',
-          profileImage: undefined,
-          phoneNumber: undefined,
-          createdAt: new Date().toISOString(),
-        },
+        id: userData.userId,
+        email: userData.email,
+        name: userData.name,
+        role: userData.role.toLowerCase() as 'teacher' | 'student' | 'parent',
+        profileImage: undefined,
+        phoneNumber: undefined,
+        createdAt: new Date().toISOString(),
       });
 
       // 메인 페이지로 이동

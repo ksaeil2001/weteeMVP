@@ -31,8 +31,12 @@ import type {
 /**
  * 이메일 로그인 API 호출
  *
- * @param payload 로그인 요청 페이로드 (email, password, deviceInfo)
- * @returns 로그인 성공 시 토큰 및 사용자 정보
+ * 보안 강화:
+ * - 토큰은 백엔드에서 httpOnly 쿠키로 설정 (XSS 방지)
+ * - 응답은 사용자 정보만 포함
+ *
+ * @param payload 로그인 요청 페이로드 (email, password)
+ * @returns 로그인 성공 시 사용자 정보
  *
  * @throws {ApiError} 로그인 실패 시 에러 발생
  * - AUTH004: 이메일/비밀번호 불일치
@@ -42,11 +46,11 @@ import type {
  * @example
  * ```ts
  * try {
- *   const result = await loginWithEmail({
+ *   const user = await loginWithEmail({
  *     email: 'teacher@example.com',
  *     password: 'password123',
  *   });
- *   console.log(result.user.name); // 사용자 이름
+ *   console.log(user.name); // 사용자 이름
  * } catch (error) {
  *   if (error.code === 'AUTH004') {
  *     alert('이메일 또는 비밀번호가 올바르지 않습니다.');
@@ -56,40 +60,32 @@ import type {
  */
 export async function loginWithEmail(
   payload: LoginRequestPayload,
-): Promise<LoginResponseData> {
+): Promise<RegisterResponseData> {
   // 백엔드 API 요청 형식
-  // MVP 1단계에서는 email/password만 전송 (F-001 기준)
-  // device_info는 백엔드 LoginRequest 스키마에 정의되지 않았으므로 제거
   const requestBody = {
     email: payload.email,
     password: payload.password,
   };
 
-  // API 호출
+  // API 호출 (토큰은 쿠키로 자동 설정됨)
   const responseData = await apiRequest<{
-    access_token: string;
-    refresh_token: string;
-    user: {
-      user_id: string;
-      email: string;
-      name: string;
-      role: string;
-    };
+    user_id: string;
+    email: string;
+    name: string;
+    role: string;
+    is_email_verified: boolean;
   }>('/auth/login', {
     method: 'POST',
     body: JSON.stringify(requestBody),
   });
 
   // snake_case → camelCase 변환
-  const result: LoginResponseData = {
-    accessToken: responseData.access_token,
-    refreshToken: responseData.refresh_token,
-    user: {
-      userId: responseData.user.user_id,
-      email: responseData.user.email,
-      name: responseData.user.name,
-      role: responseData.user.role.toUpperCase() as 'TEACHER' | 'STUDENT' | 'PARENT',
-    },
+  const result: RegisterResponseData = {
+    userId: responseData.user_id,
+    email: responseData.email,
+    name: responseData.name,
+    role: responseData.role.toUpperCase() as 'TEACHER' | 'STUDENT' | 'PARENT',
+    emailVerified: responseData.is_email_verified,
   };
 
   return result;
@@ -176,8 +172,13 @@ export async function registerWithEmail(
 /**
  * 토큰 갱신 API 호출
  *
- * @param payload refreshToken 기반 토큰 갱신 요청 페이로드
- * @returns 갱신된 accessToken / refreshToken 쌍
+ * 보안 강화:
+ * - refreshToken은 httpOnly 쿠키에서 자동으로 전송됨
+ * - 새 토큰들은 httpOnly 쿠키로 자동 설정됨
+ * - 프론트엔드는 성공/실패만 확인
+ *
+ * @param payload refreshToken 기반 토큰 갱신 요청 페이로드 (실제로는 사용 안 함)
+ * @returns 갱신 성공 여부
  *
  * @throws {ApiError} 갱신 실패 시 에러 발생
  * - 401/403: 리프레시 토큰 만료/무효
@@ -186,11 +187,8 @@ export async function registerWithEmail(
  * @example
  * ```ts
  * try {
- *   const result = await refreshAccessToken({
- *     refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
- *   });
- *   console.log(result.accessToken); // 새로운 Access Token
- *   console.log(result.refreshToken); // 새로운 Refresh Token
+ *   await refreshAccessToken({ refreshToken: '' });
+ *   console.log('토큰 갱신 완료');
  * } catch (error) {
  *   const err = error as ApiError;
  *   if (err.status === 401 || err.status === 403) {
@@ -202,35 +200,25 @@ export async function registerWithEmail(
  */
 export async function refreshAccessToken(
   payload: RefreshTokenRequestPayload,
-): Promise<RefreshTokenResponseData> {
-  // 백엔드 API 요청 형식 (snake_case)으로 변환
-  const requestBody = {
-    refresh_token: payload.refreshToken,
-  };
-
-  // API 호출
+): Promise<{ success: boolean }> {
+  // API 호출 (refreshToken은 쿠키에서 자동 전송)
   const responseData = await apiRequest<{
-    access_token: string;
-    refresh_token: string;
+    success: boolean;
+    message: string;
   }>('/auth/refresh', {
     method: 'POST',
-    body: JSON.stringify(requestBody),
+    body: JSON.stringify({}), // body는 비워둠 (쿠키에서 토큰 읽음)
   });
 
-  // snake_case → camelCase 변환
-  const result: RefreshTokenResponseData = {
-    accessToken: responseData.access_token,
-    refreshToken: responseData.refresh_token,
-  };
-
-  return result;
+  return { success: responseData.success };
 }
 
 /**
  * 현재 로그인한 사용자 정보 조회
  *
- * Authorization 헤더의 Access Token을 사용하여 현재 로그인한 사용자의 정보를 가져옵니다.
- * 앱 초기 로드 시 localStorage에 토큰이 있을 때 사용자 정보를 복원하는 용도로 사용됩니다.
+ * 보안 강화:
+ * - 쿠키에 저장된 Access Token을 사용하여 사용자 정보 조회
+ * - 쿠키는 브라우저가 자동으로 전송
  *
  * @returns 현재 로그인한 사용자 정보
  *
@@ -253,7 +241,7 @@ export async function refreshAccessToken(
  * ```
  */
 export async function getCurrentAccount(): Promise<RegisterResponseData> {
-  // API 호출 (Authorization 헤더는 apiClient에서 자동 추가)
+  // API 호출 (쿠키에서 자동으로 토큰 전송)
   const responseData = await apiRequest<{
     user_id: string;
     email: string;
@@ -274,4 +262,37 @@ export async function getCurrentAccount(): Promise<RegisterResponseData> {
   };
 
   return result;
+}
+
+/**
+ * 로그아웃 API 호출
+ *
+ * 보안 강화:
+ * - 백엔드에서 httpOnly 쿠키를 삭제
+ * - 프론트엔드는 sessionStorage만 정리
+ *
+ * @returns 로그아웃 성공 여부
+ *
+ * @throws {ApiError} 로그아웃 실패 시 에러 발생
+ *
+ * @example
+ * ```ts
+ * try {
+ *   await logoutUser();
+ *   console.log('로그아웃 완료');
+ * } catch (error) {
+ *   console.error('로그아웃 실패:', error);
+ * }
+ * ```
+ */
+export async function logoutUser(): Promise<{ success: boolean }> {
+  // API 호출 (쿠키 삭제는 백엔드에서 처리)
+  const responseData = await apiRequest<{
+    success: boolean;
+    message: string;
+  }>('/auth/logout', {
+    method: 'POST',
+  });
+
+  return { success: responseData.success };
 }
