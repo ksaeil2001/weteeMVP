@@ -10,6 +10,7 @@ from app.models.schedule import Schedule
 from app.models.attendance import Attendance
 from app.models.textbook import Textbook
 from app.models.lesson import LessonRecord, ProgressRecord
+from app.models.invoice import Invoice, Payment, Transaction
 
 __all__ = [
     "User",
@@ -21,4 +22,7 @@ __all__ = [
     "Textbook",
     "LessonRecord",
     "ProgressRecord",
+    "Invoice",
+    "Payment",
+    "Transaction",
 ]

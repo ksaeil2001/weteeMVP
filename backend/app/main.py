@@ -25,6 +25,8 @@ from app.routers import (
     attendances_router,
     lessons_router,
     textbooks_router,
+    settlements_router,
+    invoices_router,
 )
 
 # Create FastAPI app
@@ -131,8 +133,11 @@ app.include_router(textbooks_router, prefix="/api/v1")
 # F-008: 필수 알림 시스템
 app.include_router(notifications_router, prefix="/api/v1")
 
+# F-006: 수업료 정산
+app.include_router(settlements_router, prefix="/api/v1")
+app.include_router(invoices_router, prefix="/api/v1")
+
 # TODO: 다른 기능 라우터 추가
-# app.include_router(payments_router, prefix="/api/v1")  # F-006
 # app.include_router(profiles_router, prefix="/api/v1")  # F-007
 
 

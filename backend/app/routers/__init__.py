@@ -10,6 +10,7 @@ from app.routers.schedules import router as schedules_router
 from app.routers.attendances import router as attendances_router
 from app.routers.lessons import router as lessons_router
 from app.routers.textbooks import router as textbooks_router
+from app.routers.settlements import router as settlements_router, invoices_router
 
 __all__ = [
     "auth_router",
@@ -19,4 +20,6 @@ __all__ = [
     "attendances_router",
     "lessons_router",
     "textbooks_router",
+    "settlements_router",
+    "invoices_router",
 ]
