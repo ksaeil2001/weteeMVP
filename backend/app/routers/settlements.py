@@ -23,6 +23,7 @@ from app.schemas.invoice import (
     SettlementSummaryResponse,
     PaymentCreateRequest,
     PaymentResponse,
+    TeacherDashboardResponse,  # F-006: Dashboard API
 )
 from app.services.settlement_service import SettlementService
 from app.services.notification_service import NotificationService
@@ -34,6 +35,70 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/settlements", tags=["settlements"])
 invoices_router = APIRouter(prefix="/invoices", tags=["invoices"])
+
+
+# ==========================
+# Dashboard API - F-006 시나리오 5
+# ==========================
+
+@router.get("/dashboard", response_model=TeacherDashboardResponse)
+def get_teacher_monthly_dashboard(
+    year: int = Query(..., ge=2020, le=2100, description="조회 연도"),
+    month: int = Query(..., ge=1, le=12, description="조회 월"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    선생님용 월별 대시보드 조회
+
+    GET /api/v1/settlements/dashboard?year=YYYY&month=MM
+
+    **기능**:
+    - 선생님의 모든 그룹을 통합한 월별 통계 조회
+    - 총 수업 횟수, 총 청구 금액, 결제 현황 등
+    - 학생별 상세 내역
+    - 최근 6개월 월별 비교 데이터
+
+    **권한**: TEACHER만 가능
+
+    **Query Parameters**:
+    - year: 조회 연도 (예: 2025)
+    - month: 조회 월 (1-12)
+
+    **Response**:
+    - TeacherDashboardResponse: 월별 대시보드 통계
+
+    Related: F-006 시나리오 5, API_명세서.md 6.6
+    """
+    try:
+        # TEACHER 권한 확인
+        if current_user.role != UserRole.TEACHER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "PERMISSION_DENIED", "message": "대시보드는 선생님만 조회할 수 있습니다."}
+            )
+
+        result = SettlementService.get_teacher_monthly_dashboard(
+            db=db,
+            user=current_user,
+            year=year,
+            month=month
+        )
+        return result
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(f"🔥 Error getting dashboard: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "DASHBOARD001",
+                "message": "대시보드 조회 중 오류가 발생했습니다.",
+            },
+        )
 
 
 # ==========================

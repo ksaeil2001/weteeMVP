@@ -31,6 +31,9 @@ from app.schemas.invoice import (
     StudentInfo,
     PaymentCreateRequest,
     PaymentResponse,
+    TeacherDashboardResponse,  # F-006: Dashboard
+    StudentDashboardItem,
+    MonthlyComparisonItem,
 )
 from app.services.notification_service import NotificationService
 
@@ -1005,4 +1008,182 @@ class SettlementService:
             page=page,
             size=size,
             total_pages=total_pages,
+        )
+
+    @staticmethod
+    def get_teacher_monthly_dashboard(
+        db: Session,
+        user: User,
+        year: int,
+        month: int
+    ) -> TeacherDashboardResponse:
+        """
+        선생님용 월별 대시보드 조회
+
+        GET /api/v1/settlements/dashboard?year=YYYY&month=MM
+
+        F-006 시나리오 5: 선생님이 월별 수입 통계 확인
+
+        Business Logic:
+        - 선생님의 모든 그룹에서 해당 월의 청구서 통계 집계
+        - 학생별 수업 횟수, 청구 금액, 결제 상태 등 제공
+        - 최근 6개월 월별 비교 데이터 제공
+
+        Args:
+            db: 데이터베이스 세션
+            user: 현재 사용자 (TEACHER만 가능)
+            year: 조회 연도
+            month: 조회 월 (1-12)
+
+        Returns:
+            TeacherDashboardResponse: 월별 대시보드 통계
+
+        Raises:
+            HTTPException: TEACHER가 아닌 경우
+        """
+        # TEACHER 권한 확인
+        if user.role != UserRole.TEACHER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "PERMISSION_DENIED", "message": "대시보드는 선생님만 조회할 수 있습니다."}
+            )
+
+        # 조회 기간 설정
+        start_date = date(year, month, 1)
+        _, last_day = monthrange(year, month)
+        end_date = date(year, month, last_day)
+
+        # 선생님의 모든 그룹 ID 조회
+        teacher_groups = db.query(Group.id).filter(Group.owner_id == user.id).all()
+        teacher_group_ids = [g[0] for g in teacher_groups]
+
+        if not teacher_group_ids:
+            # 그룹이 없으면 빈 대시보드 반환
+            return TeacherDashboardResponse(
+                year=year,
+                month=month,
+                total_lessons=0,
+                total_charged=0,
+                total_paid=0,
+                total_unpaid=0,
+                total_students=0,
+                paid_students=0,
+                unpaid_students=0,
+                students=[],
+                monthly_comparison=[]
+            )
+
+        # 해당 월의 모든 청구서 조회
+        invoices = db.query(Invoice).filter(
+            Invoice.teacher_id == user.id,
+            Invoice.billing_period_start >= start_date,
+            Invoice.billing_period_start <= end_date,
+            Invoice.status != InvoiceStatus.CANCELED  # 취소된 청구서 제외
+        ).all()
+
+        # 학생별 통계 생성
+        student_stats = {}  # student_id -> StudentDashboardItem
+
+        for invoice in invoices:
+            student_id = invoice.student_id
+
+            if student_id not in student_stats:
+                # 학생 정보 조회
+                student = db.query(User).filter(User.id == student_id).first()
+                group = db.query(Group).filter(Group.id == invoice.group_id).first()
+
+                student_stats[student_id] = {
+                    "student_id": student_id,
+                    "student_name": student.name if student else "Unknown",
+                    "group_id": invoice.group_id,
+                    "group_name": group.name if group else "Unknown",
+                    "total_lessons": 0,
+                    "amount_charged": 0,
+                    "amount_paid": 0,
+                }
+
+            # 누적 계산
+            student_stats[student_id]["total_lessons"] += invoice.attended_lessons
+            student_stats[student_id]["amount_charged"] += invoice.amount_due
+            student_stats[student_id]["amount_paid"] += invoice.amount_paid
+
+        # 결제 상태 판정 및 StudentDashboardItem 생성
+        students = []
+        for stats in student_stats.values():
+            if stats["amount_charged"] == 0:
+                payment_status = "unpaid"
+            elif stats["amount_paid"] >= stats["amount_charged"]:
+                payment_status = "paid"
+            elif stats["amount_paid"] > 0:
+                payment_status = "partial"
+            else:
+                payment_status = "unpaid"
+
+            students.append(StudentDashboardItem(
+                student_id=stats["student_id"],
+                student_name=stats["student_name"],
+                group_id=stats["group_id"],
+                group_name=stats["group_name"],
+                total_lessons=stats["total_lessons"],
+                amount_charged=stats["amount_charged"],
+                amount_paid=stats["amount_paid"],
+                payment_status=payment_status
+            ))
+
+        # 전체 통계 계산
+        total_lessons = sum(s.total_lessons for s in students)
+        total_charged = sum(s.amount_charged for s in students)
+        total_paid = sum(s.amount_paid for s in students)
+        total_unpaid = total_charged - total_paid
+        total_students = len(students)
+        paid_students = sum(1 for s in students if s.payment_status == "paid")
+        unpaid_students = sum(1 for s in students if s.payment_status == "unpaid")
+
+        # 월별 비교 데이터 (최근 6개월)
+        monthly_comparison = []
+        for i in range(6):
+            # i개월 전 계산
+            comp_date = start_date - timedelta(days=30 * i)
+            comp_year = comp_date.year
+            comp_month = comp_date.month
+
+            comp_start = date(comp_year, comp_month, 1)
+            _, comp_last_day = monthrange(comp_year, comp_month)
+            comp_end = date(comp_year, comp_month, comp_last_day)
+
+            # 해당 월의 청구서 통계 집계
+            comp_invoices = db.query(Invoice).filter(
+                Invoice.teacher_id == user.id,
+                Invoice.billing_period_start >= comp_start,
+                Invoice.billing_period_start <= comp_end,
+                Invoice.status != InvoiceStatus.CANCELED
+            ).all()
+
+            comp_total_lessons = sum(inv.attended_lessons for inv in comp_invoices)
+            comp_total_charged = sum(inv.amount_due for inv in comp_invoices)
+            comp_total_paid = sum(inv.amount_paid for inv in comp_invoices)
+
+            monthly_comparison.append(MonthlyComparisonItem(
+                year=comp_year,
+                month=comp_month,
+                total_lessons=comp_total_lessons,
+                total_charged=comp_total_charged,
+                total_paid=comp_total_paid
+            ))
+
+        # 최신 순으로 정렬 (현재 월이 첫 번째)
+        monthly_comparison.reverse()
+
+        return TeacherDashboardResponse(
+            year=year,
+            month=month,
+            total_lessons=total_lessons,
+            total_charged=total_charged,
+            total_paid=total_paid,
+            total_unpaid=total_unpaid,
+            total_students=total_students,
+            paid_students=paid_students,
+            unpaid_students=unpaid_students,
+            students=students,
+            monthly_comparison=monthly_comparison
         )
