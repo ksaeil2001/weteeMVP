@@ -19,8 +19,19 @@ import AttendanceSummaryCard from '@/components/attendance/AttendanceSummaryCard
 import AttendanceStatusBadge from '@/components/attendance/AttendanceStatusBadge';
 import type {
   AttendanceSummaryCounts,
-  AttendanceChangeLogItem,
+  AttendanceStatus,
 } from '@/types/attendance';
+
+// UI 표시용 출결 변경 로그 타입
+interface AttendanceUIChangeLog {
+  id: string;
+  date: string;
+  studentName: string;
+  groupName: string;
+  previousStatus: AttendanceStatus;
+  currentStatus: AttendanceStatus;
+  reason?: string;
+}
 
 export default function AttendancePage() {
   // Mock 데이터: 오늘 출결 요약
@@ -34,14 +45,14 @@ export default function AttendancePage() {
   };
 
   // Mock 데이터: 최근 출결 변경 내역
-  const mockAttendanceChanges: AttendanceChangeLogItem[] = [
+  const mockAttendanceChanges: AttendanceUIChangeLog[] = [
     {
       id: 'log-1',
       date: '2025-11-12',
       studentName: '김수학',
       groupName: '고3 수학반',
-      previousStatus: 'absent',
-      currentStatus: 'present',
+      previousStatus: 'ABSENT',
+      currentStatus: 'PRESENT',
       reason: '결석 처리 오기 정정',
     },
     {
@@ -49,8 +60,8 @@ export default function AttendancePage() {
       date: '2025-11-11',
       studentName: '이영어',
       groupName: '고2 영어반',
-      previousStatus: 'present',
-      currentStatus: 'late',
+      previousStatus: 'PRESENT',
+      currentStatus: 'LATE',
       reason: '지각 처리 (10분 지각)',
     },
     {
@@ -58,8 +69,8 @@ export default function AttendancePage() {
       date: '2025-11-10',
       studentName: '박과학',
       groupName: '중3 과학반',
-      previousStatus: 'late',
-      currentStatus: 'absent',
+      previousStatus: 'LATE',
+      currentStatus: 'ABSENT',
       reason: '지각에서 결석으로 변경',
     },
   ];

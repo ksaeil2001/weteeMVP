@@ -131,6 +131,7 @@ export type PasswordValidation = {
   hasUppercase: boolean; // 대문자 포함
   hasNumber: boolean; // 숫자 포함
   hasSpecialChar: boolean; // 특수문자 포함
+  isValid: boolean; // 전체 검증 통과 여부
 };
 
 // ============================================================================
@@ -437,4 +438,5 @@ export const DEFAULT_PASSWORD_VALIDATION: PasswordValidation = {
   hasUppercase: false,
   hasNumber: false,
   hasSpecialChar: false,
+  isValid: false,
 };

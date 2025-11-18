@@ -16,10 +16,21 @@
 import React from 'react';
 import PageHeader from '@/components/common/PageHeader';
 import SettingsSectionCard from '@/components/settings/SettingsSectionCard';
-import type {
-  SettingsSectionMeta,
-  SettingsToggleOption,
-} from '@/types/settings';
+
+// 로컬 타입 정의
+interface SettingsSectionMeta {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+}
+
+interface SettingsToggleOption {
+  id: string;
+  label: string;
+  description?: string;
+  enabled: boolean;
+}
 
 /**
  * SettingsPage
