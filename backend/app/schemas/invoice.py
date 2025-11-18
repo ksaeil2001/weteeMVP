@@ -426,3 +426,121 @@ class InvoiceCreateResponse(BaseModel):
                 }
             }
         }
+
+
+# ==========================
+# Dashboard (대시보드) Schemas - F-006 시나리오 5
+# ==========================
+
+
+class StudentDashboardItem(BaseModel):
+    """
+    학생별 대시보드 통계 항목
+    """
+    student_id: str = Field(..., description="학생 ID")
+    student_name: str = Field(..., description="학생 이름")
+    group_id: str = Field(..., description="그룹 ID")
+    group_name: str = Field(..., description="그룹 이름")
+    total_lessons: int = Field(..., ge=0, description="총 수업 횟수")
+    amount_charged: int = Field(..., ge=0, description="청구 금액 (원)")
+    amount_paid: int = Field(..., ge=0, description="결제 완료 금액 (원)")
+    payment_status: str = Field(..., description="결제 상태 (paid/unpaid/partial)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "student_id": "student-uuid-123",
+                "student_name": "박민수",
+                "group_id": "group-uuid-456",
+                "group_name": "중3 수학 반A",
+                "total_lessons": 8,
+                "amount_charged": 400000,
+                "amount_paid": 400000,
+                "payment_status": "paid"
+            }
+        }
+
+
+class MonthlyComparisonItem(BaseModel):
+    """
+    월별 비교 데이터 항목
+    """
+    year: int = Field(..., description="연도")
+    month: int = Field(..., description="월")
+    total_lessons: int = Field(..., ge=0, description="총 수업 횟수")
+    total_charged: int = Field(..., ge=0, description="총 청구 금액 (원)")
+    total_paid: int = Field(..., ge=0, description="총 결제 금액 (원)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "year": 2025,
+                "month": 11,
+                "total_lessons": 35,
+                "total_charged": 1750000,
+                "total_paid": 1400000
+            }
+        }
+
+
+class TeacherDashboardResponse(BaseModel):
+    """
+    선생님용 월별 대시보드 응답
+
+    GET /api/v1/settlements/dashboard?year=YYYY&month=MM
+
+    F-006 시나리오 5: 선생님이 월별 수입 통계 확인
+    """
+    year: int = Field(..., description="조회 연도")
+    month: int = Field(..., description="조회 월")
+
+    # 월별 요약
+    total_lessons: int = Field(..., ge=0, description="총 수업 횟수")
+    total_charged: int = Field(..., ge=0, description="총 청구 금액 (원)")
+    total_paid: int = Field(..., ge=0, description="결제 완료 금액 (원)")
+    total_unpaid: int = Field(..., ge=0, description="미결제 금액 (원)")
+    total_students: int = Field(..., ge=0, description="학생 수")
+    paid_students: int = Field(..., ge=0, description="결제 완료 학생 수")
+    unpaid_students: int = Field(..., ge=0, description="미결제 학생 수")
+
+    # 학생별 내역
+    students: List[StudentDashboardItem] = Field(..., description="학생별 통계")
+
+    # 월별 비교 (최근 6개월)
+    monthly_comparison: List[MonthlyComparisonItem] = Field(..., description="월별 비교 데이터")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "year": 2025,
+                "month": 11,
+                "total_lessons": 35,
+                "total_charged": 1750000,
+                "total_paid": 1400000,
+                "total_unpaid": 350000,
+                "total_students": 5,
+                "paid_students": 4,
+                "unpaid_students": 1,
+                "students": [
+                    {
+                        "student_id": "student-1",
+                        "student_name": "박민수",
+                        "group_id": "group-1",
+                        "group_name": "중3 수학",
+                        "total_lessons": 8,
+                        "amount_charged": 400000,
+                        "amount_paid": 400000,
+                        "payment_status": "paid"
+                    }
+                ],
+                "monthly_comparison": [
+                    {
+                        "year": 2025,
+                        "month": 7,
+                        "total_lessons": 30,
+                        "total_charged": 1200000,
+                        "total_paid": 1200000
+                    }
+                ]
+            }
+        }
