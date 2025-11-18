@@ -184,7 +184,6 @@ export default function ScheduleNewPage() {
       <PageHeader
         title="정규 수업 등록"
         subtitle="매주 반복되는 정규 수업 일정을 등록합니다."
-        backLink="/schedule"
       />
 
       {loading ? (

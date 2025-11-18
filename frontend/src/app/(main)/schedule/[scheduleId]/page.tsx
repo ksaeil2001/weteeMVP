@@ -141,7 +141,7 @@ export default function ScheduleDetailPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="일정 상세" backLink="/schedule" />
+        <PageHeader title="일정 상세" />
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
           <p className="text-gray-500">로딩 중...</p>
         </div>
@@ -152,7 +152,7 @@ export default function ScheduleDetailPage() {
   if (!schedule) {
     return (
       <div className="space-y-6">
-        <PageHeader title="일정 상세" backLink="/schedule" />
+        <PageHeader title="일정 상세" />
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
           <p className="text-gray-500">일정을 찾을 수 없습니다.</p>
         </div>
@@ -167,7 +167,6 @@ export default function ScheduleDetailPage() {
     <div className="space-y-6">
       <PageHeader
         title="일정 상세"
-        backLink="/schedule"
         actions={
           <div className="flex items-center gap-2">
             <button

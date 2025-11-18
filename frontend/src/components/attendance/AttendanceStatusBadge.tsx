@@ -16,25 +16,17 @@ const AttendanceStatusBadge: React.FC<AttendanceStatusBadgeProps> = ({
 }) => {
   // 상태별 기본 라벨 및 스타일 매핑
   const statusConfig: Record<AttendanceStatus, { label: string; colorClass: string }> = {
-    present: {
+    PRESENT: {
       label: '출석',
       colorClass: 'bg-green-100 text-green-700',
     },
-    late: {
+    LATE: {
       label: '지각',
       colorClass: 'bg-yellow-100 text-yellow-700',
     },
-    absent: {
+    ABSENT: {
       label: '결석',
       colorClass: 'bg-red-100 text-red-700',
-    },
-    makeup: {
-      label: '보강',
-      colorClass: 'bg-purple-100 text-purple-700',
-    },
-    excused: {
-      label: '공결',
-      colorClass: 'bg-gray-100 text-gray-700',
     },
   };
 

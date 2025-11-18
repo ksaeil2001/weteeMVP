@@ -31,7 +31,7 @@ const AttendanceSummaryCard: React.FC<AttendanceSummaryCardProps> = ({
         {/* 출석 */}
         <div className="p-3 bg-green-50 rounded-lg">
           <div className="flex items-center gap-2 mb-1">
-            <AttendanceStatusBadge status="present" />
+            <AttendanceStatusBadge status="PRESENT" />
           </div>
           <div className="text-2xl font-bold text-green-700">
             {summary.present}
@@ -41,7 +41,7 @@ const AttendanceSummaryCard: React.FC<AttendanceSummaryCardProps> = ({
         {/* 지각 */}
         <div className="p-3 bg-yellow-50 rounded-lg">
           <div className="flex items-center gap-2 mb-1">
-            <AttendanceStatusBadge status="late" />
+            <AttendanceStatusBadge status="LATE" />
           </div>
           <div className="text-2xl font-bold text-yellow-700">
             {summary.late}
@@ -51,32 +51,40 @@ const AttendanceSummaryCard: React.FC<AttendanceSummaryCardProps> = ({
         {/* 결석 */}
         <div className="p-3 bg-red-50 rounded-lg">
           <div className="flex items-center gap-2 mb-1">
-            <AttendanceStatusBadge status="absent" />
+            <AttendanceStatusBadge status="ABSENT" />
           </div>
           <div className="text-2xl font-bold text-red-700">
             {summary.absent}
           </div>
         </div>
 
-        {/* 보강 */}
-        <div className="p-3 bg-purple-50 rounded-lg">
-          <div className="flex items-center gap-2 mb-1">
-            <AttendanceStatusBadge status="makeup" />
+        {/* 보강 - TODO: AttendanceStatus 타입에 MAKEUP 추가 후 활성화 */}
+        {summary.makeup !== undefined && (
+          <div className="p-3 bg-purple-50 rounded-lg">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                보강
+              </span>
+            </div>
+            <div className="text-2xl font-bold text-purple-700">
+              {summary.makeup}
+            </div>
           </div>
-          <div className="text-2xl font-bold text-purple-700">
-            {summary.makeup}
-          </div>
-        </div>
+        )}
 
-        {/* 공결 */}
-        <div className="p-3 bg-gray-50 rounded-lg">
-          <div className="flex items-center gap-2 mb-1">
-            <AttendanceStatusBadge status="excused" />
+        {/* 공결 - TODO: AttendanceStatus 타입에 EXCUSED 추가 후 활성화 */}
+        {summary.excused !== undefined && (
+          <div className="p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                공결
+              </span>
+            </div>
+            <div className="text-2xl font-bold text-gray-700">
+              {summary.excused}
+            </div>
           </div>
-          <div className="text-2xl font-bold text-gray-700">
-            {summary.excused}
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
