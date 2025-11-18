@@ -605,39 +605,34 @@ class SettlementService:
         db.commit()
         db.refresh(invoice)
 
-        # F-008 알림 발송 (학생에게)
-        from app.models.notification import (
-            Notification,
-            NotificationCategory,
-            NotificationType,
-            NotificationPriority,
-            NotificationChannel,
-            NotificationDeliveryStatus,
-        )
+        # F-008: 알림 발송 (학생 + 학부모에게)
+        try:
+            from app.models.notification import NotificationType, NotificationPriority
 
-        notification = Notification(
-            user_id=invoice.student_id,
-            category=NotificationCategory.PAYMENT,
-            type=NotificationType.BILLING_ISSUED,
-            title=f"💳 {invoice.billing_period_start.month}월 과외비 청구서 도착",
-            message=f"{invoice.invoice_number} - {invoice.amount_due:,}원이 청구되었습니다.",
-            priority=NotificationPriority.CRITICAL,
-            channel=NotificationChannel.IN_APP,
-            delivery_status=NotificationDeliveryStatus.SENT,
-            is_read=False,
-            is_required=True,
-            metadata={
-                "invoice_id": invoice.id,
-                "invoice_number": invoice.invoice_number,
-                "amount_due": invoice.amount_due,
-                "due_date": invoice.due_date.isoformat() if invoice.due_date else None,
-            }
-        )
+            # 학생 및 학부모 ID 조회
+            recipient_ids = [invoice.student_id]
+            parents = db.query(GroupMember.user_id).filter(
+                GroupMember.group_id == invoice.group_id,
+                GroupMember.role == GroupMemberRole.PARENT,
+                GroupMember.invite_status == GroupMemberInviteStatus.ACCEPTED,
+            ).all()
+            recipient_ids.extend([p[0] for p in parents])
 
-        db.add(notification)
-        db.commit()
-
-        # TODO: 학부모에게도 알림 발송 (학생-학부모 관계 정의 후)
+            if recipient_ids:
+                NotificationService.create_notifications_for_group(
+                    db=db,
+                    user_ids=recipient_ids,
+                    notification_type=NotificationType.BILLING_ISSUED,
+                    title=f"💳 {invoice.billing_period_start.month}월 과외비 청구서 도착",
+                    message=f"{invoice.invoice_number} - {invoice.amount_due:,}원이 청구되었습니다.",
+                    priority=NotificationPriority.CRITICAL,
+                    related_resource_type="invoice",
+                    related_resource_id=invoice.id,
+                    is_required=True,
+                )
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to send billing notification: {e}")
+            # 알림 실패는 메인 로직에 영향을 주지 않음
 
         # 응답 생성
         student = db.query(User).filter(User.id == invoice.student_id).first()
@@ -868,35 +863,23 @@ class SettlementService:
         db.commit()
         db.refresh(payment)
 
-        # F-008 알림 발송 (선생님에게)
-        from app.models.notification import (
-            Notification,
-            NotificationCategory,
-            NotificationType,
-            NotificationPriority,
-            NotificationChannel,
-            NotificationDeliveryStatus,
-        )
+        # F-008: 결제 완료 알림 발송 (선생님에게)
+        try:
+            from app.models.notification import NotificationType, NotificationPriority
 
-        notification = Notification(
-            user_id=invoice.teacher_id,
-            category=NotificationCategory.PAYMENT,
-            type=NotificationType.PAYMENT_CONFIRMED,
-            title=f"💰 {invoice.billing_period_start.month}월 과외비 결제 완료",
-            message=f"{invoice.invoice_number} - {payload.amount:,}원이 결제되었습니다.",
-            priority=NotificationPriority.NORMAL,
-            channel=NotificationChannel.IN_APP,
-            delivery_status=NotificationDeliveryStatus.SENT,
-            is_read=False,
-            metadata={
-                "invoice_id": invoice.id,
-                "payment_id": payment.id,
-                "amount": payload.amount,
-            }
-        )
-
-        db.add(notification)
-        db.commit()
+            NotificationService.create_notification(
+                db=db,
+                user_id=invoice.teacher_id,
+                notification_type=NotificationType.PAYMENT_CONFIRMED,
+                title=f"💰 {invoice.billing_period_start.month}월 과외비 결제 완료",
+                message=f"{invoice.invoice_number} - {payload.amount:,}원이 결제되었습니다.",
+                priority=NotificationPriority.NORMAL,
+                related_resource_type="payment",
+                related_resource_id=payment.id,
+            )
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to send payment confirmation notification: {e}")
+            # 알림 실패는 메인 로직에 영향을 주지 않음
 
         # 응답 생성
         return PaymentResponse(

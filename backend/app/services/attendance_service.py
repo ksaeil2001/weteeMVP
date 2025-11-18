@@ -13,7 +13,8 @@ from fastapi import HTTPException, status
 from app.models.attendance import Attendance, AttendanceStatus
 from app.models.schedule import Schedule, ScheduleStatus
 from app.models.group import Group, GroupMember, GroupMemberRole, GroupMemberInviteStatus
-from app.models.user import User
+from app.models.user import User, UserRole
+from app.models.notification import NotificationType, NotificationPriority
 from app.schemas.attendance import (
     CreateAttendancePayload,
     BatchCreateAttendancePayload,
@@ -26,6 +27,7 @@ from app.schemas.attendance import (
     StudentInfo,
     RecentAttendanceRecord,
 )
+from app.services.notification_service import NotificationService
 
 
 class AttendanceService:
@@ -236,8 +238,41 @@ class AttendanceService:
                 detail={"code": "ATTENDANCE_CONFLICT", "message": "출결 기록 중 오류가 발생했습니다."}
             )
 
-        # TODO(F-008): 출결 기록 알림 발송
-        # - 학생 + 학부모에게 푸시 알림
+        # F-008: 출결 기록 알림 발송 (학생 + 학부모에게)
+        try:
+            # 알림 받을 사용자: 학생 본인 + 해당 학생의 학부모
+            recipient_ids = [payload.student_id]
+
+            # 학생의 학부모 찾기 (같은 그룹 내 PARENT 역할)
+            parents = db.query(GroupMember.user_id).filter(
+                GroupMember.group_id == group.id,
+                GroupMember.role == GroupMemberRole.PARENT,
+                GroupMember.invite_status == GroupMemberInviteStatus.ACCEPTED,
+            ).all()
+            recipient_ids.extend([p[0] for p in parents])
+
+            if recipient_ids:
+                status_text = {
+                    AttendanceStatus.PRESENT: "출석",
+                    AttendanceStatus.LATE: "지각",
+                    AttendanceStatus.EARLY_LEAVE: "조퇴",
+                    AttendanceStatus.ABSENT: "결석",
+                }.get(payload.status, str(payload.status))
+
+                schedule_time = schedule.start_at.strftime("%m월 %d일 %H:%M") if schedule.start_at else ""
+                NotificationService.create_notifications_for_group(
+                    db=db,
+                    user_ids=recipient_ids,
+                    notification_type=NotificationType.ATTENDANCE_CHANGED,
+                    title=f"✅ 출결 기록 - {status_text}",
+                    message=f"{schedule.title} ({schedule_time})",
+                    priority=NotificationPriority.NORMAL,
+                    related_resource_type="attendance",
+                    related_resource_id=attendance.id,
+                )
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to send attendance notification: {e}")
+            # 알림 실패는 메인 로직에 영향을 주지 않음
 
         return AttendanceService._to_attendance_out(db, attendance)
 
@@ -311,6 +346,41 @@ class AttendanceService:
                 attendances.append(attendance)
 
         db.commit()
+
+        # F-008: 배치 출결 알림 발송 (각 학생 + 해당 학부모에게)
+        try:
+            # 학부모 ID 목록 조회
+            parent_ids = [row[0] for row in db.query(GroupMember.user_id).filter(
+                GroupMember.group_id == group.id,
+                GroupMember.role == GroupMemberRole.PARENT,
+                GroupMember.invite_status == GroupMemberInviteStatus.ACCEPTED,
+            ).all()]
+
+            # 각 출결에 대해 알림 발송
+            for attendance in attendances:
+                recipient_ids = [attendance.student_id] + parent_ids
+                if recipient_ids:
+                    status_text = {
+                        AttendanceStatus.PRESENT: "출석",
+                        AttendanceStatus.LATE: "지각",
+                        AttendanceStatus.EARLY_LEAVE: "조퇴",
+                        AttendanceStatus.ABSENT: "결석",
+                    }.get(attendance.status, str(attendance.status))
+
+                    schedule_time = schedule.start_at.strftime("%m월 %d일 %H:%M") if schedule.start_at else ""
+                    NotificationService.create_notifications_for_group(
+                        db=db,
+                        user_ids=recipient_ids,
+                        notification_type=NotificationType.ATTENDANCE_CHANGED,
+                        title=f"✅ 출결 기록 - {status_text}",
+                        message=f"{schedule.title} ({schedule_time})",
+                        priority=NotificationPriority.NORMAL,
+                        related_resource_type="attendance",
+                        related_resource_id=attendance.id,
+                    )
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to send batch attendance notifications: {e}")
+            # 알림 실패는 메인 로직에 영향을 주지 않음
 
         # 응답 변환
         attendance_outs = [AttendanceService._to_attendance_out(db, att) for att in attendances]

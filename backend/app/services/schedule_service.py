@@ -12,6 +12,7 @@ from fastapi import HTTPException, status
 from app.models.schedule import Schedule, ScheduleType, ScheduleStatus
 from app.models.group import Group, GroupMember, GroupMemberRole, GroupMemberInviteStatus
 from app.models.user import User
+from app.models.notification import NotificationType, NotificationPriority
 from app.schemas.schedule import (
     CreateRegularSchedulePayload,
     CreateSchedulePayload,
@@ -20,6 +21,7 @@ from app.schemas.schedule import (
     ScheduleListResponse,
     PaginationInfo,
 )
+from app.services.notification_service import NotificationService
 
 
 class ScheduleService:
@@ -76,6 +78,29 @@ class ScheduleService:
             )
 
         return group
+
+    @staticmethod
+    def _get_group_member_ids(db: Session, group_id: str, exclude_user_id: Optional[str] = None) -> List[str]:
+        """
+        그룹의 모든 멤버 ID 조회 (알림 발송용)
+
+        Args:
+            db: 데이터베이스 세션
+            group_id: 그룹 ID
+            exclude_user_id: 제외할 사용자 ID (본인 제외 시 사용)
+
+        Returns:
+            List[str]: 멤버 ID 리스트
+        """
+        query = db.query(GroupMember.user_id).filter(
+            GroupMember.group_id == group_id,
+            GroupMember.invite_status == GroupMemberInviteStatus.ACCEPTED,
+        )
+
+        if exclude_user_id:
+            query = query.filter(GroupMember.user_id != exclude_user_id)
+
+        return [row[0] for row in query.all()]
 
     @staticmethod
     def _generate_recurring_schedules(
@@ -325,6 +350,33 @@ class ScheduleService:
         db.commit()
         db.refresh(schedule)
 
+        # F-008: 일정 생성 알림 발송 (그룹 멤버에게)
+        try:
+            member_ids = ScheduleService._get_group_member_ids(db, group.id, exclude_user_id=user.id)
+            if member_ids:
+                # 일정 타입에 따른 알림 메시지 생성
+                schedule_type_text = {
+                    "MAKEUP": "보강",
+                    "EXAM": "시험",
+                    "HOLIDAY": "휴강",
+                    "OTHER": "특별"
+                }.get(payload.type, "")
+
+                date_str = start_at.strftime("%m월 %d일 %H:%M")
+                NotificationService.create_notifications_for_group(
+                    db=db,
+                    user_ids=member_ids,
+                    notification_type=NotificationType.SCHEDULE_CHANGED,
+                    title=f"📅 새로운 {schedule_type_text} 일정",
+                    message=f"{payload.title} - {date_str}",
+                    priority=NotificationPriority.NORMAL if payload.type != "EXAM" else NotificationPriority.HIGH,
+                    related_resource_type="schedule",
+                    related_resource_id=schedule.id,
+                )
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to send schedule creation notification: {e}")
+            # 알림 실패는 메인 로직에 영향을 주지 않음
+
         return ScheduleService._to_schedule_out(db, schedule)
 
     @staticmethod
@@ -400,6 +452,11 @@ class ScheduleService:
             )
 
         # 필드 업데이트
+        old_start_at = schedule.start_at
+        status_changed = False
+        is_canceled = False
+        is_rescheduled = False
+
         if payload.title is not None:
             schedule.title = payload.title
         if payload.start_at is not None:
@@ -411,16 +468,58 @@ class ScheduleService:
         if payload.memo is not None:
             schedule.memo = payload.memo
         if payload.status is not None:
+            if schedule.status != payload.status:
+                status_changed = True
             schedule.status = payload.status
         if payload.reschedule_reason is not None:
             schedule.reschedule_reason = payload.reschedule_reason
             schedule.status = ScheduleStatus.RESCHEDULED
+            is_rescheduled = True
+            status_changed = True
         if payload.cancel_reason is not None:
             schedule.cancel_reason = payload.cancel_reason
             schedule.status = ScheduleStatus.CANCELED
+            is_canceled = True
+            status_changed = True
 
         db.commit()
         db.refresh(schedule)
+
+        # F-008: 일정 변경/취소 알림 발송
+        try:
+            if status_changed or old_start_at != schedule.start_at:
+                member_ids = ScheduleService._get_group_member_ids(db, schedule.group_id, exclude_user_id=user.id)
+                if member_ids:
+                    if is_canceled:
+                        # 취소 알림
+                        date_str = old_start_at.strftime("%m월 %d일 %H:%M") if old_start_at else ""
+                        NotificationService.create_notifications_for_group(
+                            db=db,
+                            user_ids=member_ids,
+                            notification_type=NotificationType.SCHEDULE_CANCELLED,
+                            title="❌ 수업 취소",
+                            message=f"{schedule.title} ({date_str}) - {payload.cancel_reason}",
+                            priority=NotificationPriority.HIGH,
+                            related_resource_type="schedule",
+                            related_resource_id=schedule.id,
+                            is_required=True,
+                        )
+                    elif is_rescheduled or old_start_at != schedule.start_at:
+                        # 일정 변경 알림
+                        date_str = schedule.start_at.strftime("%m월 %d일 %H:%M") if schedule.start_at else ""
+                        NotificationService.create_notifications_for_group(
+                            db=db,
+                            user_ids=member_ids,
+                            notification_type=NotificationType.SCHEDULE_CHANGED,
+                            title="🔄 수업 일정 변경",
+                            message=f"{schedule.title} - {date_str}로 변경되었습니다",
+                            priority=NotificationPriority.HIGH,
+                            related_resource_type="schedule",
+                            related_resource_id=schedule.id,
+                        )
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to send schedule update notification: {e}")
+            # 알림 실패는 메인 로직에 영향을 주지 않음
 
         return ScheduleService._to_schedule_out(db, schedule)
 

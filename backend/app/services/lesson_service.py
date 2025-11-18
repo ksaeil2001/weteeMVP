@@ -15,6 +15,7 @@ from app.models.textbook import Textbook
 from app.models.schedule import Schedule
 from app.models.group import Group, GroupMember, GroupMemberRole, GroupMemberInviteStatus
 from app.models.user import User
+from app.models.notification import NotificationType, NotificationPriority
 from app.schemas.lesson import (
     CreateLessonRecordPayload,
     UpdateLessonRecordPayload,
@@ -22,6 +23,7 @@ from app.schemas.lesson import (
     ProgressRecordOut,
     ProgressSummary,
 )
+from app.services.notification_service import NotificationService
 
 
 class LessonService:
@@ -196,6 +198,46 @@ class LessonService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={"code": "DATABASE_ERROR", "message": "데이터베이스 오류가 발생했습니다."}
             )
+
+        # F-008: 수업 기록 작성 알림 발송 (학생 + 학부모에게)
+        try:
+            # 그룹의 학생 및 학부모 ID 조회 (선생님 제외)
+            recipient_ids = [
+                row[0] for row in db.query(GroupMember.user_id).filter(
+                    GroupMember.group_id == group.id,
+                    GroupMember.member_role.in_([GroupMemberRole.STUDENT, GroupMemberRole.PARENT]),
+                    GroupMember.invite_status == GroupMemberInviteStatus.ACCEPTED,
+                ).all()
+            ]
+
+            if recipient_ids:
+                schedule_date = schedule.start_at.strftime("%m월 %d일") if schedule.start_at else ""
+                NotificationService.create_notifications_for_group(
+                    db=db,
+                    user_ids=recipient_ids,
+                    notification_type=NotificationType.LESSON_RECORD_CREATED,
+                    title="📝 수업 기록 작성됨",
+                    message=f"{schedule.title} ({schedule_date}) - 수업 내용을 확인해보세요",
+                    priority=NotificationPriority.NORMAL,
+                    related_resource_type="lesson_record",
+                    related_resource_id=lesson_record.id,
+                )
+
+                # 숙제가 있는 경우 추가 알림
+                if payload.homework:
+                    NotificationService.create_notifications_for_group(
+                        db=db,
+                        user_ids=recipient_ids,
+                        notification_type=NotificationType.HOMEWORK_ASSIGNED,
+                        title="📚 숙제가 부여되었습니다",
+                        message=f"{schedule.title} ({schedule_date}) - 숙제를 확인해주세요",
+                        priority=NotificationPriority.HIGH,
+                        related_resource_type="lesson_record",
+                        related_resource_id=lesson_record.id,
+                    )
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to send lesson record notification: {e}")
+            # 알림 실패는 메인 로직에 영향을 주지 않음
 
         # 8. 응답 데이터 구성
         return LessonService._build_lesson_record_out(db, lesson_record)
