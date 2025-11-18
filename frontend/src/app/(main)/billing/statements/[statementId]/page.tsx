@@ -19,22 +19,20 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/lib/hooks/useAuth';
 import type { BillingStatement, BillingStatus } from '@/types/billing';
 import { fetchBillingStatementById, updateBillingStatus } from '@/lib/api/billing';
 
 export default function BillingStatementDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { isAuthenticated, currentRole } = useAuth();
   const statementId = params.statementId as string;
 
   const [statement, setStatement] = useState<BillingStatement | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
-
-  // TODO(F-006): useAuth 훅으로 실제 role 가져오기
-  // 임시로 'TEACHER'로 설정 (실제로는 인증된 사용자의 role 사용)
-  const [mockRole] = useState<'TEACHER' | 'PARENT' | 'STUDENT'>('TEACHER');
 
   useEffect(() => {
     loadStatement();
@@ -325,7 +323,7 @@ export default function BillingStatementDetailPage() {
 
         {/* Actions */}
         <div className="flex gap-3">
-          {mockRole === 'TEACHER' && (
+          {currentRole === 'teacher' && (
             <>
               {statement.status === 'DRAFT' && (
                 <button
@@ -357,7 +355,7 @@ export default function BillingStatementDetailPage() {
             </>
           )}
 
-          {(mockRole === 'PARENT' || mockRole === 'STUDENT') &&
+          {(currentRole === 'parent' || currentRole === 'student') &&
             (statement.status === 'ISSUED' || statement.status === 'OVERDUE') && (
               <button
                 onClick={() => router.push(`/billing/payment/${statement.id}`)}
