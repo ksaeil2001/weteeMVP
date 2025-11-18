@@ -86,6 +86,7 @@ export default function SchedulePage() {
   const router = useRouter();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [viewType, setViewType] = useState<CalendarViewType>('list');
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -97,6 +98,7 @@ export default function SchedulePage() {
   async function loadSchedules() {
     try {
       setLoading(true);
+      setError(null);
 
       // 현재 월의 시작일과 종료일 계산
       const from = new Date(
@@ -118,6 +120,11 @@ export default function SchedulePage() {
       setSchedules(data);
     } catch (error) {
       console.error('일정 로드 실패:', error);
+      setError(
+        error instanceof Error
+          ? error.message
+          : '일정을 불러오는 중 오류가 발생했습니다.'
+      );
     } finally {
       setLoading(false);
     }
@@ -158,6 +165,22 @@ export default function SchedulePage() {
           </button>
         }
       />
+
+      {/* 에러 메시지 */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="font-semibold text-red-900 mb-1">
+            ⚠️ 일정 로드 실패
+          </p>
+          <p className="text-red-800 text-sm">{error}</p>
+          <button
+            onClick={loadSchedules}
+            className="mt-3 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            다시 시도
+          </button>
+        </div>
+      )}
 
       {/* 뷰 전환 탭 */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
@@ -305,13 +328,17 @@ export default function SchedulePage() {
       </div>
 
       {/* 개발 안내 */}
-      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-        <p className="font-semibold text-blue-900 mb-1">
-          ℹ️ F-003 수업 일정 관리: 스켈레톤 구현 완료
+      <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-sm">
+        <p className="font-semibold text-green-900 mb-1">
+          ✅ F-003 수업 일정 관리: 백엔드 API 연동 완료 (MVP 1단계)
         </p>
-        <p className="text-blue-800">
-          현재 목업 API로 일정을 표시 중입니다. 실제 백엔드 연동 시 실시간
-          데이터로 업데이트됩니다.
+        <p className="text-green-800 mb-2">
+          일정 조회/생성/수정/삭제가 실제 백엔드 API(/api/v1/schedules)와
+          연동되어 동작합니다.
+        </p>
+        <p className="text-green-700 text-xs">
+          📌 Phase 2 예정: 보강 슬롯 관리, 시험 일정 관리 (현재는 목업으로
+          동작)
         </p>
       </div>
     </div>
