@@ -69,11 +69,18 @@ class Group(Base):
     # Foreign Key to users table
     owner_id = Column(String(36), nullable=False, index=True)
 
-    # Payment Settlement Fields (F-006)
-    # 데이터베이스_설계서.md:231-246 기준
+    # F-006: 수업료 정산 관련 필드
     lesson_fee = Column(Integer, nullable=False, default=0)  # 회당 수업료 (원)
-    payment_type = Column(String(20), nullable=False, default='postpaid')  # 'prepaid' | 'postpaid'
-    payment_cycle = Column(Integer, nullable=False, default=4)  # 정산 주기 (회)
+    payment_type = Column(
+        String(20),
+        nullable=False,
+        default="postpaid"  # prepaid(선불) / postpaid(후불)
+    )
+    payment_cycle = Column(
+        Integer,
+        nullable=False,
+        default=4  # 정산 주기 (회) - 기본 4회마다 정산
+    )
 
     # Status
     status = Column(

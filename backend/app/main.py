@@ -15,8 +15,13 @@ from datetime import datetime
 from uuid import uuid4
 import traceback
 
+# Rate Limiting (F-001 보안 강화)
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
 from app.config import settings
 from app.database import init_db
+from app.core.limiter import limiter
 from app.routers import (
     auth_router,
     profiles_router,
@@ -39,6 +44,10 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+# Attach limiter to app state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS Configuration
 app.add_middleware(

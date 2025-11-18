@@ -32,10 +32,10 @@ class GroupBase(BaseModel):
     subject: str = Field(..., min_length=1, max_length=50, description="과목")
     description: Optional[str] = Field(None, description="그룹 설명")
 
-    # 정산 관련 필드 (F-006)
+    # F-006: 수업료 정산 관련 필드
     lesson_fee: int = Field(0, ge=0, description="회당 수업료 (원)")
-    payment_type: Literal["prepaid", "postpaid"] = Field("postpaid", description="정산 방식 (선불/후불)")
-    payment_cycle: int = Field(4, ge=1, description="정산 주기 (회)")
+    payment_type: Literal["prepaid", "postpaid"] = Field("postpaid", description="결제 방식 (선불/후불)")
+    payment_cycle: int = Field(4, ge=1, le=12, description="정산 주기 (회)")
 
 
 class GroupCreate(GroupBase):
@@ -69,6 +69,11 @@ class GroupUpdate(BaseModel):
     subject: Optional[str] = Field(None, min_length=1, max_length=50, description="과목")
     description: Optional[str] = Field(None, description="그룹 설명")
     status: Optional[GroupStatusEnum] = Field(None, description="그룹 상태")
+
+    # F-006: 수업료 정산 관련 필드
+    lesson_fee: Optional[int] = Field(None, ge=0, description="회당 수업료 (원)")
+    payment_type: Optional[Literal["prepaid", "postpaid"]] = Field(None, description="결제 방식")
+    payment_cycle: Optional[int] = Field(None, ge=1, le=12, description="정산 주기 (회)")
 
     class Config:
         json_schema_extra = {
@@ -119,6 +124,11 @@ class GroupOut(BaseModel):
     status: GroupStatusEnum
     created_at: str  # ISO 8601 format
     updated_at: str  # ISO 8601 format
+
+    # F-006: 수업료 정산 관련 필드
+    lesson_fee: int = 0
+    payment_type: str = "postpaid"
+    payment_cycle: int = 4
 
     # Optional: 멤버 목록 (상세 조회 시)
     members: Optional[list[GroupMemberOut]] = None
