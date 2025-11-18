@@ -30,20 +30,126 @@ import type {
   ExamSchedule,
 } from '@/types/schedule';
 
-import {
-  getMockSchedulesByDateRange,
-  getMockScheduleById,
-  getMockMakeupSlots,
-  getMockExamSchedules,
-} from '@/mocks/schedules';
+import { apiRequest } from '@/lib/apiClient';
+
+/**
+ * ==========================
+ * Adapter Functions (Backend ↔ Frontend)
+ * ==========================
+ *
+ * Backend: snake_case (schedule_id, group_id, start_at)
+ * Frontend: camelCase (scheduleId, groupId, startAt)
+ */
+
+/**
+ * Backend ScheduleOut (snake_case) → Frontend Schedule (camelCase)
+ */
+function adaptScheduleFromBackend(backendSchedule: any): Schedule {
+  return {
+    scheduleId: backendSchedule.schedule_id,
+    groupId: backendSchedule.group_id,
+    groupName: backendSchedule.group_name,
+    title: backendSchedule.title,
+    type: backendSchedule.type,
+    startAt: backendSchedule.start_at,
+    endAt: backendSchedule.end_at,
+    status: backendSchedule.status,
+    recurrenceRule: backendSchedule.recurrence_rule
+      ? {
+          frequency: backendSchedule.recurrence_rule.frequency,
+          interval: backendSchedule.recurrence_rule.interval,
+          daysOfWeek: backendSchedule.recurrence_rule.days_of_week,
+          startDate: backendSchedule.recurrence_rule.start_date,
+          endType: backendSchedule.recurrence_rule.end_type,
+          endDate: backendSchedule.recurrence_rule.end_date,
+          endCount: backendSchedule.recurrence_rule.end_count,
+        }
+      : undefined,
+    location: backendSchedule.location,
+    memo: backendSchedule.memo,
+    createdAt: backendSchedule.created_at,
+    updatedAt: backendSchedule.updated_at,
+    teacherId: backendSchedule.teacher_id,
+    teacherName: backendSchedule.teacher_name,
+    studentIds: backendSchedule.student_ids,
+    studentNames: backendSchedule.student_names,
+    originalScheduleId: backendSchedule.original_schedule_id,
+    cancelReason: backendSchedule.cancel_reason,
+    rescheduleReason: backendSchedule.reschedule_reason,
+  };
+}
+
+/**
+ * Frontend CreateRegularSchedulePayload (camelCase) → Backend (snake_case)
+ */
+function adaptCreateRegularSchedulePayload(
+  payload: CreateRegularSchedulePayload
+): any {
+  return {
+    group_id: payload.groupId,
+    student_ids: payload.studentIds,
+    title: payload.title,
+    start_time: payload.startTime,
+    duration: payload.duration,
+    location: payload.location,
+    memo: payload.memo,
+    recurrence: {
+      frequency: payload.recurrence.frequency,
+      interval: payload.recurrence.interval,
+      days_of_week: payload.recurrence.daysOfWeek,
+      start_date: payload.recurrence.startDate,
+      end_type: payload.recurrence.endType,
+      end_date: payload.recurrence.endDate,
+      end_count: payload.recurrence.endCount,
+    },
+  };
+}
+
+/**
+ * Frontend CreateSchedulePayload (camelCase) → Backend (snake_case)
+ */
+function adaptCreateSchedulePayload(payload: CreateSchedulePayload): any {
+  return {
+    group_id: payload.groupId,
+    title: payload.title,
+    type: payload.type,
+    start_at: payload.startAt,
+    end_at: payload.endAt,
+    location: payload.location,
+    memo: payload.memo,
+    student_ids: payload.studentIds,
+    original_schedule_id: payload.originalScheduleId,
+  };
+}
+
+/**
+ * Frontend UpdateSchedulePayload (camelCase) → Backend (snake_case)
+ */
+function adaptUpdateSchedulePayload(payload: UpdateSchedulePayload): any {
+  return {
+    title: payload.title,
+    start_at: payload.startAt,
+    end_at: payload.endAt,
+    location: payload.location,
+    memo: payload.memo,
+    status: payload.status,
+    reschedule_reason: payload.rescheduleReason,
+    cancel_reason: payload.cancelReason,
+  };
+}
+
+/**
+ * ==========================
+ * API Functions
+ * ==========================
+ */
 
 /**
  * 일정 목록 조회 (날짜 범위 기준)
  *
- * TODO(F-003): 실제 API 연동
- * - GET /api/v1/schedules?from=YYYY-MM-DD&to=YYYY-MM-DD&groupId=...&type=...
- * - Authorization: Bearer <access_token>
- * - 응답: { success: true, data: { items: Schedule[], pagination: {...} } }
+ * GET /api/v1/schedules?from=YYYY-MM-DD&to=YYYY-MM-DD&groupId=...&type=...
+ * Authorization: Bearer <access_token>
+ * 응답: { items: ScheduleOut[], pagination: {...} }
  *
  * @param params 조회 파라미터 (날짜 범위, 그룹 ID, 타입 등)
  * @returns Promise<Schedule[]>
@@ -51,28 +157,34 @@ import {
 export async function fetchSchedules(
   params: ScheduleListParams
 ): Promise<Schedule[]> {
-  // TODO(F-003): 실제 API 호출
-  // const response = await apiRequest<{ items: Schedule[] }>('GET', '/api/v1/schedules', { params });
-  // return response.items;
+  // Build query string
+  const queryParams = new URLSearchParams();
+  queryParams.append('from_date', params.from);
+  queryParams.append('to_date', params.to);
+  if (params.groupId) queryParams.append('group_id', params.groupId);
+  if (params.studentId) queryParams.append('student_id', params.studentId);
+  if (params.type) queryParams.append('type', params.type);
+  if (params.status) queryParams.append('status', params.status);
+  if (params.page) queryParams.append('page', params.page.toString());
+  if (params.size) queryParams.append('size', params.size.toString());
 
-  // 목업 데이터 반환 (개발 중)
-  console.log('[fetchSchedules] 목업 데이터 반환:', params);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(
-        getMockSchedulesByDateRange(params.from, params.to, params.groupId)
-      );
-    }, 300); // 네트워크 지연 시뮬레이션
+  const response = await apiRequest<{
+    items: any[];
+    pagination: any;
+  }>(`/schedules?${queryParams.toString()}`, {
+    method: 'GET',
   });
+
+  // Convert backend response (snake_case) to frontend format (camelCase)
+  return response.items.map(adaptScheduleFromBackend);
 }
 
 /**
  * 일정 상세 조회
  *
- * TODO(F-003): 실제 API 연동
- * - GET /api/v1/schedules/{scheduleId}
- * - Authorization: Bearer <access_token>
- * - 응답: { success: true, data: Schedule }
+ * GET /api/v1/schedules/{scheduleId}
+ * Authorization: Bearer <access_token>
+ * 응답: ScheduleOut
  *
  * @param scheduleId 일정 ID
  * @returns Promise<Schedule>
@@ -80,32 +192,23 @@ export async function fetchSchedules(
 export async function fetchScheduleById(
   scheduleId: string
 ): Promise<Schedule> {
-  // TODO(F-003): 실제 API 호출
-  // const response = await apiRequest<Schedule>('GET', `/api/v1/schedules/${scheduleId}`);
-  // return response;
+  const backendSchedule = await apiRequest<any>(
+    `/schedules/${scheduleId}`,
+    {
+      method: 'GET',
+    }
+  );
 
-  // 목업 데이터 반환 (개발 중)
-  console.log('[fetchScheduleById] 목업 데이터 반환:', scheduleId);
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      const schedule = getMockScheduleById(scheduleId);
-      if (schedule) {
-        resolve(schedule);
-      } else {
-        reject(new Error('일정을 찾을 수 없습니다.'));
-      }
-    }, 300);
-  });
+  return adaptScheduleFromBackend(backendSchedule);
 }
 
 /**
  * 정규 수업 일정 등록 (반복 일정)
  *
- * TODO(F-003): 실제 API 연동
- * - POST /api/v1/schedules/regular
- * - Authorization: Bearer <access_token>
- * - 요청: CreateRegularSchedulePayload
- * - 응답: { success: true, data: { schedules: Schedule[] } }
+ * POST /api/v1/schedules/regular
+ * Authorization: Bearer <access_token>
+ * 요청: CreateRegularSchedulePayload
+ * 응답: { schedules: ScheduleOut[] }
  *
  * @param payload 정규 수업 등록 정보
  * @returns Promise<Schedule[]> 생성된 일정 목록
@@ -113,58 +216,26 @@ export async function fetchScheduleById(
 export async function createRegularSchedule(
   payload: CreateRegularSchedulePayload
 ): Promise<Schedule[]> {
-  // TODO(F-003): 실제 API 호출
-  // const response = await apiRequest<{ schedules: Schedule[] }>('POST', '/api/v1/schedules/regular', { body: payload });
-  // return response.schedules;
+  const backendPayload = adaptCreateRegularSchedulePayload(payload);
 
-  // 목업 데이터 반환 (개발 중)
-  console.log('[createRegularSchedule] 목업 정규 수업 생성:', payload);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      // 간단한 목업: 앞으로 4주치 일정 생성
-      const schedules: Schedule[] = [];
-      const startDate = new Date(payload.recurrence.startDate);
+  const response = await apiRequest<{ schedules: any[] }>(
+    '/schedules/regular',
+    {
+      method: 'POST',
+      body: JSON.stringify(backendPayload),
+    }
+  );
 
-      for (let i = 0; i < 8; i++) {
-        // 8개 일정 생성 (4주 × 2회/주)
-        const scheduleDate = new Date(startDate);
-        scheduleDate.setDate(scheduleDate.getDate() + i * 3); // 3일 간격
-
-        const [hours, minutes] = payload.startTime.split(':');
-        scheduleDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-
-        const endDate = new Date(scheduleDate);
-        endDate.setMinutes(endDate.getMinutes() + payload.duration);
-
-        schedules.push({
-          scheduleId: `schedule-new-${Date.now()}-${i}`,
-          groupId: payload.groupId,
-          title: payload.title,
-          type: 'REGULAR',
-          startAt: scheduleDate.toISOString(),
-          endAt: endDate.toISOString(),
-          status: 'SCHEDULED',
-          location: payload.location,
-          memo: payload.memo,
-          teacherId: 'teacher-1',
-          teacherName: '김선생',
-          createdAt: new Date().toISOString(),
-        });
-      }
-
-      resolve(schedules);
-    }, 500);
-  });
+  return response.schedules.map(adaptScheduleFromBackend);
 }
 
 /**
  * 단일 일정 생성 (보강, 기타)
  *
- * TODO(F-003): 실제 API 연동
- * - POST /api/v1/schedules
- * - Authorization: Bearer <access_token>
- * - 요청: CreateSchedulePayload
- * - 응답: { success: true, data: Schedule }
+ * POST /api/v1/schedules
+ * Authorization: Bearer <access_token>
+ * 요청: CreateSchedulePayload
+ * 응답: ScheduleOut
  *
  * @param payload 일정 생성 정보
  * @returns Promise<Schedule>
@@ -172,42 +243,23 @@ export async function createRegularSchedule(
 export async function createSchedule(
   payload: CreateSchedulePayload
 ): Promise<Schedule> {
-  // TODO(F-003): 실제 API 호출
-  // const response = await apiRequest<Schedule>('POST', '/api/v1/schedules', { body: payload });
-  // return response;
+  const backendPayload = adaptCreateSchedulePayload(payload);
 
-  // 목업 데이터 반환 (개발 중)
-  console.log('[createSchedule] 목업 일정 생성:', payload);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const newSchedule: Schedule = {
-        scheduleId: `schedule-${Date.now()}`,
-        groupId: payload.groupId,
-        title: payload.title,
-        type: payload.type,
-        startAt: payload.startAt,
-        endAt: payload.endAt,
-        status: 'SCHEDULED',
-        location: payload.location,
-        memo: payload.memo,
-        originalScheduleId: payload.originalScheduleId,
-        teacherId: 'teacher-1',
-        teacherName: '김선생',
-        createdAt: new Date().toISOString(),
-      };
-      resolve(newSchedule);
-    }, 500);
+  const backendSchedule = await apiRequest<any>('/schedules', {
+    method: 'POST',
+    body: JSON.stringify(backendPayload),
   });
+
+  return adaptScheduleFromBackend(backendSchedule);
 }
 
 /**
  * 일정 수정
  *
- * TODO(F-003): 실제 API 연동
- * - PATCH /api/v1/schedules/{scheduleId}
- * - Authorization: Bearer <access_token>
- * - 요청: UpdateSchedulePayload
- * - 응답: { success: true, data: Schedule }
+ * PATCH /api/v1/schedules/{scheduleId}
+ * Authorization: Bearer <access_token>
+ * 요청: UpdateSchedulePayload
+ * 응답: ScheduleOut
  *
  * @param scheduleId 일정 ID
  * @param payload 수정할 일정 정보
@@ -217,61 +269,52 @@ export async function updateSchedule(
   scheduleId: string,
   payload: UpdateSchedulePayload
 ): Promise<Schedule> {
-  // TODO(F-003): 실제 API 호출
-  // const response = await apiRequest<Schedule>('PATCH', `/api/v1/schedules/${scheduleId}`, { body: payload });
-  // return response;
+  const backendPayload = adaptUpdateSchedulePayload(payload);
 
-  // 목업 데이터 반환 (개발 중)
-  console.log('[updateSchedule] 목업 일정 수정:', scheduleId, payload);
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      const schedule = getMockScheduleById(scheduleId);
-      if (schedule) {
-        const updatedSchedule: Schedule = {
-          ...schedule,
-          ...payload,
-          updatedAt: new Date().toISOString(),
-        };
-        resolve(updatedSchedule);
-      } else {
-        reject(new Error('일정을 찾을 수 없습니다.'));
-      }
-    }, 500);
-  });
+  const backendSchedule = await apiRequest<any>(
+    `/schedules/${scheduleId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(backendPayload),
+    }
+  );
+
+  return adaptScheduleFromBackend(backendSchedule);
 }
 
 /**
  * 일정 삭제
  *
- * TODO(F-003): 실제 API 연동
- * - DELETE /api/v1/schedules/{scheduleId}
- * - Authorization: Bearer <access_token>
- * - 응답: 204 No Content
+ * DELETE /api/v1/schedules/{scheduleId}
+ * Authorization: Bearer <access_token>
+ * 응답: 204 No Content
  *
  * @param scheduleId 일정 ID
  * @returns Promise<void>
  */
 export async function deleteSchedule(scheduleId: string): Promise<void> {
-  // TODO(F-003): 실제 API 호출
-  // await apiRequest('DELETE', `/api/v1/schedules/${scheduleId}`);
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[deleteSchedule] 목업 일정 삭제:', scheduleId);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve();
-    }, 300);
+  await apiRequest<void>(`/schedules/${scheduleId}`, {
+    method: 'DELETE',
   });
 }
 
 /**
+ * ==========================
+ * TODO(Phase 2): Makeup Slots, Exam Schedules
+ * ==========================
+ *
+ * Backend에서 아직 구현되지 않음 (backend/app/schemas/schedule.py 참조)
+ * 현재는 목업 데이터로 동작하며, 실제 API 연동은 Phase 2에서 진행 예정
+ */
+
+/**
  * 보강 가능 시간 오픈 (선생님)
  *
- * TODO(F-003): 실제 API 연동
+ * TODO(Phase 2): 백엔드 API 구현 후 연동
  * - POST /api/v1/schedules/makeup-slots
  * - Authorization: Bearer <access_token>
  * - 요청: CreateMakeupSlotPayload
- * - 응답: { success: true, data: { slots: MakeupSlot[] } }
+ * - 응답: { slots: MakeupSlot[] }
  *
  * @param payload 보강 시간 오픈 정보
  * @returns Promise<MakeupSlot[]>
@@ -279,12 +322,8 @@ export async function deleteSchedule(scheduleId: string): Promise<void> {
 export async function createMakeupSlots(
   payload: CreateMakeupSlotPayload
 ): Promise<MakeupSlot[]> {
-  // TODO(F-003): 실제 API 호출
-  // const response = await apiRequest<{ slots: MakeupSlot[] }>('POST', '/api/v1/schedules/makeup-slots', { body: payload });
-  // return response.slots;
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[createMakeupSlots] 목업 보강 시간 오픈:', payload);
+  // TODO(Phase 2): 실제 API 구현 대기 중
+  console.warn('[createMakeupSlots] Phase 2 기능: 목업 데이터 반환');
   return new Promise((resolve) => {
     setTimeout(() => {
       const newSlots: MakeupSlot[] = payload.slots.map((slot, index) => ({
@@ -307,10 +346,10 @@ export async function createMakeupSlots(
 /**
  * 보강 가능 시간 조회
  *
- * TODO(F-003): 실제 API 연동
+ * TODO(Phase 2): 백엔드 API 구현 후 연동
  * - GET /api/v1/schedules/makeup-slots?groupId=...
  * - Authorization: Bearer <access_token>
- * - 응답: { success: true, data: { items: MakeupSlot[] } }
+ * - 응답: { items: MakeupSlot[] }
  *
  * @param groupId 그룹 ID (선택)
  * @returns Promise<MakeupSlot[]>
@@ -318,15 +357,11 @@ export async function createMakeupSlots(
 export async function fetchMakeupSlots(
   groupId?: string
 ): Promise<MakeupSlot[]> {
-  // TODO(F-003): 실제 API 호출
-  // const response = await apiRequest<{ items: MakeupSlot[] }>('GET', '/api/v1/schedules/makeup-slots', { params: { groupId } });
-  // return response.items;
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[fetchMakeupSlots] 목업 보강 시간 조회:', groupId);
+  // TODO(Phase 2): 실제 API 구현 대기 중
+  console.warn('[fetchMakeupSlots] Phase 2 기능: 목업 데이터 반환');
   return new Promise((resolve) => {
     setTimeout(() => {
-      resolve(getMockMakeupSlots(groupId));
+      resolve([]); // Empty array for now
     }, 300);
   });
 }
@@ -334,11 +369,11 @@ export async function fetchMakeupSlots(
 /**
  * 보강 수업 예약 (학생)
  *
- * TODO(F-003): 실제 API 연동
+ * TODO(Phase 2): 백엔드 API 구현 후 연동
  * - POST /api/v1/schedules/makeup-slots/{slotId}/book
  * - Authorization: Bearer <access_token>
  * - 요청: BookMakeupSlotPayload
- * - 응답: { success: true, data: Schedule }
+ * - 응답: Schedule
  *
  * @param payload 보강 예약 정보
  * @returns Promise<Schedule> 생성된 보강 수업 일정
@@ -346,12 +381,8 @@ export async function fetchMakeupSlots(
 export async function bookMakeupSlot(
   payload: BookMakeupSlotPayload
 ): Promise<Schedule> {
-  // TODO(F-003): 실제 API 호출
-  // const response = await apiRequest<Schedule>('POST', `/api/v1/schedules/makeup-slots/${payload.slotId}/book`, { body: payload });
-  // return response;
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[bookMakeupSlot] 목업 보강 예약:', payload);
+  // TODO(Phase 2): 실제 API 구현 대기 중
+  console.warn('[bookMakeupSlot] Phase 2 기능: 목업 데이터 반환');
   return new Promise((resolve) => {
     setTimeout(() => {
       const newSchedule: Schedule = {
@@ -375,11 +406,11 @@ export async function bookMakeupSlot(
 /**
  * 시험 일정 등록
  *
- * TODO(F-003): 실제 API 연동
+ * TODO(Phase 2): 백엔드 API 구현 후 연동
  * - POST /api/v1/schedules/exams
  * - Authorization: Bearer <access_token>
  * - 요청: CreateExamSchedulePayload
- * - 응답: { success: true, data: ExamSchedule }
+ * - 응답: ExamSchedule
  *
  * @param payload 시험 일정 정보
  * @returns Promise<ExamSchedule>
@@ -387,12 +418,8 @@ export async function bookMakeupSlot(
 export async function createExamSchedule(
   payload: CreateExamSchedulePayload
 ): Promise<ExamSchedule> {
-  // TODO(F-003): 실제 API 호출
-  // const response = await apiRequest<ExamSchedule>('POST', '/api/v1/schedules/exams', { body: payload });
-  // return response;
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[createExamSchedule] 목업 시험 일정 생성:', payload);
+  // TODO(Phase 2): 실제 API 구현 대기 중
+  console.warn('[createExamSchedule] Phase 2 기능: 목업 데이터 반환');
   return new Promise((resolve) => {
     setTimeout(() => {
       const newExam: ExamSchedule = {
@@ -415,10 +442,10 @@ export async function createExamSchedule(
 /**
  * 시험 일정 조회
  *
- * TODO(F-003): 실제 API 연동
+ * TODO(Phase 2): 백엔드 API 구현 후 연동
  * - GET /api/v1/schedules/exams?groupId=...&studentId=...
  * - Authorization: Bearer <access_token>
- * - 응답: { success: true, data: { items: ExamSchedule[] } }
+ * - 응답: { items: ExamSchedule[] }
  *
  * @param groupId 그룹 ID (선택)
  * @param studentId 학생 ID (선택)
@@ -428,18 +455,11 @@ export async function fetchExamSchedules(
   groupId?: string,
   studentId?: string
 ): Promise<ExamSchedule[]> {
-  // TODO(F-003): 실제 API 호출
-  // const response = await apiRequest<{ items: ExamSchedule[] }>('GET', '/api/v1/schedules/exams', { params: { groupId, studentId } });
-  // return response.items;
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[fetchExamSchedules] 목업 시험 일정 조회:', {
-    groupId,
-    studentId,
-  });
+  // TODO(Phase 2): 실제 API 구현 대기 중
+  console.warn('[fetchExamSchedules] Phase 2 기능: 목업 데이터 반환');
   return new Promise((resolve) => {
     setTimeout(() => {
-      resolve(getMockExamSchedules(groupId, studentId));
+      resolve([]); // Empty array for now
     }, 300);
   });
 }
