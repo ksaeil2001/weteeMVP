@@ -4,6 +4,7 @@ SQLAlchemy ORM 모델
 """
 
 from app.models.user import User
+from app.models.settings import Settings
 from app.models.notification import Notification
 from app.models.group import Group, GroupMember
 from app.models.schedule import Schedule
@@ -14,6 +15,7 @@ from app.models.invoice import Invoice, Payment, Transaction
 
 __all__ = [
     "User",
+    "Settings",
     "Notification",
     "Group",
     "GroupMember",
