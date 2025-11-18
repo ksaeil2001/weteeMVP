@@ -187,6 +187,9 @@ class ScheduleOut(BaseModel):
     cancel_reason: Optional[str] = None
     reschedule_reason: Optional[str] = None
 
+    # F-005: 수업 기록 연결 (N+1 문제 해결)
+    lesson_record_id: Optional[str] = None  # 이 일정에 대한 수업 기록 ID
+
     class Config:
         json_schema_extra = {
             "example": {

@@ -124,6 +124,10 @@ class Schedule(Base):
     # 한 일정에 여러 학생의 출결이 있을 수 있음
     attendances = relationship("Attendance", back_populates="schedule", cascade="all, delete-orphan")
 
+    # F-005: LessonRecord와의 관계 (1:1)
+    # 한 일정당 하나의 수업 기록만 가능
+    lesson_record = relationship("LessonRecord", uselist=False, backref="schedule")
+
     def __repr__(self):
         return f"<Schedule {self.id} - {self.title} ({self.type}) at {self.start_at}>"
 

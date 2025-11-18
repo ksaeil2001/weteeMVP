@@ -5,7 +5,7 @@ Schedule Service - F-003 수업 일정 관리 비즈니스 로직
 
 from datetime import datetime, timedelta
 from typing import Optional, List, Tuple
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, desc, and_, or_
 from fastapi import HTTPException, status
 
@@ -235,8 +235,11 @@ class ScheduleService:
             ).all()
         ]
 
+        # F-005: N+1 문제 해결 - lesson_record를 eager load
         # 쿼리 시작
-        query = db.query(Schedule).filter(Schedule.group_id.in_(user_group_ids))
+        query = db.query(Schedule).options(
+            joinedload(Schedule.lesson_record)
+        ).filter(Schedule.group_id.in_(user_group_ids))
 
         # 필터 적용
         if group_id:
@@ -573,6 +576,12 @@ class ScheduleService:
         group = db.query(Group).filter(Group.id == schedule.group_id).first()
         group_name = group.name if group else None
 
+        # F-005: lesson_record_id 가져오기 (N+1 문제 해결)
+        # relationship이 이미 로드되어 있으면 사용, 아니면 None
+        lesson_record_id = None
+        if hasattr(schedule, 'lesson_record') and schedule.lesson_record:
+            lesson_record_id = schedule.lesson_record.id
+
         # TODO(F-003): teacher_id, teacher_name, student_ids, student_names 추가
         # GroupMember를 조인해서 가져와야 함
 
@@ -593,4 +602,5 @@ class ScheduleService:
             original_schedule_id=schedule.original_schedule_id,
             cancel_reason=schedule.cancel_reason,
             reschedule_reason=schedule.reschedule_reason,
+            lesson_record_id=lesson_record_id,  # F-005: 수업 기록 ID 포함
         )
