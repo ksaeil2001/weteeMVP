@@ -4,15 +4,14 @@
  *
  * Based on:
  * - API_명세서.md (6.4 F-004: 출결 관리)
+ * - backend/app/routers/attendances.py
+ * - backend/app/schemas/attendance.py
+ * - F-004_attendance_completion_2025-11-18.md
  *
  * 역할:
- * - 출결 관련 API 엔드포인트 시그니처 정의
- * - 현재는 목업 데이터 반환 (실제 API 연동 전)
- *
- * TODO (F-004 디버깅/연결 단계):
- * - 실제 FastAPI 백엔드 /api/v1/attendance 엔드포인트와 연결
- * - apiClient.ts의 apiRequest를 사용하여 네트워크 요청
- * - 에러 핸들링 강화 (네트워크 오류, 권한 오류 등)
+ * - 출결 관련 API 엔드포인트와 실제 백엔드 연동
+ * - 백엔드 응답(snake_case)을 프론트엔드 타입(camelCase)으로 변환
+ * - apiClient.ts의 apiRequest를 사용하여 인증 및 에러 처리
  */
 
 import type {
@@ -23,24 +22,186 @@ import type {
   AttendanceStatsParams,
   LessonAttendanceSummary,
   AttendanceHistoryItem,
+  AttendanceStatus,
 } from '@/types/attendance';
 
-import {
-  getAttendanceForLesson,
-  getStudentAttendanceStats,
-  getStudentAttendanceHistory,
-  getGroupAttendanceSummaries,
-  mockAttendanceRecords,
-} from '@/mocks/attendance';
+import { apiRequest } from '@/lib/apiClient';
+
+// ==========================
+// Backend Response Types (snake_case)
+// ==========================
+
+interface BackendStudentInfo {
+  user_id: string;
+  name: string;
+}
+
+interface BackendAttendanceOut {
+  attendance_id: string;
+  schedule_id: string;
+  student_id: string;
+  student?: BackendStudentInfo;
+  status: 'PRESENT' | 'LATE' | 'EARLY_LEAVE' | 'ABSENT';
+  late_minutes?: number | null;
+  notes?: string | null;
+  recorded_at: string; // ISO8601
+  updated_at?: string | null;
+}
+
+interface BackendBatchAttendanceResponse {
+  schedule_id: string;
+  attendances: BackendAttendanceOut[];
+}
+
+interface BackendAttendanceListResponse {
+  items: BackendAttendanceOut[];
+  total: number;
+}
+
+interface BackendAttendanceStats {
+  total_sessions: number;
+  present: number;
+  late: number;
+  early_leave: number;
+  absent: number;
+  attendance_rate: number; // percentage
+}
+
+interface BackendRecentAttendanceRecord {
+  schedule_id: string;
+  date: string; // YYYY-MM-DD
+  status: 'PRESENT' | 'LATE' | 'EARLY_LEAVE' | 'ABSENT';
+  notes?: string | null;
+}
+
+interface BackendAttendanceStatsResponse {
+  student?: BackendStudentInfo;
+  period: {
+    start_date: string;
+    end_date: string;
+  };
+  stats: BackendAttendanceStats;
+  recent_records: BackendRecentAttendanceRecord[];
+}
+
+// ==========================
+// Request Payload Types (snake_case for backend)
+// ==========================
+
+interface BackendBatchAttendanceItemPayload {
+  student_id: string;
+  status: 'PRESENT' | 'LATE' | 'EARLY_LEAVE' | 'ABSENT';
+  late_minutes?: number;
+  notes?: string;
+}
+
+interface BackendBatchCreateAttendancePayload {
+  attendances: BackendBatchAttendanceItemPayload[];
+  checked_at?: string;
+}
+
+interface BackendUpdateAttendancePayload {
+  status?: 'PRESENT' | 'LATE' | 'EARLY_LEAVE' | 'ABSENT';
+  late_minutes?: number;
+  notes?: string;
+}
+
+// ==========================
+// Response Converters (Backend → Frontend)
+// ==========================
+
+/**
+ * 백엔드 출결 응답을 프론트엔드 AttendanceRecord 타입으로 변환
+ */
+function convertBackendAttendanceToFrontend(
+  backendAttendance: BackendAttendanceOut
+): AttendanceRecord {
+  return {
+    attendanceId: backendAttendance.attendance_id,
+    scheduleId: backendAttendance.schedule_id,
+    studentId: backendAttendance.student_id,
+    studentName: backendAttendance.student?.name,
+    status: backendAttendance.status as AttendanceStatus,
+    notes: backendAttendance.notes ?? undefined,
+    lateMinutes: backendAttendance.late_minutes ?? undefined,
+    recordedBy: undefined, // TODO(v2): 백엔드에서 recorded_by 필드 추가
+    recordedAt: backendAttendance.recorded_at,
+    updatedAt: backendAttendance.updated_at ?? undefined,
+  };
+}
+
+/**
+ * 백엔드 출결 통계 응답을 프론트엔드 StudentAttendanceStats 타입으로 변환
+ */
+function convertBackendStatsToFrontend(
+  backendStats: BackendAttendanceStatsResponse
+): StudentAttendanceStats {
+  return {
+    studentId: backendStats.student?.user_id ?? '',
+    studentName: backendStats.student?.name,
+    groupId: undefined, // TODO(v2): 백엔드에서 group_id 포함
+    groupName: undefined,
+    period: {
+      startDate: backendStats.period.start_date,
+      endDate: backendStats.period.end_date,
+    },
+    stats: {
+      totalSessions: backendStats.stats.total_sessions,
+      present: backendStats.stats.present,
+      late: backendStats.stats.late,
+      absent: backendStats.stats.absent,
+      attendanceRate: backendStats.stats.attendance_rate,
+    },
+  };
+}
+
+// ==========================
+// Request Converters (Frontend → Backend)
+// ==========================
+
+/**
+ * 프론트엔드 출결 체크 페이로드를 백엔드 형식으로 변환
+ */
+function convertCheckAttendancePayloadToBackend(
+  payload: CheckAttendancePayload
+): BackendBatchCreateAttendancePayload {
+  return {
+    attendances: payload.attendances.map((att) => ({
+      student_id: att.studentId,
+      status: att.status as 'PRESENT' | 'LATE' | 'EARLY_LEAVE' | 'ABSENT',
+      late_minutes: att.lateMinutes,
+      notes: att.notes,
+    })),
+    checked_at: payload.checkedAt,
+  };
+}
+
+/**
+ * 프론트엔드 출결 수정 페이로드를 백엔드 형식으로 변환
+ */
+function convertUpdateAttendancePayloadToBackend(
+  payload: UpdateAttendancePayload
+): BackendUpdateAttendancePayload {
+  return {
+    status: payload.status as
+      | 'PRESENT'
+      | 'LATE'
+      | 'EARLY_LEAVE'
+      | 'ABSENT'
+      | undefined,
+    late_minutes: payload.lateMinutes,
+    notes: payload.notes,
+  };
+}
+
+// ==========================
+// API Functions
+// ==========================
 
 /**
  * 출결 체크 (선생님만 가능)
  *
- * TODO(F-004): 실제 API 연동
- * - POST /api/v1/schedules/{schedule_id}/attendance
- * - Authorization: Bearer <access_token>
- * - 요청: CheckAttendancePayload
- * - 응답: { success: true, data: { attendances: AttendanceRecord[] } }
+ * POST /api/v1/attendances/schedules/{schedule_id}/batch
  *
  * @param payload 출결 체크 정보
  * @returns Promise<AttendanceRecord[]>
@@ -48,45 +209,23 @@ import {
 export async function checkAttendance(
   payload: CheckAttendancePayload
 ): Promise<AttendanceRecord[]> {
-  // TODO(F-004): 실제 API 호출
-  // const response = await apiRequest<{ attendances: AttendanceRecord[] }>(
-  //   'POST',
-  //   `/api/v1/schedules/${payload.scheduleId}/attendance`,
-  //   { body: payload }
-  // );
-  // return response.attendances;
+  const backendPayload = convertCheckAttendancePayloadToBackend(payload);
 
-  // 목업 데이터 반환 (개발 중)
-  console.log('[checkAttendance] 목업 출결 체크:', payload);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const newRecords: AttendanceRecord[] = payload.attendances.map(
-        (att, index) => ({
-          attendanceId: `att-new-${Date.now()}-${index}`,
-          scheduleId: payload.scheduleId,
-          studentId: att.studentId,
-          studentName: `학생 ${att.studentId}`,
-          status: att.status,
-          notes: att.notes,
-          lateMinutes: att.lateMinutes,
-          recordedBy: 'teacher-1',
-          recordedAt:
-            payload.checkedAt || new Date().toISOString(),
-        })
-      );
-      resolve(newRecords);
-    }, 500);
-  });
+  const response = await apiRequest<BackendBatchAttendanceResponse>(
+    `/attendances/schedules/${payload.scheduleId}/batch`,
+    {
+      method: 'POST',
+      body: JSON.stringify(backendPayload),
+    }
+  );
+
+  return response.attendances.map(convertBackendAttendanceToFrontend);
 }
 
 /**
  * 출결 수정 (선생님만 가능)
  *
- * TODO(F-004): 실제 API 연동
- * - PATCH /api/v1/attendance/{attendance_id}
- * - Authorization: Bearer <access_token>
- * - 요청: UpdateAttendancePayload
- * - 응답: { success: true, data: AttendanceRecord }
+ * PATCH /api/v1/attendances/{attendance_id}
  *
  * @param attendanceId 출결 ID
  * @param payload 수정할 출결 정보
@@ -96,42 +235,23 @@ export async function updateAttendance(
   attendanceId: string,
   payload: UpdateAttendancePayload
 ): Promise<AttendanceRecord> {
-  // TODO(F-004): 실제 API 호출
-  // const response = await apiRequest<AttendanceRecord>(
-  //   'PATCH',
-  //   `/api/v1/attendance/${attendanceId}`,
-  //   { body: payload }
-  // );
-  // return response;
+  const backendPayload = convertUpdateAttendancePayloadToBackend(payload);
 
-  // 목업 데이터 반환 (개발 중)
-  console.log('[updateAttendance] 목업 출결 수정:', attendanceId, payload);
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      const existing = mockAttendanceRecords.find(
-        (r) => r.attendanceId === attendanceId
-      );
-      if (existing) {
-        const updated: AttendanceRecord = {
-          ...existing,
-          ...payload,
-          updatedAt: new Date().toISOString(),
-        };
-        resolve(updated);
-      } else {
-        reject(new Error('출결 기록을 찾을 수 없습니다.'));
-      }
-    }, 500);
-  });
+  const response = await apiRequest<BackendAttendanceOut>(
+    `/attendances/${attendanceId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(backendPayload),
+    }
+  );
+
+  return convertBackendAttendanceToFrontend(response);
 }
 
 /**
  * 특정 수업(일정)의 출결 기록 조회
  *
- * TODO(F-004): 실제 API 연동
- * - GET /api/v1/schedules/{schedule_id}/attendance
- * - Authorization: Bearer <access_token>
- * - 응답: { success: true, data: { attendances: AttendanceRecord[] } }
+ * GET /api/v1/attendances/schedules/{schedule_id}
  *
  * @param scheduleId 일정 ID
  * @returns Promise<AttendanceRecord[]>
@@ -139,29 +259,21 @@ export async function updateAttendance(
 export async function fetchLessonAttendance(
   scheduleId: string
 ): Promise<AttendanceRecord[]> {
-  // TODO(F-004): 실제 API 호출
-  // const response = await apiRequest<{ attendances: AttendanceRecord[] }>(
-  //   'GET',
-  //   `/api/v1/schedules/${scheduleId}/attendance`
-  // );
-  // return response.attendances;
+  const response = await apiRequest<BackendAttendanceListResponse>(
+    `/attendances/schedules/${scheduleId}`,
+    {
+      method: 'GET',
+    }
+  );
 
-  // 목업 데이터 반환 (개발 중)
-  console.log('[fetchLessonAttendance] 목업 수업 출결 조회:', scheduleId);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(getAttendanceForLesson(scheduleId));
-    }, 300);
-  });
+  return response.items.map(convertBackendAttendanceToFrontend);
 }
 
 /**
  * 그룹별 출결 요약 목록 조회 (특정 기간)
  *
- * TODO(F-004): 실제 API 연동
- * - GET /api/v1/groups/{group_id}/attendance/summaries?start_date=...&end_date=...
- * - Authorization: Bearer <access_token>
- * - 응답: { success: true, data: { summaries: LessonAttendanceSummary[] } }
+ * TODO(v2): 백엔드에 해당 엔드포인트 추가 필요
+ * 현재는 일정별 출결을 모아서 요약하는 방식으로 대체
  *
  * @param groupId 그룹 ID
  * @param period 조회 기간
@@ -171,34 +283,18 @@ export async function fetchGroupAttendanceSummaries(
   groupId: string,
   period: { startDate: string; endDate: string }
 ): Promise<LessonAttendanceSummary[]> {
-  // TODO(F-004): 실제 API 호출
-  // const response = await apiRequest<{ summaries: LessonAttendanceSummary[] }>(
-  //   'GET',
-  //   `/api/v1/groups/${groupId}/attendance/summaries`,
-  //   { params: { start_date: period.startDate, end_date: period.endDate } }
-  // );
-  // return response.summaries;
-
-  // 목업 데이터 반환 (개발 중)
-  console.log(
-    '[fetchGroupAttendanceSummaries] 목업 그룹 출결 요약 조회:',
-    groupId,
-    period
+  // TODO(v2): 백엔드 API 구현 후 연동
+  // GET /api/v1/groups/{group_id}/attendances/summaries?start_date=...&end_date=...
+  console.warn(
+    '[fetchGroupAttendanceSummaries] 백엔드 API 미구현, 빈 배열 반환'
   );
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(getGroupAttendanceSummaries(groupId, period));
-    }, 300);
-  });
+  return [];
 }
 
 /**
  * 학생별 출결 통계 조회
  *
- * TODO(F-004): 실제 API 연동
- * - GET /api/v1/groups/{group_id}/attendance/stats?student_id=...&start_date=...&end_date=...
- * - Authorization: Bearer <access_token>
- * - 응답: { success: true, data: StudentAttendanceStats }
+ * GET /api/v1/attendances/groups/{group_id}/stats?student_id=...&start_date=...&end_date=...
  *
  * @param params 조회 파라미터
  * @returns Promise<StudentAttendanceStats>
@@ -206,36 +302,25 @@ export async function fetchGroupAttendanceSummaries(
 export async function fetchStudentAttendanceStats(
   params: AttendanceStatsParams
 ): Promise<StudentAttendanceStats> {
-  // TODO(F-004): 실제 API 호출
-  // const response = await apiRequest<StudentAttendanceStats>(
-  //   'GET',
-  //   `/api/v1/groups/${params.groupId}/attendance/stats`,
-  //   { params: { student_id: params.studentId, start_date: params.startDate, end_date: params.endDate } }
-  // );
-  // return response;
+  const queryParams = new URLSearchParams();
+  if (params.studentId) queryParams.append('student_id', params.studentId);
+  if (params.startDate) queryParams.append('start_date', params.startDate);
+  if (params.endDate) queryParams.append('end_date', params.endDate);
 
-  // 목업 데이터 반환 (개발 중)
-  console.log('[fetchStudentAttendanceStats] 목업 학생 출결 통계 조회:', params);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(
-        getStudentAttendanceStats(
-          params.studentId || 'student-1',
-          params.groupId,
-          { startDate: params.startDate, endDate: params.endDate }
-        )
-      );
-    }, 300);
-  });
+  const response = await apiRequest<BackendAttendanceStatsResponse>(
+    `/attendances/groups/${params.groupId}/stats?${queryParams.toString()}`,
+    {
+      method: 'GET',
+    }
+  );
+
+  return convertBackendStatsToFrontend(response);
 }
 
 /**
  * 학생별 출결 히스토리 조회
  *
- * TODO(F-004): 실제 API 연동
- * - GET /api/v1/students/{student_id}/attendance/history?start_date=...&end_date=...
- * - Authorization: Bearer <access_token>
- * - 응답: { success: true, data: { items: AttendanceHistoryItem[] } }
+ * GET /api/v1/attendances/students/{student_id}?start_date=...&end_date=...
  *
  * @param studentId 학생 ID
  * @param period 조회 기간 (선택)
@@ -245,23 +330,30 @@ export async function fetchStudentAttendanceHistory(
   studentId: string,
   period?: { startDate?: string; endDate?: string }
 ): Promise<AttendanceHistoryItem[]> {
-  // TODO(F-004): 실제 API 호출
-  // const response = await apiRequest<{ items: AttendanceHistoryItem[] }>(
-  //   'GET',
-  //   `/api/v1/students/${studentId}/attendance/history`,
-  //   { params: period }
-  // );
-  // return response.items;
+  const queryParams = new URLSearchParams();
+  if (period?.startDate) queryParams.append('start_date', period.startDate);
+  if (period?.endDate) queryParams.append('end_date', period.endDate);
 
-  // 목업 데이터 반환 (개발 중)
-  console.log(
-    '[fetchStudentAttendanceHistory] 목업 학생 출결 히스토리 조회:',
-    studentId,
-    period
+  const response = await apiRequest<BackendAttendanceListResponse>(
+    `/attendances/students/${studentId}?${queryParams.toString()}`,
+    {
+      method: 'GET',
+    }
   );
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(getStudentAttendanceHistory(studentId, period));
-    }, 300);
-  });
+
+  // 백엔드는 AttendanceOut 배열을 반환하므로, 프론트엔드 AttendanceHistoryItem으로 변환
+  // TODO(v2): 백엔드에서 schedule 정보(date, time, group, subject)를 포함하도록 개선
+  return response.items.map((item) => ({
+    attendanceId: item.attendance_id,
+    scheduleId: item.schedule_id,
+    date: item.recorded_at.split('T')[0], // ISO8601 → YYYY-MM-DD
+    startTime: '00:00', // TODO(v2): 백엔드에서 schedule 조인 필요
+    endTime: '00:00',
+    groupName: '그룹명 미제공',
+    subject: '과목 미제공',
+    status: item.status as AttendanceStatus,
+    notes: item.notes ?? undefined,
+    lateMinutes: item.late_minutes ?? undefined,
+    recordedAt: item.recorded_at,
+  }));
 }
