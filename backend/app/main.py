@@ -19,6 +19,7 @@ from app.config import settings
 from app.database import init_db
 from app.routers import (
     auth_router,
+    profiles_router,
     notifications_router,
     groups_router,
     schedules_router,
@@ -131,6 +132,9 @@ app.include_router(attendances_router, prefix="/api/v1")
 app.include_router(lessons_router, prefix="/api/v1")
 app.include_router(textbooks_router, prefix="/api/v1")
 
+# F-007: 기본 프로필 및 설정
+app.include_router(profiles_router, prefix="/api/v1")
+
 # F-008: 필수 알림 시스템
 app.include_router(notifications_router, prefix="/api/v1")
 
@@ -138,9 +142,6 @@ app.include_router(notifications_router, prefix="/api/v1")
 app.include_router(settlements_router, prefix="/api/v1")
 app.include_router(invoices_router, prefix="/api/v1")
 app.include_router(payments_router, prefix="/api/v1")
-
-# TODO: 다른 기능 라우터 추가
-# app.include_router(profiles_router, prefix="/api/v1")  # F-007
 
 
 # ==========================
