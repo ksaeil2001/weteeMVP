@@ -52,6 +52,9 @@ class GroupCreate(GroupBase):
                 "name": "중3 수학 반A",
                 "subject": "수학",
                 "description": "중학교 3학년 수학 과외 그룹입니다.",
+                "lesson_fee": 50000,
+                "payment_type": "postpaid",
+                "payment_cycle": 4,
             }
         }
 
