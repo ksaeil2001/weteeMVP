@@ -7,5 +7,6 @@ from app.models.user import User
 from app.models.notification import Notification
 from app.models.group import Group, GroupMember
 from app.models.schedule import Schedule
+from app.models.attendance import Attendance
 
-__all__ = ["User", "Notification", "Group", "GroupMember", "Schedule"]
+__all__ = ["User", "Notification", "Group", "GroupMember", "Schedule", "Attendance"]

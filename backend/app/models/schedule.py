@@ -120,8 +120,9 @@ class Schedule(Base):
     # 참고: Group 모델에 schedules = relationship("Schedule", ...) 추가 필요
     # TODO(F-003): Group 모델에 역관계 추가
 
-    # TODO(F-004): Attendance와의 관계 추가
-    # attendances = relationship("Attendance", back_populates="schedule", ...)
+    # Attendance와의 관계 (1:N)
+    # 한 일정에 여러 학생의 출결이 있을 수 있음
+    attendances = relationship("Attendance", back_populates="schedule", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Schedule {self.id} - {self.title} ({self.type}) at {self.start_at}>"
