@@ -31,17 +31,30 @@ class RegisterRequest(BaseModel):
     @classmethod
     def validate_password(cls, v: str) -> str:
         """
-        비밀번호 검증: 8자 이상, 영문+숫자 포함
-        F-001: 비밀번호 규칙
+        비밀번호 강도 검증
+        F-001: 비밀번호 규칙 + 보안 강화
+
+        요구사항:
+        - 최소 8자 이상
+        - 대문자 1개 이상
+        - 소문자 또는 영문 포함
+        - 숫자 1개 이상
+        - 특수문자 1개 이상
         """
         if len(v) < 8:
-            raise ValueError("비밀번호는 8자 이상이어야 합니다")
+            raise ValueError("비밀번호는 최소 8자 이상이어야 합니다")
 
-        if not re.search(r"[a-zA-Z]", v):
-            raise ValueError("비밀번호는 영문을 포함해야 합니다")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("비밀번호는 대문자를 최소 1개 포함해야 합니다")
+
+        if not re.search(r"[a-z]", v):
+            raise ValueError("비밀번호는 소문자를 최소 1개 포함해야 합니다")
 
         if not re.search(r"\d", v):
-            raise ValueError("비밀번호는 숫자를 포함해야 합니다")
+            raise ValueError("비밀번호는 숫자를 최소 1개 포함해야 합니다")
+
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
+            raise ValueError("비밀번호는 특수문자(!@#$%^&*(),.?\":{}|<> 등)를 최소 1개 포함해야 합니다")
 
         return v
 
@@ -67,7 +80,7 @@ class RegisterRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "email": "teacher@example.com",
-                "password": "SecurePass123",
+                "password": "SecurePass123!",
                 "name": "김선생",
                 "phone": "01012345678",
                 "role": "TEACHER",
@@ -90,7 +103,7 @@ class LoginRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "email": "teacher@example.com",
-                "password": "SecurePass123",
+                "password": "SecurePass123!",
             }
         }
 
