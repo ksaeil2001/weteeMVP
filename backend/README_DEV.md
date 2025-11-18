@@ -154,23 +154,83 @@ CORS_ORIGINS: List[str] = [
 
 ## 🔐 보안 설정
 
-### JWT Secret Key 변경
+### 필수: JWT Secret Key 설정
 
-**개발 환경**:
-- `app/config.py`의 기본값 사용 가능
+**중요**: JWT Secret Key는 **필수 환경변수**입니다. `.env` 파일이 없으면 서버가 시작되지 않습니다.
 
-**운영 환경**:
-- `.env` 파일을 생성하고 안전한 키 설정 필수
-  ```bash
-  # .env
-  JWT_SECRET_KEY=<32자 이상의 랜덤 문자열>
-  JWT_REFRESH_SECRET_KEY=<32자 이상의 랜덤 문자열>
-  ```
+#### 1. .env 파일 생성
 
-- 안전한 키 생성 방법:
-  ```bash
-  python -c "import secrets; print(secrets.token_hex(32))"
-  ```
+처음 시작할 때 `.env` 파일을 생성하세요:
+
+```bash
+# .env.example을 복사하여 .env 파일 생성
+cp .env.example .env
+```
+
+#### 2. 안전한 JWT Secret Key 생성
+
+다음 명령으로 안전한 랜덤 키를 생성하세요:
+
+```bash
+# 두 개의 키 생성 (JWT_SECRET_KEY, JWT_REFRESH_SECRET_KEY)
+python -c "import secrets; print('JWT_SECRET_KEY=' + secrets.token_hex(32))"
+python -c "import secrets; print('JWT_REFRESH_SECRET_KEY=' + secrets.token_hex(32))"
+```
+
+생성된 키를 `.env` 파일에 복사하세요:
+
+```bash
+# .env 파일 예시
+JWT_SECRET_KEY=a1b2c3d4e5f6...  # 실제로 생성한 64자 키
+JWT_REFRESH_SECRET_KEY=f6e5d4c3b2a1...  # 실제로 생성한 64자 키
+```
+
+#### 3. 보안 검증
+
+서버 시작 시 다음과 같은 검증이 자동으로 수행됩니다:
+
+- ✅ **개발 환경 (DEBUG=True)**:
+  - JWT Secret Key 필수 (환경변수 또는 .env 파일에서 로드)
+  - 최소 길이 제한 없음 (개발 편의)
+
+- ✅ **운영 환경 (DEBUG=False)**:
+  - JWT Secret Key 필수
+  - 최소 32자 이상 필수
+  - 개발용 기본값 사용 불가 (서버 시작 실패)
+
+### 비밀번호 강도 정책
+
+회원가입 시 다음 비밀번호 규칙이 적용됩니다:
+
+- ✅ 최소 8자 이상
+- ✅ 대문자 1개 이상 (A-Z)
+- ✅ 소문자 1개 이상 (a-z)
+- ✅ 숫자 1개 이상 (0-9)
+- ✅ 특수문자 1개 이상 (!@#$%^&*(),.?":{}|<> 등)
+
+**예시**: `SecurePass123!`, `MyP@ssw0rd`, `Test1234!`
+
+### CORS 설정
+
+CORS 설정은 보안을 위해 다음과 같이 제한됩니다:
+
+**허용된 메서드**:
+- GET, POST, PUT, PATCH, DELETE, OPTIONS
+
+**허용된 헤더**:
+- Authorization, Content-Type, Accept, Origin, X-Requested-With
+
+**허용된 Origin**:
+- 개발: `http://localhost:3000`, `http://127.0.0.1:3000`
+- 운영: `.env` 파일의 `CORS_ORIGINS`에서 설정
+
+### Rate Limiting
+
+API 요청 제한이 적용됩니다:
+
+- **인증된 사용자**: user_id 기반 제한
+- **미인증 사용자**: IP 주소 기반 제한
+- **제한 정책**: API 라우터별로 개별 설정 (예: 로그인 5회/분)
 
 ---
 
