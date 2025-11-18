@@ -69,6 +69,19 @@ class Group(Base):
     # Foreign Key to users table
     owner_id = Column(String(36), nullable=False, index=True)
 
+    # F-006: 수업료 정산 관련 필드
+    lesson_fee = Column(Integer, nullable=False, default=0)  # 회당 수업료 (원)
+    payment_type = Column(
+        String(20),
+        nullable=False,
+        default="postpaid"  # prepaid(선불) / postpaid(후불)
+    )
+    payment_cycle = Column(
+        Integer,
+        nullable=False,
+        default=4  # 정산 주기 (회) - 기본 4회마다 정산
+    )
+
     # Status
     status = Column(
         SQLEnum(GroupStatus, name="group_status", native_enum=False),
@@ -107,6 +120,9 @@ class Group(Base):
             "subject": self.subject,
             "description": self.description,
             "owner_id": self.owner_id,
+            "lesson_fee": self.lesson_fee,
+            "payment_type": self.payment_type,
+            "payment_cycle": self.payment_cycle,
             "status": self.status.value,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,

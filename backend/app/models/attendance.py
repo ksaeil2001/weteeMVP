@@ -8,7 +8,7 @@ Related:
 - F-006 (Payment - 정산에 활용)
 """
 
-from sqlalchemy import Column, String, Text, DateTime, Enum as SQLEnum, ForeignKey, Integer
+from sqlalchemy import Column, String, Text, DateTime, Enum as SQLEnum, ForeignKey, Integer, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -84,6 +84,13 @@ class Attendance(Base):
 
     # User(Student)와의 관계 (N:1)
     # TODO(F-004): User 모델에 attendances = relationship("Attendance", ...) 추가 (선택사항)
+
+    # Table Constraints
+    # 데이터베이스_설계서.md: UNIQUE(schedule_id, student_id)
+    # 한 일정에 한 학생당 하나의 출결 기록만 허용
+    __table_args__ = (
+        UniqueConstraint('schedule_id', 'student_id', name='uq_attendance_schedule_student'),
+    )
 
     def __repr__(self):
         return f"<Attendance {self.id} - Student {self.student_id} - {self.status} at Schedule {self.schedule_id}>"

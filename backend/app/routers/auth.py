@@ -5,7 +5,7 @@ API_명세서.md 6.1 기반 인증 엔드포인트 구현
 
 from datetime import datetime
 import traceback
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError, IntegrityError
 
@@ -27,12 +27,14 @@ from app.core.security import (
     create_refresh_token,
     decode_refresh_token,
 )
+from app.core.limiter import limiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def register(request: Request, payload: RegisterRequest, db: Session = Depends(get_db)):
     """
     회원가입 (선생님 일반 가입)
 
@@ -44,11 +46,14 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     - 비밀번호 해싱 저장
     - 가입 완료 후 사용자 정보 반환
 
+    **보안**:
+    - Rate Limiting: 10회/분 (자동 가입 방지)
+
     **제한사항** (MVP 1차):
     - STUDENT/PARENT 초대 코드 가입은 추후 구현
     - 이메일 인증 코드 발송은 추후 구현 (현재는 is_email_verified=False)
 
-    Related: F-001, API_명세서.md 6.1.1
+    Related: F-001, API_명세서.md 6.1.1, 3.2
     """
 
     try:
@@ -169,7 +174,8 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)):
     """
     로그인
 
@@ -181,10 +187,11 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     - 마지막 로그인 시각 업데이트
 
     **보안**:
+    - Rate Limiting: 5회/분 (brute-force 공격 방지)
     - 이메일/비밀번호 오류 시 동일한 에러 메시지 반환 (어느 쪽이 틀렸는지 노출 금지)
     - TODO: 5회 연속 실패 시 계정 잠금 (F-001)
 
-    Related: F-001, API_명세서.md 6.1.3
+    Related: F-001, API_명세서.md 6.1.3, 3.2
     """
 
     # 1. 이메일로 사용자 조회
@@ -293,19 +300,98 @@ def verify_email():
     }
 
 
-@router.post("/refresh", response_model=RefreshResponse, status_code=status.HTTP_501_NOT_IMPLEMENTED)
-def refresh_tokens(payload: RefreshRequest):
+@router.post("/refresh", response_model=RefreshResponse)
+@limiter.limit("20/minute")
+def refresh_tokens(request: Request, payload: RefreshRequest, db: Session = Depends(get_db)):
     """
     토큰 갱신
 
     POST /api/v1/auth/refresh
 
-    **TODO**: F-001 3.1에서 구현 예정
-    - Refresh Token으로 새 Access Token + Refresh Token 발급
+    **기능**:
+    - Refresh Token 검증
+    - 새로운 Access Token + Refresh Token 발급
+    - 사용자 활성 상태 확인
+
+    **보안**:
+    - Rate Limiting: 20회/분
+    - Refresh Token 타입 검증
+    - 사용자 존재 및 활성 상태 확인
+
+    Related: F-001 3.1, API_명세서.md 6.1.4, 3.2
     """
-    return {
-        "message": "토큰 갱신 기능은 추후 구현 예정입니다. (TODO: F-001 3.1)"
-    }
+    try:
+        # 1. Refresh Token 검증
+        from jose import JWTError
+
+        try:
+            decoded = decode_refresh_token(payload.refresh_token)
+        except JWTError as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "code": "AUTH005",
+                    "message": "유효하지 않거나 만료된 Refresh Token입니다.",
+                },
+            )
+
+        # 2. 사용자 ID 추출
+        user_id = decoded.get("sub")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "code": "AUTH005",
+                    "message": "토큰에서 사용자 정보를 찾을 수 없습니다.",
+                },
+            )
+
+        # 3. 사용자 존재 및 활성 상태 확인
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "code": "AUTH005",
+                    "message": "사용자를 찾을 수 없습니다.",
+                },
+            )
+
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": "AUTH006",
+                    "message": "비활성화된 계정입니다.",
+                },
+            )
+
+        # 4. 새 토큰 발급
+        new_access_token = create_access_token({"sub": user.id})
+        new_refresh_token = create_refresh_token({"sub": user.id})
+
+        return RefreshResponse(
+            access_token=new_access_token,
+            refresh_token=new_refresh_token,
+            token_type="Bearer",
+        )
+
+    except HTTPException:
+        # HTTPException은 그대로 재전송
+        raise
+
+    except Exception as e:
+        # 예상하지 못한 에러
+        print(f"❌ Unexpected error during token refresh: {e}")
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "INTERNAL_ERROR",
+                "message": "토큰 갱신 중 오류가 발생했습니다.",
+            },
+        )
 
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
