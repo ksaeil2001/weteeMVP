@@ -18,6 +18,7 @@ from app.schemas.group import (
     InviteCodeCreate,
     InviteCodeOut,
     JoinGroupRequest,
+    JoinGroupResponse,  # 추가
 )
 from app.services.group_service import GroupService
 
@@ -403,7 +404,7 @@ def get_invite_codes(
         )
 
 
-@router.post("/join", response_model=GroupOut, status_code=status.HTTP_200_OK)
+@router.post("/join", response_model=JoinGroupResponse, status_code=status.HTTP_200_OK)
 def join_group_with_code(
     request: JoinGroupRequest,
     current_user: User = Depends(get_current_user),
@@ -422,10 +423,10 @@ def join_group_with_code(
     - 초대 코드 사용 횟수 증가
 
     **Request Body**:
-    - invite_code: 초대 코드 (6자리, 필수)
+    - code: 초대 코드 (6자리, 필수)
 
     **Response**:
-    - GroupOut: 가입한 그룹 정보
+    - JoinGroupResponse: 가입한 그룹 및 멤버 정보
 
     **Errors**:
     - 400: 코드가 존재하지 않음, 만료됨, 이미 사용됨
@@ -437,7 +438,7 @@ def join_group_with_code(
         group, member, error = GroupService.join_group_with_code(
             db=db,
             user=current_user,
-            code=request.invite_code,
+            code=request.code,  # invite_code → code (스키마 변경 반영)
         )
 
         if error:
@@ -467,7 +468,15 @@ def join_group_with_code(
                     },
                 )
 
-        return GroupService._to_group_out(group)
+        # JoinGroupResponse 생성
+        group_out = GroupService._to_group_out(group)
+        member_out = GroupService._to_group_member_out(member)
+
+        return JoinGroupResponse(
+            group=group_out,
+            member=member_out,
+            message="그룹에 성공적으로 참여했습니다",
+        )
 
     except HTTPException:
         raise

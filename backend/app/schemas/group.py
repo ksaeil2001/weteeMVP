@@ -214,18 +214,18 @@ class GroupMemberCreate(BaseModel):
 
 class InviteCodeCreate(BaseModel):
     """
-    초대 코드 생성 요청 스키마 (TODO: Phase 2)
+    초대 코드 생성 요청 스키마
 
     POST /api/v1/groups/{group_id}/invite-codes
     """
-    role: GroupMemberRoleEnum = Field(..., description="초대할 역할")
+    target_role: GroupMemberRoleEnum = Field(..., description="초대할 역할 (STUDENT/PARENT)")
     expires_in_days: Optional[int] = Field(7, ge=1, le=30, description="유효 기간 (일)")
     max_uses: Optional[int] = Field(1, ge=1, le=100, description="최대 사용 횟수")
 
     class Config:
         json_schema_extra = {
             "example": {
-                "role": "STUDENT",
+                "target_role": "STUDENT",
                 "expires_in_days": 7,
                 "max_uses": 1,
             }
@@ -234,45 +234,81 @@ class InviteCodeCreate(BaseModel):
 
 class InviteCodeOut(BaseModel):
     """
-    초대 코드 응답 스키마 (TODO: Phase 2)
+    초대 코드 응답 스키마
+    프론트엔드 InviteCode 타입과 일치
     """
     invite_code_id: str
     code: str
     group_id: str
-    role: GroupMemberRoleEnum
+    target_role: GroupMemberRoleEnum  # role → target_role (모델과 일치)
     created_by: str
     expires_at: str
     max_uses: int
-    current_uses: int
+    used_count: int  # current_uses → used_count (모델과 일치)
     is_active: bool
+    created_at: str  # 생성 시각 추가
 
     class Config:
         json_schema_extra = {
             "example": {
                 "invite_code_id": "invite-123",
-                "code": "ABC123XYZ",
+                "code": "ABC123",
                 "group_id": "group-456",
-                "role": "STUDENT",
+                "target_role": "STUDENT",
                 "created_by": "user-789",
                 "expires_at": "2025-11-24T10:00:00Z",
                 "max_uses": 1,
-                "current_uses": 0,
+                "used_count": 0,
                 "is_active": True,
+                "created_at": "2025-11-17T10:00:00Z",
             }
         }
 
 
 class JoinGroupRequest(BaseModel):
     """
-    초대 코드로 그룹 가입 요청 스키마 (TODO: Phase 2)
+    초대 코드로 그룹 가입 요청 스키마
 
     POST /api/v1/groups/join
     """
-    invite_code: str = Field(..., min_length=1, description="초대 코드")
+    code: str = Field(..., min_length=6, max_length=6, description="6자리 초대 코드")
 
     class Config:
         json_schema_extra = {
             "example": {
-                "invite_code": "ABC123XYZ",
+                "code": "ABC123",
+            }
+        }
+
+
+class JoinGroupResponse(BaseModel):
+    """
+    초대 코드로 그룹 가입 응답 스키마
+    """
+    group: GroupOut
+    member: GroupMemberOut
+    message: str = "그룹에 성공적으로 참여했습니다"
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "group": {
+                    "group_id": "group-123",
+                    "name": "중3 수학 반A",
+                    "subject": "수학",
+                    "description": "중학교 3학년 수학 과외 그룹입니다.",
+                    "owner_id": "user-456",
+                    "status": "ACTIVE",
+                    "created_at": "2025-11-01T10:00:00Z",
+                    "updated_at": "2025-11-15T14:00:00Z",
+                },
+                "member": {
+                    "member_id": "member-789",
+                    "user_id": "user-123",
+                    "role": "STUDENT",
+                    "invite_status": "ACCEPTED",
+                    "joined_at": "2025-11-18T10:00:00Z",
+                },
+                "message": "그룹에 성공적으로 참여했습니다",
             }
         }

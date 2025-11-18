@@ -409,7 +409,7 @@ class GroupService:
             code=code,
             group_id=group_id,
             created_by=creator.id,
-            target_role=invite_code_create.role,
+            target_role=invite_code_create.target_role,
             max_uses=invite_code_create.max_uses or 1,
             used_count=0,
             expires_at=expires_at,
@@ -496,8 +496,8 @@ class GroupService:
             else:
                 return None, None, "이미 사용된 초대 코드입니다. 선생님께 새 코드를 요청해주세요"
 
-        # 사용자 역할과 코드 역할 일치 확인
-        if user.role.value != invite_code.target_role.value:
+        # 사용자 역할과 코드 역할 일치 확인 (대소문자 무시)
+        if user.role.value.upper() != invite_code.target_role.value.upper():
             return None, None, f"이 코드는 {invite_code.target_role.value} 전용입니다. 역할을 다시 선택해주세요"
 
         # 그룹 조회
@@ -547,10 +547,11 @@ class GroupService:
             invite_code_id=invite_code.id,
             code=invite_code.code,
             group_id=invite_code.group_id,
-            role=invite_code.target_role.value,
+            target_role=invite_code.target_role.value,  # role → target_role
             created_by=invite_code.created_by,
             expires_at=invite_code.expires_at.isoformat() + "Z" if invite_code.expires_at else None,
             max_uses=invite_code.max_uses,
-            current_uses=invite_code.used_count,
+            used_count=invite_code.used_count,  # current_uses → used_count
             is_active=invite_code.is_active,
+            created_at=invite_code.created_at.isoformat() + "Z" if invite_code.created_at else None,  # 추가
         )
