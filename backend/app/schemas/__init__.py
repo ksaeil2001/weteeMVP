@@ -25,6 +25,22 @@ from app.schemas.attendance import (
     BatchCreateAttendancePayload,
     UpdateAttendancePayload,
 )
+from app.schemas.textbook import (
+    TextbookOut,
+    TextbookListResponse,
+    CreateTextbookPayload,
+    UpdateTextbookPayload,
+)
+from app.schemas.lesson import (
+    LessonRecordOut,
+    LessonRecordListResponse,
+    CreateLessonRecordPayload,
+    UpdateLessonRecordPayload,
+    ProgressRecordOut,
+    ProgressRecordCreate,
+    ProgressSummary,
+    ProgressHistoryResponse,
+)
 
 __all__ = [
     "RegisterRequest",
@@ -43,4 +59,16 @@ __all__ = [
     "CreateAttendancePayload",
     "BatchCreateAttendancePayload",
     "UpdateAttendancePayload",
+    "TextbookOut",
+    "TextbookListResponse",
+    "CreateTextbookPayload",
+    "UpdateTextbookPayload",
+    "LessonRecordOut",
+    "LessonRecordListResponse",
+    "CreateLessonRecordPayload",
+    "UpdateLessonRecordPayload",
+    "ProgressRecordOut",
+    "ProgressRecordCreate",
+    "ProgressSummary",
+    "ProgressHistoryResponse",
 ]
