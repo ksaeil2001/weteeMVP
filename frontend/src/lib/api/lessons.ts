@@ -4,134 +4,306 @@
  *
  * Based on:
  * - API_명세서.md (6.5 F-005: 수업 기록 및 진도 관리)
+ * - backend/app/routers/lessons.py
+ * - backend/app/routers/textbooks.py
+ * - backend/app/schemas/lesson.py
+ * - backend/app/schemas/textbook.py
+ * - F-005_lesson_progress_completion_2025-11-18.md
  *
  * 역할:
- * - 수업 기록 및 진도 관련 API 엔드포인트 시그니처 정의
- * - 현재는 목업 데이터 반환 (실제 API 연동 전)
- *
- * TODO (F-005 디버깅/연결 단계):
- * - 실제 FastAPI 백엔드 /api/v1/lessons, /api/v1/progress 엔드포인트와 연결
- * - apiClient.ts의 apiRequest를 사용하여 네트워크 요청
- * - 에러 핸들링 강화 (네트워크 오류, 권한 오류 등)
- * - 다중 교재 진도 입력 처리 (최대 5개)
- * - 파일 첨부 기능 (2단계 고려)
+ * - 수업 기록 및 진도 관련 API 엔드포인트와 실제 백엔드 연동
+ * - 백엔드 응답(snake_case)을 프론트엔드 타입(camelCase)으로 변환
+ * - apiClient.ts의 apiRequest를 사용하여 인증 및 에러 처리
  */
 
 import type {
   LessonRecord,
   Textbook,
-  GroupProgressSummary,
-  StudentProgressSummary,
-  ProgressReport,
+  ProgressRecord,
   CreateLessonRecordPayload,
   UpdateLessonRecordPayload,
   CreateTextbookPayload,
   UpdateTextbookPayload,
-  LessonRecordListParams,
-  ProgressQueryParams,
-  GenerateProgressReportPayload,
-  LessonRecordCardView,
 } from '@/types/lesson';
 
-import {
-  getMockLessonRecordsByGroup,
-  getMockLessonRecordById,
-  getMockTextbooksByGroup,
-  getMockTextbookById,
-  getMockGroupProgressSummary,
-  getMockStudentProgressSummary,
-  getMockProgressReport,
-  convertToLessonRecordCardView,
-} from '@/mocks/lessons';
+import { apiRequest } from '@/lib/apiClient';
+
+// ==========================
+// Backend Response Types (snake_case)
+// ==========================
+
+interface BackendProgressRecordOut {
+  progress_record_id: string;
+  lesson_record_id: string;
+  textbook_id: string;
+  textbook_title?: string | null;
+  start_page: number;
+  end_page: number;
+  pages_covered: number;
+  created_at: string;
+}
+
+interface BackendLessonRecordOut {
+  lesson_record_id: string;
+  schedule_id: string;
+  group_id: string;
+  content: string;
+  student_feedback?: string | null;
+  homework?: string | null;
+  created_by: string;
+  teacher_name?: string | null;
+  is_shared: boolean;
+  shared_at?: string | null;
+  parent_viewed_at?: string | null;
+  student_viewed_at?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+  progress_records?: BackendProgressRecordOut[] | null;
+  schedule_title?: string | null;
+  schedule_date?: string | null;
+}
+
+interface BackendTextbookOut {
+  textbook_id: string;
+  group_id: string;
+  title: string;
+  publisher?: string | null;
+  total_pages?: number | null;
+  start_page: number;
+  is_active: boolean;
+  current_page?: number | null;
+  progress_percentage?: number | null;
+  created_at: string;
+  updated_at?: string | null;
+}
+
+interface BackendTextbookListResponse {
+  items: BackendTextbookOut[];
+}
+
+interface BackendProgressSummary {
+  textbook_id: string;
+  textbook_title: string;
+  publisher?: string | null;
+  total_pages?: number | null;
+  start_page: number;
+  current_page: number;
+  progress_percentage: number;
+  total_lessons: number;
+  average_pages_per_lesson: number;
+  first_lesson_date?: string | null;
+  last_lesson_date?: string | null;
+}
+
+interface BackendProgressHistoryItem {
+  progress_record_id: string;
+  lesson_record_id: string;
+  lesson_date: string;
+  start_page: number;
+  end_page: number;
+  pages_covered: number;
+  content_preview?: string | null;
+}
+
+interface BackendProgressHistoryResponse {
+  summary: BackendProgressSummary;
+  history: BackendProgressHistoryItem[];
+  chart_labels?: string[] | null;
+  chart_values?: number[] | null;
+}
+
+// ==========================
+// Request Payload Types (snake_case for backend)
+// ==========================
+
+interface BackendProgressRecordCreate {
+  textbook_id: string;
+  start_page: number;
+  end_page: number;
+}
+
+interface BackendCreateLessonRecordPayload {
+  content: string;
+  student_feedback?: string;
+  homework?: string;
+  progress_records?: BackendProgressRecordCreate[];
+}
+
+interface BackendUpdateLessonRecordPayload {
+  content?: string;
+  student_feedback?: string;
+  homework?: string;
+}
+
+interface BackendCreateTextbookPayload {
+  title: string;
+  publisher?: string;
+  total_pages?: number;
+  start_page?: number;
+}
+
+interface BackendUpdateTextbookPayload {
+  title?: string;
+  publisher?: string;
+  total_pages?: number;
+  is_active?: boolean;
+}
+
+// ==========================
+// Response Converters (Backend → Frontend)
+// ==========================
 
 /**
- * 그룹별 수업 기록 목록 조회
- * S-032: 그룹 진도 히스토리
- *
- * TODO(F-005): 실제 API 연동
- * - GET /api/v1/groups/{groupId}/lesson-records?page=1&size=20
- * - Authorization: Bearer <access_token>
- * - 응답: { success: true, data: { items: LessonRecord[], pagination: {...} } }
- *
- * @param params 조회 파라미터
- * @returns Promise<LessonRecord[]>
+ * 백엔드 진도 기록 응답을 프론트엔드 ProgressRecord 타입으로 변환
  */
-export async function fetchLessonRecords(
-  params: LessonRecordListParams
-): Promise<LessonRecord[]> {
-  // TODO(F-005): 실제 API 호출
-  // const response = await apiRequest<{ items: LessonRecord[] }>(
-  //   'GET',
-  //   `/api/v1/groups/${params.groupId}/lesson-records`,
-  //   { params }
-  // );
-  // return response.items;
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[fetchLessonRecords] 목업 데이터 반환:', params);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      if (params.groupId) {
-        resolve(getMockLessonRecordsByGroup(params.groupId));
-      } else {
-        resolve([]);
-      }
-    }, 300);
-  });
+function convertBackendProgressRecordToFrontend(
+  backendProgress: BackendProgressRecordOut
+): ProgressRecord {
+  return {
+    progressId: backendProgress.progress_record_id,
+    lessonRecordId: backendProgress.lesson_record_id,
+    textbook: {
+      textbookId: backendProgress.textbook_id,
+      name: backendProgress.textbook_title ?? '교재명 미제공',
+    },
+    pageStart: backendProgress.start_page,
+    pageEnd: backendProgress.end_page,
+    pagesCovered: backendProgress.pages_covered,
+    createdAt: backendProgress.created_at,
+  };
 }
 
 /**
- * 수업 기록 상세 조회
- * S-023: 수업 기록 상세 화면
- *
- * TODO(F-005): 실제 API 연동
- * - GET /api/v1/lesson-records/{lessonRecordId}
- * - Authorization: Bearer <access_token>
- * - 응답: { success: true, data: LessonRecord }
- *
- * @param lessonRecordId 수업 기록 ID
- * @returns Promise<LessonRecord>
+ * 백엔드 수업 기록 응답을 프론트엔드 LessonRecord 타입으로 변환
  */
-export async function fetchLessonRecordById(
-  lessonRecordId: string
-): Promise<LessonRecord> {
-  // TODO(F-005): 실제 API 호출
-  // const response = await apiRequest<LessonRecord>(
-  //   'GET',
-  //   `/api/v1/lesson-records/${lessonRecordId}`
-  // );
-  // return response;
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[fetchLessonRecordById] 목업 데이터 반환:', lessonRecordId);
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      const record = getMockLessonRecordById(lessonRecordId);
-      if (record) {
-        resolve(record);
-      } else {
-        reject(new Error('수업 기록을 찾을 수 없습니다.'));
-      }
-    }, 300);
-  });
+function convertBackendLessonRecordToFrontend(
+  backendRecord: BackendLessonRecordOut
+): LessonRecord {
+  return {
+    lessonRecordId: backendRecord.lesson_record_id,
+    scheduleId: backendRecord.schedule_id,
+    groupId: backendRecord.group_id,
+    date: backendRecord.schedule_date ?? backendRecord.created_at.split('T')[0],
+    title: backendRecord.schedule_title,
+    content: backendRecord.content,
+    studentFeedback: backendRecord.student_feedback ?? undefined,
+    homework: backendRecord.homework ?? undefined,
+    progressRecords: backendRecord.progress_records?.map(
+      convertBackendProgressRecordToFrontend
+    ),
+    createdBy: {
+      userId: backendRecord.created_by,
+      name: backendRecord.teacher_name ?? '선생님',
+    },
+    isShared: backendRecord.is_shared,
+    sharedAt: backendRecord.shared_at ?? undefined,
+    viewedBy: {
+      parentViewedAt: backendRecord.parent_viewed_at ?? undefined,
+      studentViewedAt: backendRecord.student_viewed_at ?? undefined,
+    },
+    createdAt: backendRecord.created_at,
+    updatedAt: backendRecord.updated_at ?? undefined,
+  };
 }
+
+/**
+ * 백엔드 교재 응답을 프론트엔드 Textbook 타입으로 변환
+ */
+function convertBackendTextbookToFrontend(
+  backendTextbook: BackendTextbookOut
+): Textbook {
+  return {
+    textbookId: backendTextbook.textbook_id,
+    groupId: backendTextbook.group_id,
+    name: backendTextbook.title,
+    publisher: backendTextbook.publisher ?? undefined,
+    totalPages: backendTextbook.total_pages ?? undefined,
+    startPage: backendTextbook.start_page,
+    currentPage: backendTextbook.current_page ?? undefined,
+    progressPercentage: backendTextbook.progress_percentage ?? undefined,
+    isActive: backendTextbook.is_active,
+    createdAt: backendTextbook.created_at,
+    updatedAt: backendTextbook.updated_at ?? undefined,
+  };
+}
+
+// ==========================
+// Request Converters (Frontend → Backend)
+// ==========================
+
+/**
+ * 프론트엔드 수업 기록 작성 페이로드를 백엔드 형식으로 변환
+ */
+function convertCreateLessonRecordPayloadToBackend(
+  payload: CreateLessonRecordPayload
+): BackendCreateLessonRecordPayload {
+  return {
+    content: payload.content,
+    student_feedback: payload.studentFeedback,
+    homework: payload.homework,
+    progress_records: payload.progressRecords?.map((pr) => ({
+      textbook_id: pr.textbookId,
+      start_page: pr.pageStart ?? 1,
+      end_page: pr.pageEnd ?? 1,
+    })),
+  };
+}
+
+/**
+ * 프론트엔드 수업 기록 수정 페이로드를 백엔드 형식으로 변환
+ */
+function convertUpdateLessonRecordPayloadToBackend(
+  payload: UpdateLessonRecordPayload
+): BackendUpdateLessonRecordPayload {
+  return {
+    content: payload.content,
+    student_feedback: payload.studentFeedback,
+    homework: payload.homework,
+  };
+}
+
+/**
+ * 프론트엔드 교재 등록 페이로드를 백엔드 형식으로 변환
+ */
+function convertCreateTextbookPayloadToBackend(
+  payload: CreateTextbookPayload
+): BackendCreateTextbookPayload {
+  return {
+    title: payload.name,
+    publisher: payload.publisher,
+    total_pages: payload.totalPages,
+    start_page: payload.startPage,
+  };
+}
+
+/**
+ * 프론트엔드 교재 수정 페이로드를 백엔드 형식으로 변환
+ */
+function convertUpdateTextbookPayloadToBackend(
+  payload: UpdateTextbookPayload
+): BackendUpdateTextbookPayload {
+  return {
+    title: payload.name,
+    publisher: payload.publisher,
+    total_pages: payload.totalPages,
+    is_active: payload.isActive,
+  };
+}
+
+// ==========================
+// API Functions - Lesson Records
+// ==========================
 
 /**
  * 수업 기록 작성 (선생님만 가능)
- * S-022: 수업 기록 작성 화면
  *
- * TODO(F-005): 실제 API 연동
- * - POST /api/v1/schedules/{scheduleId}/lesson-record
- * - Authorization: Bearer <access_token>
- * - 요청: CreateLessonRecordPayload
- * - 응답: { success: true, data: LessonRecord }
+ * POST /api/v1/lesson-records/schedules/{schedule_id}
  *
- * 비즈니스 규칙 (F-005 참조):
- * - content: 필수, 최소 10자, 최대 2000자
+ * 비즈니스 규칙:
+ * - content: 필수, 10-2000자
  * - studentFeedback: 선택, 최대 500자
  * - homework: 선택, 최대 1000자
- * - progressRecords: 다중 교재 가능 (최대 5개)
- * - 저장 후 학생/학부모에게 자동 알림 전송 (F-008 연계)
+ * - progressRecords: 최대 5개 교재 진도 기록 가능
  *
  * @param payload 수업 기록 작성 정보
  * @returns Promise<LessonRecord>
@@ -139,73 +311,52 @@ export async function fetchLessonRecordById(
 export async function createLessonRecord(
   payload: CreateLessonRecordPayload
 ): Promise<LessonRecord> {
-  // TODO(F-005): 실제 API 호출
-  // const response = await apiRequest<LessonRecord>(
-  //   'POST',
-  //   `/api/v1/schedules/${payload.scheduleId}/lesson-record`,
-  //   { body: payload }
-  // );
-  // return response;
+  const backendPayload = convertCreateLessonRecordPayloadToBackend(payload);
 
-  // 목업 데이터 반환 (개발 중)
-  console.log('[createLessonRecord] 목업 수업 기록 생성:', payload);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const newRecord: LessonRecord = {
-        lessonRecordId: `lesson-${Date.now()}`,
-        scheduleId: payload.scheduleId,
-        groupId: payload.groupId,
-        groupName: '새 그룹', // 목업
-        date: new Date().toISOString().split('T')[0],
-        content: payload.content,
-        studentFeedback: payload.studentFeedback,
-        homework: payload.homework,
-        homeworkDueDate: payload.homeworkDueDate,
-        progressRecords: payload.progressRecords?.map((pr) => ({
-          textbook: {
-            textbookId: pr.textbookId,
-            name: '교재명', // 목업
-          },
-          unit: pr.unit,
-          pageStart: pr.pageStart,
-          pageEnd: pr.pageEnd,
-          pagesCovered:
-            pr.pageStart && pr.pageEnd ? pr.pageEnd - pr.pageStart + 1 : 0,
-          notes: pr.notes,
-        })),
-        studentEvaluations: payload.studentEvaluations?.map((se) => ({
-          studentId: se.studentId,
-          studentName: '학생명', // 목업
-          understanding: se.understanding,
-          concentration: se.concentration,
-          difficulty: se.difficulty,
-          memo: se.memo,
-        })),
-        createdBy: {
-          userId: 'teacher-1',
-          name: '김선생',
-        },
-        isShared: payload.isShared !== false, // 기본값: true
-        sharedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      };
-      resolve(newRecord);
-    }, 500);
-  });
+  const response = await apiRequest<BackendLessonRecordOut>(
+    `/lesson-records/schedules/${payload.scheduleId}`,
+    {
+      method: 'POST',
+      body: JSON.stringify(backendPayload),
+    }
+  );
+
+  return convertBackendLessonRecordToFrontend(response);
+}
+
+/**
+ * 수업 기록 상세 조회
+ *
+ * GET /api/v1/lesson-records/{lesson_record_id}
+ *
+ * - 그룹 멤버만 조회 가능
+ * - 학부모/학생 조회 시 읽음 상태 자동 업데이트
+ *
+ * @param lessonRecordId 수업 기록 ID
+ * @returns Promise<LessonRecord>
+ */
+export async function getLessonRecord(
+  lessonRecordId: string
+): Promise<LessonRecord> {
+  const response = await apiRequest<BackendLessonRecordOut>(
+    `/lesson-records/${lessonRecordId}`,
+    {
+      method: 'GET',
+    }
+  );
+
+  return convertBackendLessonRecordToFrontend(response);
 }
 
 /**
  * 수업 기록 수정 (선생님만 가능)
  *
- * TODO(F-005): 실제 API 연동
- * - PATCH /api/v1/lesson-records/{lessonRecordId}
- * - Authorization: Bearer <access_token>
- * - 요청: UpdateLessonRecordPayload
- * - 응답: { success: true, data: LessonRecord }
+ * PATCH /api/v1/lesson-records/{lesson_record_id}
  *
- * 비즈니스 규칙 (F-005 참조):
+ * 비즈니스 규칙:
  * - 작성 후 30일 이내만 수정 가능
- * - 수정 시 학부모에게 "수정됨" 알림 전송
+ * - 본인이 작성한 기록만 수정 가능
+ * - 진도 기록은 수정 불가
  *
  * @param lessonRecordId 수업 기록 ID
  * @param payload 수정할 정보
@@ -215,52 +366,27 @@ export async function updateLessonRecord(
   lessonRecordId: string,
   payload: UpdateLessonRecordPayload
 ): Promise<LessonRecord> {
-  // TODO(F-005): 실제 API 호출
-  // const response = await apiRequest<LessonRecord>(
-  //   'PATCH',
-  //   `/api/v1/lesson-records/${lessonRecordId}`,
-  //   { body: payload }
-  // );
-  // return response;
+  const backendPayload = convertUpdateLessonRecordPayloadToBackend(payload);
 
-  // 목업 데이터 반환 (개발 중)
-  console.log('[updateLessonRecord] 목업 수업 기록 수정:', lessonRecordId, payload);
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      const record = getMockLessonRecordById(lessonRecordId);
-      if (record) {
-        // 페이로드를 LessonRecord 형식으로 변환 (progressRecords, studentEvaluations 등 처리)
-        const updates: Partial<LessonRecord> = {
-          content: payload.content,
-          studentFeedback: payload.studentFeedback,
-          homework: payload.homework,
-          homeworkDueDate: payload.homeworkDueDate,
-          updatedAt: new Date().toISOString(),
-        };
+  const response = await apiRequest<BackendLessonRecordOut>(
+    `/lesson-records/${lessonRecordId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(backendPayload),
+    }
+  );
 
-        const updatedRecord: LessonRecord = {
-          ...record,
-          ...updates,
-        };
-        resolve(updatedRecord);
-      } else {
-        reject(new Error('수업 기록을 찾을 수 없습니다.'));
-      }
-    }, 500);
-  });
+  return convertBackendLessonRecordToFrontend(response);
 }
 
 /**
  * 수업 기록 삭제 (선생님만 가능)
  *
- * TODO(F-005): 실제 API 연동
- * - DELETE /api/v1/lesson-records/{lessonRecordId}
- * - Authorization: Bearer <access_token>
- * - 응답: 204 No Content
+ * DELETE /api/v1/lesson-records/{lesson_record_id}
  *
- * 비즈니스 규칙 (F-005 참조):
+ * 비즈니스 규칙:
  * - 작성 후 24시간 이내만 삭제 가능
- * - 24시간 경과 후엔 수정만 가능
+ * - 본인이 작성한 기록만 삭제 가능
  *
  * @param lessonRecordId 수업 기록 ID
  * @returns Promise<void>
@@ -268,60 +394,23 @@ export async function updateLessonRecord(
 export async function deleteLessonRecord(
   lessonRecordId: string
 ): Promise<void> {
-  // TODO(F-005): 실제 API 호출
-  // await apiRequest('DELETE', `/api/v1/lesson-records/${lessonRecordId}`);
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[deleteLessonRecord] 목업 수업 기록 삭제:', lessonRecordId);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve();
-    }, 300);
+  await apiRequest<void>(`/lesson-records/${lessonRecordId}`, {
+    method: 'DELETE',
   });
 }
 
-/**
- * 그룹별 교재 목록 조회
- * S-024: 교재 관리 화면
- *
- * TODO(F-005): 실제 API 연동
- * - GET /api/v1/groups/{groupId}/textbooks
- * - Authorization: Bearer <access_token>
- * - 응답: { success: true, data: { items: Textbook[] } }
- *
- * @param groupId 그룹 ID
- * @returns Promise<Textbook[]>
- */
-export async function fetchTextbooks(groupId: string): Promise<Textbook[]> {
-  // TODO(F-005): 실제 API 호출
-  // const response = await apiRequest<{ items: Textbook[] }>(
-  //   'GET',
-  //   `/api/v1/groups/${groupId}/textbooks`
-  // );
-  // return response.items;
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[fetchTextbooks] 목업 교재 목록 반환:', groupId);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(getMockTextbooksByGroup(groupId));
-    }, 300);
-  });
-}
+// ==========================
+// API Functions - Textbooks
+// ==========================
 
 /**
  * 교재 등록 (선생님만 가능)
  *
- * TODO(F-005): 실제 API 연동
- * - POST /api/v1/groups/{groupId}/textbooks
- * - Authorization: Bearer <access_token>
- * - 요청: CreateTextbookPayload
- * - 응답: { success: true, data: Textbook }
+ * POST /api/v1/textbooks/groups/{group_id}
  *
- * 비즈니스 규칙 (F-005 참조):
- * - name: 필수, 최소 1자, 최대 100자
- * - totalPages: 선택, 입력하면 진도율 자동 계산
- * - 중복 이름 허용 (예: 수학1, 수학1-2권)
+ * 비즈니스 규칙:
+ * - name: 필수, 1-200자
+ * - 교재명 중복 허용
  *
  * @param payload 교재 등록 정보
  * @returns Promise<Textbook>
@@ -329,43 +418,56 @@ export async function fetchTextbooks(groupId: string): Promise<Textbook[]> {
 export async function createTextbook(
   payload: CreateTextbookPayload
 ): Promise<Textbook> {
-  // TODO(F-005): 실제 API 호출
-  // const response = await apiRequest<Textbook>(
-  //   'POST',
-  //   `/api/v1/groups/${payload.groupId}/textbooks`,
-  //   { body: payload }
-  // );
-  // return response;
+  const backendPayload = convertCreateTextbookPayloadToBackend(payload);
 
-  // 목업 데이터 반환 (개발 중)
-  console.log('[createTextbook] 목업 교재 등록:', payload);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const newTextbook: Textbook = {
-        textbookId: `textbook-${Date.now()}`,
-        groupId: payload.groupId,
-        name: payload.name,
-        publisher: payload.publisher,
-        totalPages: payload.totalPages,
-        startPage: payload.startPage || 1,
-        currentPage: payload.startPage || 1,
-        progressPercentage: 0,
-        isActive: true,
-        createdAt: new Date().toISOString(),
-      };
-      resolve(newTextbook);
-    }, 500);
-  });
+  const response = await apiRequest<BackendTextbookOut>(
+    `/textbooks/groups/${payload.groupId}`,
+    {
+      method: 'POST',
+      body: JSON.stringify(backendPayload),
+    }
+  );
+
+  return convertBackendTextbookToFrontend(response);
+}
+
+/**
+ * 그룹별 교재 목록 조회
+ *
+ * GET /api/v1/textbooks/groups/{group_id}
+ *
+ * - 그룹 멤버만 조회 가능
+ * - 현재 진도, 진도율 포함
+ *
+ * @param groupId 그룹 ID
+ * @param includeInactive 비활성 교재 포함 여부 (기본: false)
+ * @returns Promise<Textbook[]>
+ */
+export async function getTextbooks(
+  groupId: string,
+  includeInactive: boolean = false
+): Promise<Textbook[]> {
+  const queryParams = new URLSearchParams();
+  if (includeInactive) {
+    queryParams.append('include_inactive', 'true');
+  }
+
+  const response = await apiRequest<BackendTextbookListResponse>(
+    `/textbooks/groups/${groupId}?${queryParams.toString()}`,
+    {
+      method: 'GET',
+    }
+  );
+
+  return response.items.map(convertBackendTextbookToFrontend);
 }
 
 /**
  * 교재 수정 (선생님만 가능)
  *
- * TODO(F-005): 실제 API 연동
- * - PATCH /api/v1/textbooks/{textbookId}
- * - Authorization: Bearer <access_token>
- * - 요청: UpdateTextbookPayload
- * - 응답: { success: true, data: Textbook }
+ * PATCH /api/v1/textbooks/{textbook_id}
+ *
+ * - is_active를 false로 설정하여 숨기기 가능
  *
  * @param textbookId 교재 ID
  * @param payload 수정할 정보
@@ -375,217 +477,131 @@ export async function updateTextbook(
   textbookId: string,
   payload: UpdateTextbookPayload
 ): Promise<Textbook> {
-  // TODO(F-005): 실제 API 호출
-  // const response = await apiRequest<Textbook>(
-  //   'PATCH',
-  //   `/api/v1/textbooks/${textbookId}`,
-  //   { body: payload }
-  // );
-  // return response;
+  const backendPayload = convertUpdateTextbookPayloadToBackend(payload);
 
-  // 목업 데이터 반환 (개발 중)
-  console.log('[updateTextbook] 목업 교재 수정:', textbookId, payload);
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      const textbook = getMockTextbookById(textbookId);
-      if (textbook) {
-        const updatedTextbook: Textbook = {
-          ...textbook,
-          ...payload,
-          updatedAt: new Date().toISOString(),
-        };
-        resolve(updatedTextbook);
-      } else {
-        reject(new Error('교재를 찾을 수 없습니다.'));
-      }
-    }, 500);
-  });
+  const response = await apiRequest<BackendTextbookOut>(
+    `/textbooks/${textbookId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(backendPayload),
+    }
+  );
+
+  return convertBackendTextbookToFrontend(response);
 }
 
 /**
- * 교재 삭제/숨기기 (선생님만 가능)
+ * 교재 삭제 (선생님만 가능)
  *
- * TODO(F-005): 실제 API 연동
- * - DELETE /api/v1/textbooks/{textbookId} (진도 기록 없을 때만)
- * - 또는 PATCH로 isActive: false (진도 기록 있을 때 숨기기)
+ * DELETE /api/v1/textbooks/{textbook_id}
  *
- * 비즈니스 규칙 (F-005 참조):
- * - 진도 기록이 있는 교재는 삭제 불가, 숨기기만 가능
+ * 비즈니스 규칙:
+ * - 진도 기록이 있는 교재는 삭제 불가
+ * - 진도 기록이 있으면 409 Conflict 반환
  *
  * @param textbookId 교재 ID
- * @param hideOnly 숨기기만 할지 (true), 완전 삭제할지 (false)
  * @returns Promise<void>
  */
-export async function deleteTextbook(
-  textbookId: string,
-  hideOnly: boolean = false
-): Promise<void> {
-  // TODO(F-005): 실제 API 호출
-  // if (hideOnly) {
-  //   await apiRequest('PATCH', `/api/v1/textbooks/${textbookId}`, {
-  //     body: { isActive: false },
-  //   });
-  // } else {
-  //   await apiRequest('DELETE', `/api/v1/textbooks/${textbookId}`);
-  // }
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[deleteTextbook] 목업 교재 삭제/숨기기:', textbookId, hideOnly);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve();
-    }, 300);
+export async function deleteTextbook(textbookId: string): Promise<void> {
+  await apiRequest<void>(`/textbooks/${textbookId}`, {
+    method: 'DELETE',
   });
 }
 
 /**
- * 그룹 진도 요약 조회
- * S-030: 그룹 진도 대시보드
+ * 교재별 진도 요약 및 히스토리 조회
  *
- * TODO(F-005): 실제 API 연동
- * - GET /api/v1/groups/{groupId}/progress
- * - Authorization: Bearer <access_token>
- * - 응답: { success: true, data: GroupProgressSummary }
+ * GET /api/v1/textbooks/groups/{group_id}/progress/{textbook_id}
+ *
+ * - 그룹 멤버만 조회 가능
+ * - 진도율, 평균 진도, 차트 데이터 포함
  *
  * @param groupId 그룹 ID
- * @returns Promise<GroupProgressSummary>
+ * @param textbookId 교재 ID
+ * @returns Promise<BackendProgressHistoryResponse>
  */
-export async function fetchGroupProgressSummary(
-  groupId: string
-): Promise<GroupProgressSummary> {
-  // TODO(F-005): 실제 API 호출
-  // const response = await apiRequest<GroupProgressSummary>(
-  //   'GET',
-  //   `/api/v1/groups/${groupId}/progress`
-  // );
-  // return response;
+export async function getProgressSummary(
+  groupId: string,
+  textbookId: string
+): Promise<BackendProgressHistoryResponse> {
+  const response = await apiRequest<BackendProgressHistoryResponse>(
+    `/textbooks/groups/${groupId}/progress/${textbookId}`,
+    {
+      method: 'GET',
+    }
+  );
 
-  // 목업 데이터 반환 (개발 중)
-  console.log('[fetchGroupProgressSummary] 목업 그룹 진도 요약 반환:', groupId);
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      const summary = getMockGroupProgressSummary(groupId);
-      if (summary) {
-        resolve(summary);
-      } else {
-        reject(new Error('그룹 진도 정보를 찾을 수 없습니다.'));
-      }
-    }, 300);
-  });
+  return response;
+}
+
+// ==========================
+// Legacy Mock Functions (Deprecated)
+// ==========================
+
+// TODO(v2): 아래 함수들은 목업 데이터 기반으로 구현되어 있으며,
+// 백엔드 API가 추가되면 위와 동일한 패턴으로 실제 연동해야 합니다.
+
+/**
+ * @deprecated 백엔드 API 미구현, 목업 데이터 반환
+ */
+export async function fetchLessonRecords(): Promise<LessonRecord[]> {
+  console.warn('[fetchLessonRecords] 백엔드 API 미구현, 빈 배열 반환');
+  return [];
 }
 
 /**
- * 학생별 학습 리포트 조회
- * S-033: 학생별 학습 리포트
- *
- * TODO(F-005): 실제 API 연동
- * - GET /api/v1/students/{studentId}/progress?groupId={groupId}
- * - Authorization: Bearer <access_token>
- * - 응답: { success: true, data: StudentProgressSummary }
- *
- * @param studentId 학생 ID
- * @param groupId 그룹 ID (선택)
- * @returns Promise<StudentProgressSummary>
+ * @deprecated 백엔드 API 미구현, 목업 데이터 반환
  */
-export async function fetchStudentProgressSummary(
-  studentId: string,
-  groupId?: string
-): Promise<StudentProgressSummary> {
-  // TODO(F-005): 실제 API 호출
-  // const response = await apiRequest<StudentProgressSummary>(
-  //   'GET',
-  //   `/api/v1/students/${studentId}/progress`,
-  //   { params: { groupId } }
-  // );
-  // return response;
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[fetchStudentProgressSummary] 목업 학생 학습 리포트 반환:', studentId, groupId);
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      const summary = getMockStudentProgressSummary(studentId, groupId);
-      if (summary) {
-        resolve(summary);
-      } else {
-        reject(new Error('학생 학습 리포트를 찾을 수 없습니다.'));
-      }
-    }, 300);
-  });
+export async function fetchLessonRecordById(
+  lessonRecordId: string
+): Promise<LessonRecord> {
+  console.warn('[fetchLessonRecordById] 백엔드 API 미구현, getLessonRecord 사용 권장');
+  return getLessonRecord(lessonRecordId);
 }
 
 /**
- * 진도 리포트 생성
- * S-026: 진도 리포트 화면 (선생님)
- *
- * TODO(F-005): 실제 API 연동
- * - POST /api/v1/groups/{groupId}/progress/report
- * - Authorization: Bearer <access_token>
- * - 요청: GenerateProgressReportPayload
- * - 응답: { success: true, data: ProgressReport }
- *
- * @param payload 리포트 생성 요청
- * @returns Promise<ProgressReport>
+ * @deprecated 백엔드 API 미구현, 목업 데이터 반환
  */
-export async function generateProgressReport(
-  payload: GenerateProgressReportPayload
-): Promise<ProgressReport> {
-  // TODO(F-005): 실제 API 호출
-  // const response = await apiRequest<ProgressReport>(
-  //   'POST',
-  //   `/api/v1/groups/${payload.groupId}/progress/report`,
-  //   { body: payload }
-  // );
-  // return response;
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[generateProgressReport] 목업 진도 리포트 생성:', payload);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const report = getMockProgressReport(payload.groupId);
-      resolve(report);
-    }, 500);
-  });
+export async function fetchTextbooks(groupId: string): Promise<Textbook[]> {
+  console.warn('[fetchTextbooks] 백엔드 API 미구현, getTextbooks 사용 권장');
+  return getTextbooks(groupId);
 }
 
 /**
- * 진도 리포트 학부모에게 공유
- *
- * TODO(F-005): 실제 API 연동
- * - POST /api/v1/progress/reports/{reportId}/share
- * - Authorization: Bearer <access_token>
- * - 응답: { success: true }
- *
- * 비즈니스 규칙 (F-005 참조):
- * - 공유 시 학부모에게 알림 전송 (F-008 연계)
- *
- * @param reportId 리포트 ID
- * @returns Promise<void>
+ * @deprecated 백엔드 API 미구현
  */
-export async function shareProgressReportToParents(
-  reportId: string
-): Promise<void> {
-  // TODO(F-005): 실제 API 호출
-  // await apiRequest('POST', `/api/v1/progress/reports/${reportId}/share`);
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[shareProgressReportToParents] 목업 진도 리포트 공유:', reportId);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve();
-    }, 300);
-  });
+export async function fetchGroupProgressSummary(): Promise<any> {
+  console.warn('[fetchGroupProgressSummary] 백엔드 API 미구현');
+  return null;
 }
 
 /**
- * 수업 기록 카드 뷰 목록 조회 (UI 표시용)
- * S-032: 그룹 진도 히스토리
- *
- * @param groupId 그룹 ID
- * @returns Promise<LessonRecordCardView[]>
+ * @deprecated 백엔드 API 미구현
  */
-export async function fetchLessonRecordCards(
-  groupId: string
-): Promise<LessonRecordCardView[]> {
-  const lessons = await fetchLessonRecords({ groupId });
-  return lessons.map(convertToLessonRecordCardView);
+export async function fetchStudentProgressSummary(): Promise<any> {
+  console.warn('[fetchStudentProgressSummary] 백엔드 API 미구현');
+  return null;
+}
+
+/**
+ * @deprecated 백엔드 API 미구현
+ */
+export async function generateProgressReport(): Promise<any> {
+  console.warn('[generateProgressReport] 백엔드 API 미구현');
+  return null;
+}
+
+/**
+ * @deprecated 백엔드 API 미구현
+ */
+export async function shareProgressReportToParents(): Promise<void> {
+  console.warn('[shareProgressReportToParents] 백엔드 API 미구현');
+}
+
+/**
+ * @deprecated 백엔드 API 미구현
+ */
+export async function fetchLessonRecordCards(): Promise<any[]> {
+  console.warn('[fetchLessonRecordCards] 백엔드 API 미구현');
+  return [];
 }
