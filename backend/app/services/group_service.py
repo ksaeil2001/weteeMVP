@@ -3,12 +3,14 @@ Group Service - F-002 과외 그룹 생성 및 매칭 비즈니스 로직
 그룹 CRUD 및 멤버 관리 로직
 """
 
-from datetime import datetime
-from typing import Optional, Tuple
+from datetime import datetime, timedelta
+from typing import Optional, Tuple, List
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, or_
+import random
+import string
 
-from app.models.group import Group, GroupMember, GroupStatus, GroupMemberRole, GroupMemberInviteStatus
+from app.models.group import Group, GroupMember, InviteCode, GroupStatus, GroupMemberRole, GroupMemberInviteStatus
 from app.models.user import User
 from app.schemas.group import (
     GroupCreate,
@@ -17,6 +19,8 @@ from app.schemas.group import (
     GroupMemberOut,
     GroupListResponse,
     PaginationInfo,
+    InviteCodeCreate,
+    InviteCodeOut,
 )
 
 
@@ -318,4 +322,235 @@ class GroupService:
             role=member.role.value,
             invite_status=member.invite_status.value,
             joined_at=member.joined_at.isoformat() + "Z" if member.joined_at else None,
+        )
+
+    # ==========================
+    # Invite Code Management - F-002
+    # ==========================
+
+    @staticmethod
+    def _generate_unique_code(db: Session, max_attempts: int = 3) -> Optional[str]:
+        """
+        고유한 6자리 코드 생성
+        F-002 비즈니스 규칙: 6자리 알파벳 대문자 + 숫자
+
+        Args:
+            db: 데이터베이스 세션
+            max_attempts: 최대 재시도 횟수
+
+        Returns:
+            str: 생성된 코드
+            None: 생성 실패
+        """
+        chars = string.ascii_uppercase + string.digits  # A-Z + 0-9
+        for _ in range(max_attempts):
+            code = ''.join(random.choices(chars, k=6))
+            # 중복 확인
+            existing = db.query(InviteCode).filter(InviteCode.code == code).first()
+            if not existing:
+                return code
+        return None
+
+    @staticmethod
+    def create_invite_code(
+        db: Session,
+        creator: User,
+        group_id: str,
+        invite_code_create: InviteCodeCreate,
+    ) -> Optional[InviteCodeOut]:
+        """
+        초대 코드 생성 (선생님만 가능)
+
+        F-002 비즈니스 규칙:
+        - 형식: 6자리 알파벳 대문자 + 숫자
+        - 유효 기간: 생성 후 7일 (기본값, 커스터마이징 가능)
+        - 사용 횟수: 기본 1회 (커스터마이징 가능)
+        - 역할 구분: STUDENT 또는 PARENT
+
+        Args:
+            db: 데이터베이스 세션
+            creator: 초대 코드를 생성하는 사용자 (선생님)
+            group_id: 그룹 ID
+            invite_code_create: 초대 코드 생성 요청 데이터
+
+        Returns:
+            InviteCodeOut: 생성된 초대 코드 정보
+            None: 생성 실패
+        """
+        # 그룹 존재 여부 확인
+        group = db.query(Group).filter(Group.id == group_id).first()
+        if not group:
+            return None
+
+        # 선생님 권한 확인 (그룹 소유자)
+        if group.owner_id != creator.id:
+            return None
+
+        # 대기 중인 초대 개수 확인 (스팸 방지)
+        pending_count = db.query(func.count(InviteCode.id)).filter(
+            InviteCode.group_id == group_id,
+            InviteCode.is_active == True,
+        ).scalar()
+
+        if pending_count >= 10:  # F-002: 그룹당 최대 10개 대기 중 초대
+            return None
+
+        # 코드 생성
+        code = GroupService._generate_unique_code(db)
+        if not code:
+            return None
+
+        # expires_in_days 처리 (기본값 7일)
+        expires_in_days = invite_code_create.expires_in_days or 7
+        expires_at = datetime.utcnow() + timedelta(days=expires_in_days)
+
+        # 초대 코드 생성
+        new_invite_code = InviteCode(
+            code=code,
+            group_id=group_id,
+            created_by=creator.id,
+            target_role=invite_code_create.role,
+            max_uses=invite_code_create.max_uses or 1,
+            used_count=0,
+            expires_at=expires_at,
+            is_active=True,
+        )
+
+        db.add(new_invite_code)
+        db.commit()
+        db.refresh(new_invite_code)
+
+        return GroupService._to_invite_code_out(new_invite_code)
+
+    @staticmethod
+    def get_invite_codes_for_group(
+        db: Session,
+        requester: User,
+        group_id: str,
+    ) -> Optional[List[InviteCodeOut]]:
+        """
+        그룹의 초대 코드 목록 조회 (그룹 소유자만 가능)
+
+        Args:
+            db: 데이터베이스 세션
+            requester: 요청하는 사용자 (선생님)
+            group_id: 그룹 ID
+
+        Returns:
+            List[InviteCodeOut]: 초대 코드 목록
+            None: 권한 없음
+        """
+        # 그룹 존재 여부 확인
+        group = db.query(Group).filter(Group.id == group_id).first()
+        if not group:
+            return None
+
+        # 선생님 권한 확인 (그룹 소유자)
+        if group.owner_id != requester.id:
+            return None
+
+        # 초대 코드 목록 조회
+        invite_codes = (
+            db.query(InviteCode)
+            .filter(InviteCode.group_id == group_id)
+            .order_by(desc(InviteCode.created_at))
+            .all()
+        )
+
+        return [GroupService._to_invite_code_out(ic) for ic in invite_codes]
+
+    @staticmethod
+    def join_group_with_code(
+        db: Session,
+        user: User,
+        code: str,
+    ) -> Tuple[Optional[Group], Optional[GroupMember], Optional[str]]:
+        """
+        초대 코드로 그룹에 가입
+
+        F-002 비즈니스 규칙:
+        - 코드의 유효성 확인 (존재, 미만료, 사용 가능)
+        - 사용자의 역할과 코드의 target_role 일치 확인
+        - 그룹 멤버로 자동 추가
+        - 사용 횟수 증가
+        - 최대 사용 횟수 도달 시 비활성화
+
+        Args:
+            db: 데이터베이스 세션
+            user: 그룹에 가입하려는 사용자
+            code: 초대 코드
+
+        Returns:
+            Tuple[Group, GroupMember, None]: 성공 (그룹, 멤버, None)
+            Tuple[None, None, str]: 실패 (None, None, 에러 메시지)
+        """
+        # 초대 코드 확인
+        invite_code = db.query(InviteCode).filter(InviteCode.code == code).first()
+        if not invite_code:
+            return None, None, "초대 코드를 확인해주세요"
+
+        # 코드 유효성 확인
+        if not invite_code.is_available():
+            if invite_code.is_expired():
+                return None, None, "초대 코드가 만료되었습니다. 선생님께 새 코드를 요청해주세요"
+            else:
+                return None, None, "이미 사용된 초대 코드입니다. 선생님께 새 코드를 요청해주세요"
+
+        # 사용자 역할과 코드 역할 일치 확인
+        if user.role.value != invite_code.target_role.value:
+            return None, None, f"이 코드는 {invite_code.target_role.value} 전용입니다. 역할을 다시 선택해주세요"
+
+        # 그룹 조회
+        group = db.query(Group).filter(Group.id == invite_code.group_id).first()
+        if not group:
+            return None, None, "그룹을 찾을 수 없습니다"
+
+        # 이미 같은 그룹의 멤버인지 확인
+        existing_member = db.query(GroupMember).filter(
+            GroupMember.group_id == group.id,
+            GroupMember.user_id == user.id,
+        ).first()
+
+        if existing_member:
+            return None, None, "이미 이 그룹에 참여하고 있습니다"
+
+        # 그룹 멤버 추가
+        new_member = GroupMember(
+            group_id=group.id,
+            user_id=user.id,
+            role=invite_code.target_role,
+            invite_status=GroupMemberInviteStatus.ACCEPTED,
+        )
+
+        db.add(new_member)
+
+        # 초대 코드 사용 횟수 증가
+        invite_code.increment_usage()
+
+        db.commit()
+        db.refresh(new_member)
+
+        return group, new_member, None
+
+    @staticmethod
+    def _to_invite_code_out(invite_code: InviteCode) -> InviteCodeOut:
+        """
+        InviteCode 모델을 InviteCodeOut 스키마로 변환
+
+        Args:
+            invite_code: InviteCode 모델 인스턴스
+
+        Returns:
+            InviteCodeOut: Pydantic 스키마
+        """
+        return InviteCodeOut(
+            invite_code_id=invite_code.id,
+            code=invite_code.code,
+            group_id=invite_code.group_id,
+            role=invite_code.target_role.value,
+            created_by=invite_code.created_by,
+            expires_at=invite_code.expires_at.isoformat() + "Z" if invite_code.expires_at else None,
+            max_uses=invite_code.max_uses,
+            current_uses=invite_code.used_count,
+            is_active=invite_code.is_active,
         )
