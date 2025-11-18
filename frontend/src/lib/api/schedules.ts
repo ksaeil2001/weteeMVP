@@ -28,9 +28,103 @@ import type {
   BookMakeupSlotPayload,
   CreateExamSchedulePayload,
   ExamSchedule,
+  ScheduleType,
+  ScheduleStatus,
+  RecurrenceFrequency,
+  RecurrenceEndType,
 } from '@/types/schedule';
 
 import { apiRequest } from '@/lib/apiClient';
+
+/**
+ * Backend Schedule Response (snake_case)
+ * Backend API에서 반환하는 스케줄 응답 형식
+ */
+interface BackendScheduleResponse {
+  schedule_id: string;
+  group_id: string;
+  group_name?: string;
+  title: string;
+  type: string;
+  start_at: string;
+  end_at: string;
+  status: string;
+  recurrence_rule?: {
+    frequency: string;
+    interval: number;
+    days_of_week?: number[];
+    start_date: string;
+    end_type: string;
+    end_date?: string;
+    end_count?: number;
+  };
+  location?: string;
+  memo?: string;
+  created_at: string;
+  updated_at?: string;
+  teacher_id?: string;
+  teacher_name?: string;
+  student_ids?: string[];
+  student_names?: string[];
+  original_schedule_id?: string;
+  cancel_reason?: string;
+  reschedule_reason?: string;
+}
+
+/**
+ * Backend Adapter Payloads
+ */
+interface BackendCreateRegularSchedulePayload {
+  group_id: string;
+  student_ids?: string[];
+  title: string;
+  start_time: string;
+  duration: number;
+  location?: string;
+  memo?: string;
+  recurrence: {
+    frequency: string;
+    interval: number;
+    days_of_week?: number[];
+    start_date: string;
+    end_type: string;
+    end_date?: string;
+    end_count?: number;
+  };
+}
+
+interface BackendCreateSchedulePayload {
+  group_id: string;
+  title: string;
+  type: string;
+  start_at: string;
+  end_at: string;
+  location?: string;
+  memo?: string;
+  student_ids?: string[];
+  original_schedule_id?: string;
+}
+
+interface BackendUpdateSchedulePayload {
+  title?: string;
+  start_at?: string;
+  end_at?: string;
+  location?: string;
+  memo?: string;
+  status?: string;
+  reschedule_reason?: string;
+  cancel_reason?: string;
+}
+
+/**
+ * Pagination Info
+ */
+interface PaginationInfo {
+  page?: number;
+  size?: number;
+  total?: number;
+  total_pages?: number;
+}
 
 /**
  * ==========================
@@ -44,23 +138,23 @@ import { apiRequest } from '@/lib/apiClient';
 /**
  * Backend ScheduleOut (snake_case) → Frontend Schedule (camelCase)
  */
-function adaptScheduleFromBackend(backendSchedule: any): Schedule {
+function adaptScheduleFromBackend(backendSchedule: BackendScheduleResponse): Schedule {
   return {
     scheduleId: backendSchedule.schedule_id,
     groupId: backendSchedule.group_id,
     groupName: backendSchedule.group_name,
     title: backendSchedule.title,
-    type: backendSchedule.type,
+    type: backendSchedule.type as ScheduleType,
     startAt: backendSchedule.start_at,
     endAt: backendSchedule.end_at,
-    status: backendSchedule.status,
+    status: backendSchedule.status as ScheduleStatus,
     recurrenceRule: backendSchedule.recurrence_rule
       ? {
-          frequency: backendSchedule.recurrence_rule.frequency,
+          frequency: backendSchedule.recurrence_rule.frequency as RecurrenceFrequency,
           interval: backendSchedule.recurrence_rule.interval,
           daysOfWeek: backendSchedule.recurrence_rule.days_of_week,
           startDate: backendSchedule.recurrence_rule.start_date,
-          endType: backendSchedule.recurrence_rule.end_type,
+          endType: backendSchedule.recurrence_rule.end_type as RecurrenceEndType,
           endDate: backendSchedule.recurrence_rule.end_date,
           endCount: backendSchedule.recurrence_rule.end_count,
         }
@@ -84,7 +178,7 @@ function adaptScheduleFromBackend(backendSchedule: any): Schedule {
  */
 function adaptCreateRegularSchedulePayload(
   payload: CreateRegularSchedulePayload
-): any {
+): BackendCreateRegularSchedulePayload {
   return {
     group_id: payload.groupId,
     student_ids: payload.studentIds,
@@ -108,7 +202,7 @@ function adaptCreateRegularSchedulePayload(
 /**
  * Frontend CreateSchedulePayload (camelCase) → Backend (snake_case)
  */
-function adaptCreateSchedulePayload(payload: CreateSchedulePayload): any {
+function adaptCreateSchedulePayload(payload: CreateSchedulePayload): BackendCreateSchedulePayload {
   return {
     group_id: payload.groupId,
     title: payload.title,
@@ -125,7 +219,7 @@ function adaptCreateSchedulePayload(payload: CreateSchedulePayload): any {
 /**
  * Frontend UpdateSchedulePayload (camelCase) → Backend (snake_case)
  */
-function adaptUpdateSchedulePayload(payload: UpdateSchedulePayload): any {
+function adaptUpdateSchedulePayload(payload: UpdateSchedulePayload): BackendUpdateSchedulePayload {
   return {
     title: payload.title,
     start_at: payload.startAt,
@@ -169,8 +263,8 @@ export async function fetchSchedules(
   if (params.size) queryParams.append('size', params.size.toString());
 
   const response = await apiRequest<{
-    items: any[];
-    pagination: any;
+    items: BackendScheduleResponse[];
+    pagination: PaginationInfo;
   }>(`/schedules?${queryParams.toString()}`, {
     method: 'GET',
   });
@@ -192,7 +286,7 @@ export async function fetchSchedules(
 export async function fetchScheduleById(
   scheduleId: string
 ): Promise<Schedule> {
-  const backendSchedule = await apiRequest<any>(
+  const backendSchedule = await apiRequest<BackendScheduleResponse>(
     `/schedules/${scheduleId}`,
     {
       method: 'GET',
@@ -218,7 +312,7 @@ export async function createRegularSchedule(
 ): Promise<Schedule[]> {
   const backendPayload = adaptCreateRegularSchedulePayload(payload);
 
-  const response = await apiRequest<{ schedules: any[] }>(
+  const response = await apiRequest<{ schedules: BackendScheduleResponse[] }>(
     '/schedules/regular',
     {
       method: 'POST',
@@ -245,7 +339,7 @@ export async function createSchedule(
 ): Promise<Schedule> {
   const backendPayload = adaptCreateSchedulePayload(payload);
 
-  const backendSchedule = await apiRequest<any>('/schedules', {
+  const backendSchedule = await apiRequest<BackendScheduleResponse>('/schedules', {
     method: 'POST',
     body: JSON.stringify(backendPayload),
   });
@@ -271,7 +365,7 @@ export async function updateSchedule(
 ): Promise<Schedule> {
   const backendPayload = adaptUpdateSchedulePayload(payload);
 
-  const backendSchedule = await apiRequest<any>(
+  const backendSchedule = await apiRequest<BackendScheduleResponse>(
     `/schedules/${scheduleId}`,
     {
       method: 'PATCH',

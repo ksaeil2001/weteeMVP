@@ -65,14 +65,14 @@ const NotificationList: React.FC<NotificationListProps> = ({ items }) => {
     <div className="divide-y divide-gray-200">
       {items.map((item) => (
         <div
-          key={item.id}
+          key={item.notification_id}
           className="px-6 py-4 hover:bg-gray-50 transition-colors flex items-start justify-between"
         >
           {/* 좌측 영역 */}
           <div className="flex-1 space-y-2">
             {/* 날짜/시간 */}
             <div className="text-xs text-gray-500">
-              {formatDate(item.createdAt)}
+              {formatDate(item.created_at)}
             </div>
 
             {/* 제목 */}
@@ -85,18 +85,11 @@ const NotificationList: React.FC<NotificationListProps> = ({ items }) => {
               {item.message}
             </p>
 
-            {/* 관련 정보 (학생명, 그룹명) */}
-            {(item.relatedStudentName || item.relatedGroupName) && (
+            {/* 관련 정보 (리소스) */}
+            {item.related_resource && (
               <div className="text-xs text-gray-500">
-                {item.relatedStudentName && (
-                  <span>학생: {item.relatedStudentName}</span>
-                )}
-                {item.relatedStudentName && item.relatedGroupName && (
-                  <span className="mx-1">·</span>
-                )}
-                {item.relatedGroupName && (
-                  <span>그룹: {item.relatedGroupName}</span>
-                )}
+                {/* TODO: related_resource.type을 기반으로 상세 정보 표시 */}
+                관련 리소스: {item.related_resource.type}
               </div>
             )}
 

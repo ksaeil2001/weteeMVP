@@ -19,7 +19,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import type { BillingStatement } from '@/types/billing';
+import type { BillingStatement, BillingStatus } from '@/types/billing';
 import { fetchBillingStatementById, updateBillingStatus } from '@/lib/api/billing';
 
 export default function BillingStatementDetailPage() {
@@ -68,7 +68,7 @@ export default function BillingStatementDetailPage() {
       setUpdating(true);
       const updated = await updateBillingStatus({
         statementId: statement.id,
-        status: newStatus as any,
+        status: newStatus as BillingStatus,
       });
       setStatement(updated);
       alert('상태가 변경되었습니다.');

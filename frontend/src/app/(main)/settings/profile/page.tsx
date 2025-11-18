@@ -20,6 +20,17 @@ import {
 } from '@/lib/api/settings';
 import type { FullUserProfile, TeacherProfile } from '@/types/settings';
 
+/**
+ * User Profile Update Payload
+ */
+interface UpdateUserProfilePayload {
+  name: string;
+  phone: string | null;
+  profile?: {
+    introduction?: string;
+  };
+}
+
 export default function ProfileSettingsPage() {
   const [profile, setProfile] = useState<FullUserProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -79,7 +90,7 @@ export default function ProfileSettingsPage() {
     try {
       setSaving(true);
 
-      const payload: any = {
+      const payload: UpdateUserProfilePayload = {
         name: editedName,
         phone: editedPhone || null,
       };

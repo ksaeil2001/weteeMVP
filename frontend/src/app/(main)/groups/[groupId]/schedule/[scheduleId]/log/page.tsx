@@ -164,7 +164,11 @@ export default function LessonRecordInputPage({
     setProgressRecords(progressRecords.filter((_, i) => i !== index));
   };
 
-  const updateProgressRecord = (index: number, field: keyof ProgressRecordInput, value: any) => {
+  const updateProgressRecord = (
+    index: number,
+    field: keyof ProgressRecordInput,
+    value: string | number | undefined
+  ) => {
     const updated = [...progressRecords];
     updated[index] = { ...updated[index], [field]: value };
     setProgressRecords(updated);
@@ -173,7 +177,7 @@ export default function LessonRecordInputPage({
   const updateStudentEvaluation = (
     studentId: string,
     field: keyof StudentEvaluationInput,
-    value: any
+    value: number | string | undefined
   ) => {
     setStudentEvaluations((prev) =>
       prev.map((ev) => (ev.studentId === studentId ? { ...ev, [field]: value } : ev))

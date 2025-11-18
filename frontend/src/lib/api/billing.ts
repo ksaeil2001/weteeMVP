@@ -26,6 +26,16 @@ import type {
 import { apiRequest } from '@/lib/apiClient';
 
 /**
+ * Pagination Info
+ */
+interface PaginationInfo {
+  page?: number;
+  size?: number;
+  total?: number;
+  total_pages?: number;
+}
+
+/**
  * 정산 개요 조회 (선생님용 대시보드 - S-027)
  *
  * 선생님이 이번 달 정산 현황을 한눈에 보기 위한 요약 정보 조회
@@ -378,7 +388,7 @@ export async function fetchGroupInvoices(
   status?: string,
   page: number = 1,
   size: number = 20
-): Promise<{ items: BillingStatement[]; pagination: any }> {
+): Promise<{ items: BillingStatement[]; pagination: PaginationInfo }> {
   const params = new URLSearchParams();
   if (year) params.set('year', year.toString());
   if (month) params.set('month', month.toString());
@@ -386,7 +396,7 @@ export async function fetchGroupInvoices(
   params.set('page', page.toString());
   params.set('size', size.toString());
 
-  return apiRequest<{ items: BillingStatement[]; pagination: any }>(
+  return apiRequest<{ items: BillingStatement[]; pagination: PaginationInfo }>(
     `/settlements/groups/${groupId}/invoices?${params.toString()}`
   );
 }

@@ -1,11 +1,11 @@
 // Step 10: 설정 섹션 카드 컴포넌트
 
 import React from 'react';
-import type { SettingsSectionMeta, SettingsToggleOption } from '@/types/settings';
+import type { SettingsSectionMeta, SettingsToggleOption, SettingsSectionCardInfo } from '@/types/settings';
 import SettingsToggleItem from './SettingsToggleItem';
 
 interface SettingsSectionCardProps {
-  section: SettingsSectionMeta;
+  section: SettingsSectionMeta | SettingsSectionCardInfo;
   options: SettingsToggleOption[];
 }
 

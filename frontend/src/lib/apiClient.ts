@@ -66,6 +66,18 @@ export function setAccessTokenProvider(provider: AccessTokenProvider) {
 }
 
 /**
+ * API Response Error Structure
+ */
+interface ApiErrorResponse {
+  error?: {
+    code?: string;
+    message?: string;
+    details?: unknown;
+  };
+  success?: boolean;
+}
+
+/**
  * API 에러 타입
  *
  * 백엔드 에러 응답 구조를 프론트엔드에서 처리하기 위한 타입
@@ -151,7 +163,7 @@ export async function apiRequest<T>(
   });
 
   // JSON 파싱 시도 (실패하면 null)
-  let json: any = null;
+  let json: Record<string, unknown> | null = null;
   try {
     json = await response.json();
   } catch (parseError) {
@@ -169,16 +181,21 @@ export async function apiRequest<T>(
   // 공통 응답 구조: { success: boolean, data, error, meta }
   // HTTP 상태 코드가 오류(4xx, 5xx)이거나 success가 명시적으로 false인 경우 에러 발생
   // 참고: HTTP 2xx (200 OK, 201 Created 등)는 모두 성공으로 처리
-  if (!response.ok || json?.success === false) {
+  if (!response.ok || (json && typeof json === 'object' && 'success' in json && json.success === false)) {
+    const apiErrorResponse = json as ApiErrorResponse | null;
     const err: ApiError = new Error(
-      json?.error?.message ??
+      (apiErrorResponse?.error?.message) ??
         `요청 처리 중 오류가 발생했습니다 (HTTP ${response.status})`,
     );
     err.status = response.status;
-    err.code = json?.error?.code ?? `HTTP_${response.status}`;
-    err.details = json?.error?.details;
+    err.code = apiErrorResponse?.error?.code ?? `HTTP_${response.status}`;
+    err.details = apiErrorResponse?.error?.details;
     throw err;
   }
 
-  return json.data as T;
+  if (!json || typeof json !== 'object') {
+    throw new Error('Invalid API response format');
+  }
+
+  return (json as Record<string, T>).data;
 }

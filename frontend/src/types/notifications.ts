@@ -203,9 +203,7 @@ export const NOTIFICATION_COLOR_MAP: Record<NotificationPriority, string> = {
   LOW: 'text-gray-600 bg-gray-50 border-gray-200',
 };
 
-// 하위 호환성을 위한 기존 타입 유지 (다른 파일에서 사용 중일 수 있음)
-export type { NotificationStatus as NotificationStatus };
-export type { NotificationCategory as NotificationCategory };
+// 알림 요약 정보
 export interface NotificationSummaryCounts {
   totalCount: number;
   unreadCount: number;

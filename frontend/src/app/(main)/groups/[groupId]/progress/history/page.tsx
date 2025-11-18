@@ -50,14 +50,8 @@ export default function GroupProgressHistoryPage({
         setLoading(true);
         setError(null);
 
-        const params: LessonRecordListParams = {
-          groupId,
-          from: fromDate || undefined,
-          to: toDate || undefined,
-        };
-
         const [recordsData, textbooksData] = await Promise.all([
-          fetchLessonRecords(params),
+          fetchLessonRecords(),
           fetchTextbooks(groupId),
         ]);
 
