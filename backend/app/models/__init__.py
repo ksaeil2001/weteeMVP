@@ -8,5 +8,17 @@ from app.models.notification import Notification
 from app.models.group import Group, GroupMember
 from app.models.schedule import Schedule
 from app.models.attendance import Attendance
+from app.models.textbook import Textbook
+from app.models.lesson import LessonRecord, ProgressRecord
 
-__all__ = ["User", "Notification", "Group", "GroupMember", "Schedule", "Attendance"]
+__all__ = [
+    "User",
+    "Notification",
+    "Group",
+    "GroupMember",
+    "Schedule",
+    "Attendance",
+    "Textbook",
+    "LessonRecord",
+    "ProgressRecord",
+]

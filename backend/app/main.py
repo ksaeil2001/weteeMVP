@@ -17,7 +17,15 @@ import traceback
 
 from app.config import settings
 from app.database import init_db
-from app.routers import auth_router, notifications_router, groups_router, schedules_router, attendances_router
+from app.routers import (
+    auth_router,
+    notifications_router,
+    groups_router,
+    schedules_router,
+    attendances_router,
+    lessons_router,
+    textbooks_router,
+)
 
 # Create FastAPI app
 app = FastAPI(
@@ -116,11 +124,14 @@ app.include_router(schedules_router, prefix="/api/v1")
 # F-004: 출결 관리
 app.include_router(attendances_router, prefix="/api/v1")
 
+# F-005: 수업 기록 및 진도 관리
+app.include_router(lessons_router, prefix="/api/v1")
+app.include_router(textbooks_router, prefix="/api/v1")
+
 # F-008: 필수 알림 시스템
 app.include_router(notifications_router, prefix="/api/v1")
 
 # TODO: 다른 기능 라우터 추가
-# app.include_router(lesson_records_router, prefix="/api/v1")  # F-005
 # app.include_router(payments_router, prefix="/api/v1")  # F-006
 # app.include_router(profiles_router, prefix="/api/v1")  # F-007
 
