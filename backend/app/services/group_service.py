@@ -129,6 +129,9 @@ class GroupService:
             subject=group_create.subject,
             description=group_create.description,
             owner_id=owner.id,
+            lesson_fee=group_create.lesson_fee,
+            payment_type=group_create.payment_type,
+            payment_cycle=group_create.payment_cycle,
             status=GroupStatus.ACTIVE,
         )
 
@@ -296,6 +299,9 @@ class GroupService:
             subject=group.subject,
             description=group.description,
             owner_id=group.owner_id,
+            lesson_fee=group.lesson_fee,
+            payment_type=group.payment_type.value,
+            payment_cycle=group.payment_cycle,
             status=group.status.value,
             created_at=group.created_at.isoformat() + "Z" if group.created_at else None,
             updated_at=group.updated_at.isoformat() + "Z" if group.updated_at else None,

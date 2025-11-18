@@ -1,9 +1,9 @@
 """
 Group Models - F-002 과외 그룹 생성 및 매칭
-데이터베이스_설계서.md의 groups, group_members 테이블 정의를 기반으로 구현
+데이터베이스_설계서.md의 groups, group_members, invite_codes 테이블 정의를 기반으로 구현
 """
 
-from sqlalchemy import Column, String, Text, DateTime, Enum as SQLEnum, ForeignKey
+from sqlalchemy import Column, String, Text, DateTime, Enum as SQLEnum, ForeignKey, Integer, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -42,12 +42,23 @@ class GroupMemberInviteStatus(str, enum.Enum):
     REJECTED = "REJECTED"    # 거절됨
 
 
+class PaymentType(str, enum.Enum):
+    """
+    정산 타입
+    F-006: 수업료 정산 방식
+    """
+    PREPAID = "prepaid"   # 선불
+    POSTPAID = "postpaid" # 후불
+
+
 class Group(Base):
     """
     Groups table - 과외 그룹
 
     Related:
     - F-002: 과외 그룹 생성 및 매칭
+    - F-006: 수업료 정산
+    - 데이터베이스_설계서.md 3.5
     """
 
     __tablename__ = "groups"
@@ -68,6 +79,15 @@ class Group(Base):
     # Owner (선생님)
     # Foreign Key to users table
     owner_id = Column(String(36), nullable=False, index=True)
+
+    # Payment settings (F-006 수업료 정산)
+    lesson_fee = Column(Integer, nullable=False)  # 회당 수업료
+    payment_type = Column(
+        SQLEnum(PaymentType, name="payment_type", native_enum=False),
+        nullable=False,
+        default=PaymentType.POSTPAID,
+    )  # 'prepaid', 'postpaid'
+    payment_cycle = Column(Integer, nullable=False, default=4)  # 정산 주기 (회)
 
     # Status
     status = Column(
@@ -107,6 +127,9 @@ class Group(Base):
             "subject": self.subject,
             "description": self.description,
             "owner_id": self.owner_id,
+            "lesson_fee": self.lesson_fee,
+            "payment_type": self.payment_type.value,
+            "payment_cycle": self.payment_cycle,
             "status": self.status.value,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
@@ -170,3 +193,78 @@ class GroupMember(Base):
             "invite_status": self.invite_status.value,
             "joined_at": self.joined_at.isoformat() if self.joined_at else None,
         }
+
+
+class InviteCode(Base):
+    """
+    InviteCodes table - 초대 코드
+
+    Related:
+    - F-002: 과외 그룹 생성 및 매칭 (초대 코드)
+    - 데이터베이스_설계서.md 3.7
+    """
+
+    __tablename__ = "invite_codes"
+
+    # Primary Key
+    id = Column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        index=True,
+    )
+
+    # Invite Code
+    code = Column(String(6), unique=True, nullable=False, index=True)  # 6자리 코드
+
+    # Foreign Keys
+    group_id = Column(String(36), ForeignKey("groups.id"), nullable=False, index=True)
+    created_by = Column(String(36), nullable=False)  # FK to users (선생님)
+
+    # Target role
+    target_role = Column(String(20), nullable=False)  # 'student', 'parent'
+
+    # Usage tracking
+    max_uses = Column(Integer, nullable=False, default=1)  # 최대 사용 횟수
+    used_count = Column(Integer, nullable=False, default=0)  # 현재 사용 횟수
+
+    # Expiration
+    expires_at = Column(DateTime, nullable=False)  # 만료 시각 (생성 후 7일)
+
+    # Status
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<InviteCode {self.code} group={self.group_id} uses={self.used_count}/{self.max_uses}>"
+
+    def to_dict(self):
+        """
+        Convert model to dictionary (API 응답용)
+        """
+        return {
+            "id": self.id,
+            "code": self.code,
+            "group_id": self.group_id,
+            "created_by": self.created_by,
+            "target_role": self.target_role,
+            "max_uses": self.max_uses,
+            "used_count": self.used_count,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+    def is_valid(self):
+        """
+        초대 코드가 유효한지 확인
+        """
+        if not self.is_active:
+            return False
+        if self.used_count >= self.max_uses:
+            return False
+        if self.expires_at < datetime.utcnow():
+            return False
+        return True

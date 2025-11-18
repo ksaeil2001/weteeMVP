@@ -3,10 +3,10 @@ Database Models Package
 SQLAlchemy ORM 모델
 """
 
-from app.models.user import User
+from app.models.user import User, Teacher, Student, Parent
 from app.models.settings import Settings
 from app.models.notification import Notification
-from app.models.group import Group, GroupMember
+from app.models.group import Group, GroupMember, InviteCode
 from app.models.schedule import Schedule
 from app.models.attendance import Attendance
 from app.models.textbook import Textbook
@@ -15,10 +15,14 @@ from app.models.invoice import Invoice, Payment, Transaction
 
 __all__ = [
     "User",
+    "Teacher",
+    "Student",
+    "Parent",
     "Settings",
     "Notification",
     "Group",
     "GroupMember",
+    "InviteCode",
     "Schedule",
     "Attendance",
     "Textbook",

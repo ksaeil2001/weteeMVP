@@ -18,6 +18,9 @@ GroupMemberRoleEnum = Literal["TEACHER", "STUDENT", "PARENT"]
 # Group Member Invite Status Types
 GroupMemberInviteStatusEnum = Literal["PENDING", "ACCEPTED", "REJECTED"]
 
+# Payment Type (F-006)
+PaymentTypeEnum = Literal["prepaid", "postpaid"]
+
 
 # ==========================
 # Group Schemas
@@ -31,6 +34,11 @@ class GroupBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, description="그룹 이름")
     subject: str = Field(..., min_length=1, max_length=50, description="과목")
     description: Optional[str] = Field(None, description="그룹 설명")
+
+    # F-006: 수업료 정산 관련 필드
+    lesson_fee: int = Field(..., ge=0, description="회당 수업료")
+    payment_type: PaymentTypeEnum = Field(default="postpaid", description="정산 방식 (선불/후불)")
+    payment_cycle: int = Field(default=4, ge=1, description="정산 주기 (회)")
 
 
 class GroupCreate(GroupBase):
@@ -47,6 +55,9 @@ class GroupCreate(GroupBase):
                 "name": "중3 수학 반A",
                 "subject": "수학",
                 "description": "중학교 3학년 수학 과외 그룹입니다.",
+                "lesson_fee": 50000,
+                "payment_type": "postpaid",
+                "payment_cycle": 4,
             }
         }
 
@@ -60,6 +71,9 @@ class GroupUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100, description="그룹 이름")
     subject: Optional[str] = Field(None, min_length=1, max_length=50, description="과목")
     description: Optional[str] = Field(None, description="그룹 설명")
+    lesson_fee: Optional[int] = Field(None, ge=0, description="회당 수업료")
+    payment_type: Optional[PaymentTypeEnum] = Field(None, description="정산 방식 (선불/후불)")
+    payment_cycle: Optional[int] = Field(None, ge=1, description="정산 주기 (회)")
     status: Optional[GroupStatusEnum] = Field(None, description="그룹 상태")
 
     class Config:
@@ -67,6 +81,7 @@ class GroupUpdate(BaseModel):
             "example": {
                 "name": "중3 수학 심화반",
                 "description": "중학교 3학년 수학 심화 과정",
+                "lesson_fee": 60000,
             }
         }
 
@@ -108,6 +123,9 @@ class GroupOut(BaseModel):
     subject: str
     description: Optional[str] = None
     owner_id: str
+    lesson_fee: int
+    payment_type: PaymentTypeEnum
+    payment_cycle: int
     status: GroupStatusEnum
     created_at: str  # ISO 8601 format
     updated_at: str  # ISO 8601 format
@@ -126,6 +144,9 @@ class GroupOut(BaseModel):
                 "subject": "수학",
                 "description": "중학교 3학년 수학 과외 그룹입니다.",
                 "owner_id": "user-456",
+                "lesson_fee": 50000,
+                "payment_type": "postpaid",
+                "payment_cycle": 4,
                 "status": "ACTIVE",
                 "created_at": "2025-11-01T10:00:00Z",
                 "updated_at": "2025-11-15T14:00:00Z",
