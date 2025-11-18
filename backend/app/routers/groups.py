@@ -5,7 +5,7 @@ API_명세서.md 6.2 기반 그룹 관련 엔드포인트 구현
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List
 
 from app.database import get_db
 from app.dependencies import get_current_user
@@ -15,6 +15,9 @@ from app.schemas.group import (
     GroupUpdate,
     GroupOut,
     GroupListResponse,
+    InviteCodeCreate,
+    InviteCodeOut,
+    JoinGroupRequest,
 )
 from app.services.group_service import GroupService
 
@@ -273,30 +276,207 @@ def delete_group(
 
 
 # ==========================
-# TODO: Phase 2 - 멤버 관리 & 초대 코드 기능
+# Invite Code Management - F-002
 # ==========================
 
-# @router.post("/{group_id}/members", response_model=GroupMemberOut, status_code=status.HTTP_201_CREATED)
-# def add_group_member(...):
-#     """그룹 멤버 추가"""
-#     pass
+@router.post("/{group_id}/invite-codes", response_model=InviteCodeOut, status_code=status.HTTP_201_CREATED)
+def create_invite_code(
+    group_id: str,
+    invite_code_create: InviteCodeCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    초대 코드 생성 (선생님만 가능)
 
-# @router.delete("/{group_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
-# def remove_group_member(...):
-#     """그룹 멤버 제거"""
-#     pass
+    POST /api/v1/groups/{group_id}/invite-codes
 
-# @router.post("/{group_id}/invite-codes", response_model=InviteCodeOut, status_code=status.HTTP_201_CREATED)
-# def create_invite_code(...):
-#     """초대 코드 생성"""
-#     pass
+    **기능**:
+    - 새로운 초대 코드 생성
+    - 코드는 6자리 알파벳 대문자 + 숫자로 생성됨
+    - 기본값: 7일 유효, 1회 사용 가능
+    - 그룹 소유자(선생님)만 생성 가능
 
-# @router.get("/{group_id}/invite-codes", response_model=list[InviteCodeOut])
-# def get_invite_codes(...):
-#     """초대 코드 목록 조회"""
-#     pass
+    **Request Body**:
+    - role: 초대할 역할 (STUDENT | PARENT) - 필수
+    - expires_in_days: 유효 기간 (일 단위, 1-30, 기본값 7) - 선택
+    - max_uses: 최대 사용 횟수 (1-100, 기본값 1) - 선택
 
-# @router.post("/join", response_model=GroupOut, status_code=status.HTTP_200_OK)
-# def join_group_with_code(...):
-#     """초대 코드로 그룹 가입"""
-#     pass
+    **Response**:
+    - InviteCodeOut: 생성된 초대 코드 정보 (코드, 만료시각 등)
+
+    **Errors**:
+    - 403: 선생님이 아니거나 그룹 소유자가 아님
+    - 404: 그룹을 찾을 수 없음
+    - 429: 대기 중인 초대가 너무 많음 (그룹당 최대 10개)
+
+    Related: F-002, API_명세서.md 6.2.2
+    """
+    try:
+        result = GroupService.create_invite_code(
+            db=db,
+            creator=current_user,
+            group_id=group_id,
+            invite_code_create=invite_code_create,
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": "INVITE001",
+                    "message": "초대 코드를 생성할 권한이 없거나 그룹을 찾을 수 없습니다.",
+                },
+            )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"🔥 Error creating invite code: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "INVITE002",
+                "message": "초대 코드 생성 중 오류가 발생했습니다.",
+            },
+        )
+
+
+@router.get("/{group_id}/invite-codes", response_model=List[InviteCodeOut])
+def get_invite_codes(
+    group_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    그룹의 초대 코드 목록 조회 (그룹 소유자만 가능)
+
+    GET /api/v1/groups/{group_id}/invite-codes
+
+    **기능**:
+    - 그룹의 모든 초대 코드 목록 조회 (생성순)
+    - 활성/비활성 코드 모두 포함
+    - 그룹 소유자(선생님)만 조회 가능
+
+    **Path Parameters**:
+    - group_id: 그룹 ID
+
+    **Response**:
+    - List[InviteCodeOut]: 초대 코드 목록 (최신순 정렬)
+
+    **Errors**:
+    - 403: 선생님이 아니거나 그룹 소유자가 아님
+    - 404: 그룹을 찾을 수 없음
+
+    Related: F-002, API_명세서.md 6.2.2
+    """
+    try:
+        result = GroupService.get_invite_codes_for_group(
+            db=db,
+            requester=current_user,
+            group_id=group_id,
+        )
+
+        if result is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": "INVITE003",
+                    "message": "초대 코드를 조회할 권한이 없거나 그룹을 찾을 수 없습니다.",
+                },
+            )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"🔥 Error fetching invite codes: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "INVITE004",
+                "message": "초대 코드 목록을 가져오는 중 오류가 발생했습니다.",
+            },
+        )
+
+
+@router.post("/join", response_model=GroupOut, status_code=status.HTTP_200_OK)
+def join_group_with_code(
+    request: JoinGroupRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    초대 코드로 그룹에 가입
+
+    POST /api/v1/groups/join
+
+    **기능**:
+    - 초대 코드를 사용하여 그룹에 가입
+    - 코드의 유효성 검증 (존재, 미만료, 사용 가능)
+    - 사용자 역할과 코드 역할 일치 확인
+    - 그룹 멤버로 자동 추가
+    - 초대 코드 사용 횟수 증가
+
+    **Request Body**:
+    - invite_code: 초대 코드 (6자리, 필수)
+
+    **Response**:
+    - GroupOut: 가입한 그룹 정보
+
+    **Errors**:
+    - 400: 코드가 존재하지 않음, 만료됨, 이미 사용됨
+    - 409: 역할 불일치, 이미 그룹 멤버임
+
+    Related: F-002, API_명세서.md 6.2.3
+    """
+    try:
+        group, member, error = GroupService.join_group_with_code(
+            db=db,
+            user=current_user,
+            code=request.invite_code,
+        )
+
+        if error:
+            # 에러 유형에 따라 적절한 HTTP 상태 코드 반환
+            if "역할" in error or "전용" in error:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": "INVITE005",
+                        "message": error,
+                    },
+                )
+            elif "이미" in error:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": "INVITE006",
+                        "message": error,
+                    },
+                )
+            else:  # 코드 관련 에러
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "INVITE007",
+                        "message": error,
+                    },
+                )
+
+        return GroupService._to_group_out(group)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"🔥 Error joining group with code: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "INVITE008",
+                "message": "그룹 가입 중 오류가 발생했습니다.",
+            },
+        )

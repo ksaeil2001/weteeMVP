@@ -3,9 +3,9 @@ Group Models - F-002 과외 그룹 생성 및 매칭
 데이터베이스_설계서.md의 groups, group_members 테이블 정의를 기반으로 구현
 """
 
-from sqlalchemy import Column, String, Text, DateTime, Enum as SQLEnum, ForeignKey
+from sqlalchemy import Column, String, Text, DateTime, Integer, Boolean, Enum as SQLEnum, ForeignKey
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 import enum
 
@@ -170,3 +170,84 @@ class GroupMember(Base):
             "invite_status": self.invite_status.value,
             "joined_at": self.joined_at.isoformat() if self.joined_at else None,
         }
+
+
+class InviteCode(Base):
+    """
+    InviteCodes table - 초대 코드
+
+    Related:
+    - F-002: 과외 그룹 생성 및 매칭
+    - 데이터베이스_설계서.md: invite_codes 테이블 정의
+    """
+
+    __tablename__ = "invite_codes"
+
+    # Primary Key
+    id = Column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+        index=True,
+    )
+
+    # Code
+    code = Column(String(6), nullable=False, unique=True, index=True)  # 6자리 코드 (예: AB12CD)
+
+    # Foreign Keys
+    group_id = Column(String(36), ForeignKey("groups.id"), nullable=False, index=True)
+    created_by = Column(String(36), nullable=False, index=True)  # FK to users table (선생님)
+
+    # Target Role
+    target_role = Column(
+        SQLEnum(GroupMemberRole, name="invite_code_target_role", native_enum=False),
+        nullable=False,
+        index=True,
+    )
+
+    # Usage Limits
+    max_uses = Column(Integer, nullable=False, default=1)  # 최대 사용 횟수
+    used_count = Column(Integer, nullable=False, default=0)  # 현재 사용 횟수
+
+    # Expiration
+    expires_at = Column(DateTime, nullable=False, index=True)  # 만료 시각
+
+    # Status
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<InviteCode {self.code} - Group:{self.group_id} Role:{self.target_role}>"
+
+    def to_dict(self):
+        """
+        Convert model to dictionary (API 응답용)
+        """
+        return {
+            "invite_code_id": self.id,
+            "code": self.code,
+            "group_id": self.group_id,
+            "target_role": self.target_role.value,
+            "created_by": self.created_by,
+            "max_uses": self.max_uses,
+            "used_count": self.used_count,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+    def is_expired(self) -> bool:
+        """코드가 만료되었는지 확인"""
+        return datetime.utcnow() > self.expires_at
+
+    def is_available(self) -> bool:
+        """코드를 사용할 수 있는지 확인"""
+        return self.is_active and not self.is_expired() and self.used_count < self.max_uses
+
+    def increment_usage(self):
+        """사용 횟수 증가"""
+        self.used_count += 1
+        if self.used_count >= self.max_uses:
+            self.is_active = False
