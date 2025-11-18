@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     # Security
     BCRYPT_ROUNDS: int = 12
 
+    # Payment Gateway (Toss Payments) - F-006
+    TOSS_PAYMENTS_SECRET_KEY: str = ""  # 환경변수에서 로드 (개발: 빈 문자열, 운영: 실제 시크릿 키)
+    TOSS_PAYMENTS_CLIENT_KEY: str = ""  # 개발용 클라이언트 키
+
     class Config:
         env_file = ".env"
         case_sensitive = True

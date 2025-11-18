@@ -3,13 +3,17 @@ Settlements Router - F-006 수업료 정산
 API_명세서.md 6.6 F-006 기반 정산/청구 관련 엔드포인트 구현
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Path, Request
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Dict, Any
+from pydantic import BaseModel
+from datetime import datetime
+import logging
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User, UserRole
+from app.models.invoice import Invoice, InvoiceStatus, Payment, PaymentStatus, Transaction, TransactionType
 from app.schemas.invoice import (
     InvoiceCreateRequest,
     InvoiceUpdateRequest,
@@ -21,6 +25,12 @@ from app.schemas.invoice import (
     PaymentResponse,
 )
 from app.services.settlement_service import SettlementService
+from app.services.notification_service import NotificationService
+from app.core.security import verify_toss_signature
+from app.config import settings
+
+# Logger 설정
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/settlements", tags=["settlements"])
 invoices_router = APIRouter(prefix="/invoices", tags=["invoices"])
@@ -468,97 +478,278 @@ def cancel_invoice(
 payments_router = APIRouter(prefix="/payments", tags=["payments"])
 
 
+class TossWebhookPayload(BaseModel):
+    """토스페이먼츠 Webhook 요청 스키마"""
+    eventType: str  # PAYMENT_COMPLETED, PAYMENT_CANCELED, PAYMENT_FAILED
+    data: Dict[str, Any]  # paymentKey, orderId, amount, status, requestedAt, approvedAt 등
+
+
 @payments_router.post("/toss/webhook")
 async def handle_toss_webhook(
-    request: dict,
+    request: Request,
     db: Session = Depends(get_db),
 ):
     """
-    토스페이먼츠 Webhook 핸들러 (골격)
+    토스페이먼츠 Webhook 핸들러
 
     POST /api/v1/payments/toss/webhook
 
     **기능**:
     - 토스페이먼츠에서 결제 상태 변경 시 호출되는 웹훅
-    - 결제 승인, 취소, 실패 등의 이벤트 처리
+    - 결제 완료, 취소, 실패 등의 이벤트를 처리
+    - Payment/Invoice 상태 업데이트
+    - 선생님/학부모에게 알림 발송 (F-008)
 
-    **Request Body**:
-    - 토스페이먼츠 웹훅 페이로드 (JSON)
+    **Request Headers**:
+    - X-Toss-Signature: HMAC-SHA256 서명
 
-    **Response**:
-    - 성공 메시지
+    **Request Body** (JSON):
+    - eventType: 이벤트 타입 (PAYMENT_COMPLETED, PAYMENT_CANCELED 등)
+    - data: 결제 정보 (paymentKey, orderId, amount, status 등)
 
-    **TODO**:
-    - 토스페이먼츠 API 키 검증
-    - 결제 상태별 처리 로직 구현
-    - Invoice 상태 업데이트
-    - Payment 레코드 업데이트
-    - Transaction 기록
-    - 알림 발송
+    **Response** (200 OK):
+    - success: bool
+    - message: str
 
-    Related: F-006 (시나리오 2), 토스페이먼츠 API 문서
+    **Webhook 처리 플로우**:
+    1. 서명 검증 (X-Toss-Signature)
+    2. 이벤트 타입별 처리
+      - PAYMENT_COMPLETED: Payment → SUCCESS, Invoice → PAID, 알림 발송
+      - PAYMENT_CANCELED: Payment → CANCELED
+      - PAYMENT_FAILED: Payment → FAILED
+    3. Transaction 기록 (거래 내역)
+    4. 데이터베이스 커밋
+
+    Related: F-006 (수업료 정산, 시나리오 2), API_명세서.md 7.1
     """
+    webhook_id = None  # 로깅용 ID
+
     try:
-        # TODO: 웹훅 서명 검증 (보안)
-        # signature = request.headers.get("toss-signature")
-        # if not verify_toss_signature(signature, request.body):
-        #     raise HTTPException(status_code=401, detail="Invalid signature")
+        # 1️⃣ 요청 본문 파싱
+        try:
+            payload = await request.json()
+            webhook_id = payload.get("data", {}).get("orderId", "unknown")
+        except Exception as e:
+            logger.error(f"❌ Failed to parse webhook payload: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "WEBHOOK_PARSE_ERROR", "message": "웹훅 페이로드를 파싱할 수 없습니다."}
+            )
 
-        # TODO: 이벤트 타입별 처리
-        event_type = request.get("eventType")  # 예: "PAYMENT_SUCCESS", "PAYMENT_CANCELED"
-        payment_key = request.get("paymentKey")
-        order_id = request.get("orderId")
-        amount = request.get("amount")
+        event_type = payload.get("eventType")  # PAYMENT_COMPLETED, PAYMENT_CANCELED, PAYMENT_FAILED
+        data = payload.get("data", {})
+        payment_key = data.get("paymentKey")
+        order_id = data.get("orderId")  # Invoice ID
+        amount = data.get("amount")
 
-        print(f"📥 Toss Webhook Received:")
-        print(f"  - Event Type: {event_type}")
-        print(f"  - Payment Key: {payment_key}")
-        print(f"  - Order ID: {order_id}")
-        print(f"  - Amount: {amount}")
+        logger.info(f"📥 Toss Webhook Received [ID: {webhook_id}]")
+        logger.info(f"   Event Type: {event_type}")
+        logger.info(f"   Payment Key: {payment_key[:20] if payment_key else 'N/A'}...")
+        logger.info(f"   Order ID: {order_id}")
+        logger.info(f"   Amount: {amount}원")
 
-        # TODO: Payment 레코드 조회 및 업데이트
-        # payment = db.query(Payment).filter(
-        #     Payment.provider_payment_key == payment_key
-        # ).first()
-        #
-        # if not payment:
-        #     raise HTTPException(404, detail="Payment not found")
-        #
-        # if event_type == "PAYMENT_SUCCESS":
-        #     payment.status = PaymentStatus.SUCCESS
-        #     payment.approved_at = datetime.utcnow()
-        #
-        #     # Invoice 상태 업데이트
-        #     invoice = db.query(Invoice).filter(Invoice.id == payment.invoice_id).first()
-        #     if invoice:
-        #         invoice.amount_paid += payment.amount
-        #         if invoice.amount_paid >= invoice.amount_due:
-        #             invoice.status = InvoiceStatus.PAID
-        #             invoice.paid_at = datetime.utcnow()
-        #
-        #     # 알림 발송 (F-008)
-        #     # ...
-        #
-        # elif event_type == "PAYMENT_CANCELED":
-        #     payment.status = PaymentStatus.CANCELED
-        #     payment.canceled_at = datetime.utcnow()
-        #     # ...
-        #
-        # db.commit()
+        # 2️⃣ 웹훅 서명 검증 (보안)
+        signature = request.headers.get("X-Toss-Signature")
+        if not signature:
+            logger.warning(f"⚠️  Missing X-Toss-Signature header [ID: {webhook_id}]")
+            # TODO: 개발 환경에서는 서명 검증 스킵 가능하도록 설정
+            if not settings.DEBUG:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail={"code": "SIGNATURE_MISSING", "message": "서명이 없습니다."}
+                )
+        else:
+            # 서명 검증
+            toss_secret = settings.TOSS_PAYMENTS_SECRET_KEY
+            if not toss_secret:
+                logger.error(f"❌ TOSS_PAYMENTS_SECRET_KEY not configured [ID: {webhook_id}]")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail={"code": "CONFIG_ERROR", "message": "결제 시스템 설정이 불완전합니다."}
+                )
+
+            is_valid = verify_toss_signature(
+                signature=signature,
+                payment_key=payment_key,
+                order_id=order_id,
+                amount=amount,
+                secret_key=toss_secret
+            )
+
+            if not is_valid:
+                logger.error(f"❌ Invalid webhook signature [ID: {webhook_id}]")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail={"code": "SIGNATURE_INVALID", "message": "서명 검증 실패입니다."}
+                )
+
+        # 3️⃣ 필수 필드 확인
+        if not payment_key or not order_id or amount is None:
+            logger.error(f"❌ Missing required fields [ID: {webhook_id}]")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "MISSING_FIELDS", "message": "필수 정보가 누락되었습니다."}
+            )
+
+        # 4️⃣ Invoice 조회
+        invoice = db.query(Invoice).filter(Invoice.id == order_id).first()
+        if not invoice:
+            logger.warning(f"⚠️  Invoice not found [ID: {webhook_id}, Invoice ID: {order_id}]")
+            # Invoice가 없어도 200 OK 반환 (토스페이먼츠 재전송 방지)
+            return {"success": True, "message": "Webhook processed (invoice not found)"}
+
+        logger.info(f"✅ Invoice found: {invoice.invoice_number}")
+
+        # 5️⃣ 기존 Payment 레코드 확인 (중복 처리 방지)
+        existing_payment = db.query(Payment).filter(
+            Payment.provider_payment_key == payment_key
+        ).first()
+
+        # 6️⃣ 이벤트 타입별 처리
+        if event_type == "PAYMENT_COMPLETED":
+            logger.info(f"🎉 Payment Completed [ID: {webhook_id}]")
+
+            if existing_payment:
+                if existing_payment.status == PaymentStatus.SUCCESS:
+                    logger.info(f"⚠️  Payment already processed [ID: {webhook_id}]")
+                    return {"success": True, "message": "Payment already processed"}
+                logger.info(f"✏️  Updating existing payment [ID: {webhook_id}]")
+                payment = existing_payment
+            else:
+                # 새 Payment 레코드 생성
+                payment = Payment(
+                    invoice_id=invoice.id,
+                    method="CARD",  # TODO: 요청 데이터에서 결제 수단 가져오기
+                    amount=amount,
+                    provider="toss",
+                    provider_payment_key=payment_key,
+                    provider_order_id=order_id,
+                )
+                db.add(payment)
+                logger.info(f"✅ Created new Payment record [ID: {webhook_id}]")
+
+            # Payment 상태 업데이트
+            payment.status = PaymentStatus.SUCCESS
+            payment.approved_at = datetime.utcnow()
+            # Card 정보 추가 (토스페이먼츠 응답에서 받으면 저장)
+            if data.get("method") == "CARD":
+                payment.card_company = data.get("issuer")
+                payment.card_last4 = data.get("cardLast4") or data.get("last4")
+
+            # Invoice 상태 업데이트
+            invoice.amount_paid += amount
+
+            if invoice.amount_paid >= invoice.amount_due:
+                invoice.status = InvoiceStatus.PAID
+                invoice.paid_at = datetime.utcnow()
+                logger.info(f"✅ Invoice marked as PAID [ID: {webhook_id}, Invoice: {invoice.invoice_number}]")
+            else:
+                # 일부 결제
+                invoice.status = InvoiceStatus.PARTIALLY_PAID
+                logger.info(f"📊 Invoice partially paid [ID: {webhook_id}, Paid: {invoice.amount_paid}/{invoice.amount_due}]")
+
+            # Transaction 기록 (거래 내역)
+            transaction = Transaction(
+                invoice_id=invoice.id,
+                type=TransactionType.CHARGE,
+                amount=amount,
+                note=f"[토스페이먼츠] 결제 완료 - Payment Key: {payment_key}"
+            )
+            db.add(transaction)
+            logger.info(f"✅ Created Transaction record [ID: {webhook_id}]")
+
+            # 8️⃣ 알림 발송 (F-008)
+            try:
+                # 선생님(발송인)에게 알림
+                teacher = db.query(User).filter(User.id == invoice.teacher_id).first()
+                if teacher:
+                    NotificationService.send_notification(
+                        db=db,
+                        user_id=teacher.id,
+                        notification_type="SETTLEMENT_PAID",
+                        title="과외비 결제 완료",
+                        message=f"{invoice.invoice_number} ({amount:,}원)이 결제되었습니다.",
+                        related_id=invoice.id
+                    )
+                    logger.info(f"📢 Notification sent to teacher [ID: {webhook_id}]")
+
+                # 학부모(수령인)에게 알림
+                student = db.query(User).filter(User.id == invoice.student_id).first()
+                if student:
+                    # 학부모 조회 (학생의 부모)
+                    # TODO: Group 관계를 통해 학부모 조회
+                    logger.info(f"📢 Notification prepared for parent [ID: {webhook_id}]")
+
+            except Exception as notify_error:
+                logger.warning(f"⚠️  Failed to send notification [ID: {webhook_id}]: {notify_error}")
+                # 알림 실패는 무시하고 계속 진행
+
+        elif event_type == "PAYMENT_CANCELED":
+            logger.info(f"❌ Payment Canceled [ID: {webhook_id}]")
+
+            if existing_payment:
+                payment = existing_payment
+                payment.status = PaymentStatus.CANCELED
+                payment.canceled_at = datetime.utcnow()
+                payment.cancel_reason = data.get("cancelReason", "사용자 취소")
+                logger.info(f"✅ Payment marked as CANCELED [ID: {webhook_id}]")
+            else:
+                logger.warning(f"⚠️  No payment record to cancel [ID: {webhook_id}]")
+
+            # Invoice 상태 유지 (취소 시 자동으로 상태 변경하지 않음)
+            # 선생님이 수동으로 환불 처리하도록
+
+        elif event_type == "PAYMENT_FAILED":
+            logger.warning(f"⚠️  Payment Failed [ID: {webhook_id}]")
+
+            if existing_payment:
+                payment = existing_payment
+                payment.status = PaymentStatus.FAILED
+                payment.failure_reason = data.get("failureReason", "결제 실패")
+                logger.info(f"✅ Payment marked as FAILED [ID: {webhook_id}]")
+            else:
+                # 실패한 결제도 기록
+                payment = Payment(
+                    invoice_id=invoice.id,
+                    method="CARD",
+                    amount=amount,
+                    provider="toss",
+                    provider_payment_key=payment_key,
+                    provider_order_id=order_id,
+                    status=PaymentStatus.FAILED,
+                    failure_reason=data.get("failureReason", "결제 실패")
+                )
+                db.add(payment)
+                logger.info(f"✅ Created failed Payment record [ID: {webhook_id}]")
+
+        else:
+            logger.warning(f"⚠️  Unknown event type: {event_type} [ID: {webhook_id}]")
+
+        # 9️⃣ 데이터베이스 커밋
+        db.commit()
+        logger.info(f"✅ Webhook processed successfully [ID: {webhook_id}]")
 
         return {
             "success": True,
-            "message": "Webhook received (not implemented yet)"
+            "message": "Webhook processed successfully"
         }
 
+    except HTTPException as http_error:
+        # HTTP 예외는 그대로 전파
+        logger.error(f"❌ HTTP error in webhook [ID: {webhook_id}]: {http_error.detail}")
+        raise http_error
+
     except Exception as e:
-        print(f"🔥 Error processing Toss webhook: {e}")
-        import traceback
-        traceback.print_exc()
+        # 기타 예외 처리
+        logger.error(f"🔥 Unexpected error in webhook [ID: {webhook_id}]: {e}", exc_info=True)
+
+        # 데이터베이스 롤백
+        db.rollback()
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
-                "code": "WEBHOOK001",
+                "code": "WEBHOOK_PROCESSING_ERROR",
                 "message": "웹훅 처리 중 오류가 발생했습니다.",
             },
         )
