@@ -12,6 +12,9 @@ from typing import Optional, Dict, Any
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from app.config import settings
+import hmac
+import hashlib
+import base64
 
 # Password hashing context (bcrypt)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -178,3 +181,57 @@ def get_user_id_from_token(token: str) -> Optional[str]:
         return user_id
     except JWTError:
         return None
+
+
+# ==============================================================================
+# Toss Payments Webhook Signature Verification (F-006)
+# ==============================================================================
+
+def verify_toss_signature(
+    signature: str,
+    payment_key: str,
+    order_id: str,
+    amount: int,
+    secret_key: str
+) -> bool:
+    """
+    토스페이먼츠 Webhook 서명 검증 (HMAC-SHA256)
+
+    토스페이먼츠는 요청 헤더에 X-Toss-Signature를 포함하여 전송합니다.
+    서명은 다음과 같이 생성됩니다:
+
+    HMAC-SHA256("{paymentKey},{orderId},{amount}", secret)를 Base64 인코딩
+
+    Args:
+        signature: 요청 헤더의 X-Toss-Signature 값
+        payment_key: 결제 키
+        order_id: 주문 ID
+        amount: 결제 금액 (정수, 원 단위)
+        secret_key: 토스페이먼츠 시크릿 키 (환경변수에서 가져옴)
+
+    Returns:
+        bool: 서명이 유효하면 True, 아니면 False
+
+    Related: F-006 (수업료 정산), API_명세서.md 7.1
+    """
+    try:
+        # 서명을 생성할 메시지 구성
+        message = f"{payment_key},{order_id},{amount}"
+
+        # HMAC-SHA256 생성 (secret_key는 bytes로 인코딩)
+        generated_signature = hmac.new(
+            secret_key.encode('utf-8'),
+            message.encode('utf-8'),
+            hashlib.sha256
+        ).digest()
+
+        # Base64 인코딩
+        generated_signature_b64 = base64.b64encode(generated_signature).decode('utf-8')
+
+        # 서명 비교 (timing attack 방지를 위해 hmac.compare_digest 사용)
+        return hmac.compare_digest(signature, generated_signature_b64)
+
+    except Exception as e:
+        # 서명 검증 중 오류 발생 시 False 반환
+        print(f"❌ Error verifying Toss signature: {e}")
+        return False
