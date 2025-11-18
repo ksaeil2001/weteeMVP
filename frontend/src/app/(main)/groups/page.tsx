@@ -232,18 +232,20 @@ export default function GroupsPage() {
         </div>
       )}
 
-      {/* 개발 안내 (목업 데이터 사용 중) */}
-      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-        <p className="font-semibold text-blue-900 mb-1">
-          ℹ️ F-002 프론트엔드 스켈레톤 (목업 데이터)
-        </p>
-        <p className="text-blue-800 mb-2">
-          현재 목업 데이터로 표시 중입니다. 실제 API 연동 시 그룹 데이터가 동적으로 업데이트됩니다.
-        </p>
-        <p className="text-blue-700 text-xs">
-          현재 사용자: {currentUser?.name} ({currentRole})
-        </p>
-      </div>
+      {/* 개발 안내 (실제 API 연동 완료) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-sm">
+          <p className="font-semibold text-green-900 mb-1">
+            ✅ F-002 백엔드 API 연동 완료
+          </p>
+          <p className="text-green-800 mb-2">
+            실제 백엔드 API(/api/v1/groups)와 연동되어 있습니다. 그룹 데이터는 DB에서 조회됩니다.
+          </p>
+          <p className="text-green-700 text-xs">
+            현재 사용자: {currentUser?.name} ({currentRole})
+          </p>
+        </div>
+      )}
     </div>
   );
 }

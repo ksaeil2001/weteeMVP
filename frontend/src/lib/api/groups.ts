@@ -4,16 +4,13 @@
  *
  * Based on:
  * - API_명세서.md (6.2 F-002: 과외 그룹 생성 및 매칭)
+ * - backend/app/routers/groups.py
+ * - backend/app/schemas/group.py
  *
  * 역할:
- * - 그룹 관련 API 엔드포인트 시그니처 정의
- * - 현재는 목업 데이터 반환 (실제 API 연동 전)
- *
- * TODO (F-002 디버깅/연결 단계):
- * - 실제 FastAPI 백엔드 /api/v1/groups 엔드포인트와 연결
- * - apiClient.ts의 apiRequest를 사용하여 네트워크 요청
- * - 에러 핸들링 강화 (네트워크 오류, 권한 오류 등)
- * - 페이지네이션 처리
+ * - 그룹 관련 API 엔드포인트와 실제 백엔드 연동
+ * - 백엔드 응답(snake_case)을 프론트엔드 타입(camelCase)으로 변환
+ * - apiClient.ts의 apiRequest를 사용하여 인증 및 에러 처리
  */
 
 import type {
@@ -26,185 +23,243 @@ import type {
   JoinGroupPayload,
 } from '@/types/group';
 
-import {
-  getMockGroupsByTeacher,
-  getMockGroupById,
-  getMockInviteCodesByGroup,
-} from '@/mocks/groups';
+import { apiRequest } from '@/lib/apiClient';
+
+// ==========================
+// Backend Response Types (snake_case)
+// ==========================
+
+interface BackendGroupOut {
+  group_id: string;
+  name: string;
+  subject: string;
+  description?: string | null;
+  owner_id: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
+  created_at: string;
+  updated_at: string;
+  member_count?: number;
+  members?: BackendGroupMember[];
+}
+
+interface BackendGroupMember {
+  member_id: string;
+  user_id: string;
+  role: 'TEACHER' | 'STUDENT' | 'PARENT';
+  invite_status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  joined_at: string;
+}
+
+interface BackendPaginationInfo {
+  total: number;
+  page: number;
+  size: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
+interface BackendGroupListResponse {
+  items: BackendGroupOut[];
+  pagination: BackendPaginationInfo;
+}
+
+// ==========================
+// Response Converters (Backend → Frontend)
+// ==========================
+
+/**
+ * 백엔드 그룹 응답을 프론트엔드 Group 타입으로 변환
+ *
+ * 변환 내용:
+ * - snake_case → camelCase
+ * - owner_id → teacher 객체로 변환 (현재는 최소 정보만)
+ * - 백엔드에 없는 필드는 undefined로 설정
+ */
+function convertBackendGroupToFrontend(backendGroup: BackendGroupOut): Group {
+  return {
+    groupId: backendGroup.group_id,
+    name: backendGroup.name,
+    subject: backendGroup.subject,
+    description: backendGroup.description ?? undefined,
+    teacher: {
+      userId: backendGroup.owner_id,
+      name: '선생님', // TODO(v2): 백엔드에서 teacher 상세 정보 포함하도록 개선
+      email: undefined,
+      phone: undefined,
+    },
+    memberCount: backendGroup.member_count ?? 0,
+    members: backendGroup.members?.map((m) => ({
+      userId: m.user_id,
+      name: '멤버', // TODO(v2): 백엔드에서 user 상세 정보 포함
+      role: m.role.toLowerCase() as 'teacher' | 'student' | 'parent',
+      joinedAt: m.joined_at,
+    })),
+    createdAt: backendGroup.created_at,
+    updatedAt: backendGroup.updated_at,
+    // 백엔드에 아직 없는 필드들 (향후 추가 예정)
+    level: undefined,
+    feePerSession: undefined,
+    sessionDuration: undefined,
+    nextLessonSummary: undefined,
+  };
+}
 
 /**
  * 그룹 목록 조회
  *
- * TODO(F-002): 실제 API 연동
- * - GET /api/v1/groups?role=all&page=1&size=20
- * - Authorization: Bearer <access_token>
- * - 응답: { success: true, data: { items: Group[], pagination: {...} } }
+ * GET /api/v1/groups
  *
  * @param params 조회 파라미터 (role, page, size)
  * @returns Promise<Group[]>
+ *
+ * @example
+ * ```ts
+ * const groups = await fetchGroups({ page: 1, size: 20 });
+ * ```
  */
 export async function fetchGroups(
   params?: GroupListParams
 ): Promise<Group[]> {
-  // TODO(F-002): 실제 API 호출
-  // const response = await apiRequest<{ items: Group[] }>('GET', '/api/v1/groups', { params });
-  // return response.items;
+  const queryParams = new URLSearchParams();
 
-  // 목업 데이터 반환 (개발 중)
-  console.log('[fetchGroups] 목업 데이터 반환:', params);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(getMockGroupsByTeacher());
-    }, 300); // 네트워크 지연 시뮬레이션
+  if (params?.role && params.role !== 'all') {
+    queryParams.set('role', params.role.toUpperCase());
+  }
+  if (params?.page) {
+    queryParams.set('page', params.page.toString());
+  }
+  if (params?.size) {
+    queryParams.set('size', params.size.toString());
+  }
+
+  const queryString = queryParams.toString();
+  const path = queryString ? `/groups?${queryString}` : '/groups';
+
+  const response = await apiRequest<BackendGroupListResponse>(path, {
+    method: 'GET',
   });
+
+  // 백엔드 응답을 프론트엔드 타입으로 변환
+  return response.items.map(convertBackendGroupToFrontend);
 }
 
 /**
  * 그룹 상세 조회
  *
- * TODO(F-002): 실제 API 연동
- * - GET /api/v1/groups/{groupId}
- * - Authorization: Bearer <access_token>
- * - 응답: { success: true, data: Group }
+ * GET /api/v1/groups/{groupId}
  *
  * @param groupId 그룹 ID
  * @returns Promise<Group>
+ *
+ * @example
+ * ```ts
+ * const group = await fetchGroupById('group-123');
+ * ```
  */
 export async function fetchGroupById(groupId: string): Promise<Group> {
-  // TODO(F-002): 실제 API 호출
-  // const response = await apiRequest<Group>('GET', `/api/v1/groups/${groupId}`);
-  // return response;
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[fetchGroupById] 목업 데이터 반환:', groupId);
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      const group = getMockGroupById(groupId);
-      if (group) {
-        resolve(group);
-      } else {
-        reject(new Error('그룹을 찾을 수 없습니다.'));
-      }
-    }, 300);
+  const backendGroup = await apiRequest<BackendGroupOut>(`/groups/${groupId}`, {
+    method: 'GET',
   });
+
+  return convertBackendGroupToFrontend(backendGroup);
 }
 
 /**
  * 그룹 생성 (선생님만 가능)
  *
- * TODO(F-002): 실제 API 연동
- * - POST /api/v1/groups
- * - Authorization: Bearer <access_token>
- * - 요청: CreateGroupPayload
- * - 응답: { success: true, data: Group }
+ * POST /api/v1/groups
  *
  * @param payload 그룹 생성 정보
  * @returns Promise<Group>
+ *
+ * @example
+ * ```ts
+ * const newGroup = await createGroup({
+ *   name: '중3 수학 과외',
+ *   subject: '수학',
+ *   description: '수능 대비 수학 과외',
+ * });
+ * ```
  */
 export async function createGroup(
   payload: CreateGroupPayload
 ): Promise<Group> {
-  // TODO(F-002): 실제 API 호출
-  // const response = await apiRequest<Group>('POST', '/api/v1/groups', { body: payload });
-  // return response;
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[createGroup] 목업 그룹 생성:', payload);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const newGroup: Group = {
-        groupId: `group-${Date.now()}`,
-        name: payload.name,
-        subject: payload.subject,
-        level: payload.level,
-        feePerSession: payload.feePerSession,
-        sessionDuration: payload.sessionDuration,
-        description: payload.description,
-        teacher: {
-          userId: 'teacher-1',
-          name: '김선생',
-          email: 'teacher@example.com',
-        },
-        memberCount: 0,
-        createdAt: new Date().toISOString(),
-      };
-      resolve(newGroup);
-    }, 500);
+  const backendGroup = await apiRequest<BackendGroupOut>('/groups', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: payload.name,
+      subject: payload.subject,
+      description: payload.description ?? null,
+      // TODO(v2): level, feePerSession, sessionDuration 백엔드 지원 후 추가
+    }),
   });
+
+  return convertBackendGroupToFrontend(backendGroup);
 }
 
 /**
  * 그룹 수정 (선생님만 가능)
  *
- * TODO(F-002): 실제 API 연동
- * - PATCH /api/v1/groups/{groupId}
- * - Authorization: Bearer <access_token>
- * - 요청: UpdateGroupPayload
- * - 응답: { success: true, data: Group }
+ * PATCH /api/v1/groups/{groupId}
  *
  * @param groupId 그룹 ID
  * @param payload 수정할 그룹 정보
  * @returns Promise<Group>
+ *
+ * @example
+ * ```ts
+ * const updated = await updateGroup('group-123', {
+ *   name: '중3 수학 심화반',
+ *   description: '심화 과정으로 변경',
+ * });
+ * ```
  */
 export async function updateGroup(
   groupId: string,
   payload: UpdateGroupPayload
 ): Promise<Group> {
-  // TODO(F-002): 실제 API 호출
-  // const response = await apiRequest<Group>('PATCH', `/api/v1/groups/${groupId}`, { body: payload });
-  // return response;
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[updateGroup] 목업 그룹 수정:', groupId, payload);
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      const group = getMockGroupById(groupId);
-      if (group) {
-        const updatedGroup: Group = {
-          ...group,
-          ...payload,
-          updatedAt: new Date().toISOString(),
-        };
-        resolve(updatedGroup);
-      } else {
-        reject(new Error('그룹을 찾을 수 없습니다.'));
-      }
-    }, 500);
+  const backendGroup = await apiRequest<BackendGroupOut>(`/groups/${groupId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      name: payload.name ?? undefined,
+      subject: payload.subject ?? undefined,
+      description: payload.description ?? undefined,
+      // TODO(v2): level, feePerSession, sessionDuration 백엔드 지원 후 추가
+    }),
   });
+
+  return convertBackendGroupToFrontend(backendGroup);
 }
 
 /**
  * 그룹 삭제 (선생님만 가능)
  *
- * TODO(F-002): 실제 API 연동
- * - DELETE /api/v1/groups/{groupId}
- * - Authorization: Bearer <access_token>
- * - 응답: 204 No Content
+ * DELETE /api/v1/groups/{groupId}
  *
  * @param groupId 그룹 ID
  * @returns Promise<void>
+ *
+ * @example
+ * ```ts
+ * await deleteGroup('group-123');
+ * ```
  */
 export async function deleteGroup(groupId: string): Promise<void> {
-  // TODO(F-002): 실제 API 호출
-  // await apiRequest('DELETE', `/api/v1/groups/${groupId}`);
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[deleteGroup] 목업 그룹 삭제:', groupId);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve();
-    }, 300);
+  await apiRequest<void>(`/groups/${groupId}`, {
+    method: 'DELETE',
   });
 }
+
+// ==========================
+// Invite Code Functions (TODO: Phase 2 - Backend Not Yet Implemented)
+// ==========================
 
 /**
  * 초대 코드 발급 (선생님만 가능)
  *
- * TODO(F-002): 실제 API 연동
- * - POST /api/v1/groups/{groupId}/invite-codes
- * - Authorization: Bearer <access_token>
- * - 요청: CreateInviteCodePayload
- * - 응답: { success: true, data: InviteCode }
+ * TODO(Phase 2): 백엔드 API 구현 후 연동
+ * POST /api/v1/groups/{groupId}/invite-codes
  *
  * @param payload 초대 코드 발급 정보
  * @returns Promise<InviteCode>
@@ -212,43 +267,26 @@ export async function deleteGroup(groupId: string): Promise<void> {
 export async function createInviteCode(
   payload: CreateInviteCodePayload
 ): Promise<InviteCode> {
-  // TODO(F-002): 실제 API 호출
-  // const response = await apiRequest<InviteCode>('POST', `/api/v1/groups/${payload.groupId}/invite-codes`, { body: payload });
+  // TODO(Phase 2): 백엔드 초대 코드 API 구현 후 활성화
+  // const response = await apiRequest<InviteCode>(`/groups/${payload.groupId}/invite-codes`, {
+  //   method: 'POST',
+  //   body: JSON.stringify({
+  //     role: payload.role,
+  //     max_uses: payload.maxUses,
+  //     expires_at: payload.expiresAt,
+  //     linked_student_id: payload.linkedStudentId,
+  //   }),
+  // });
   // return response;
 
-  // 목업 데이터 반환 (개발 중)
-  console.log('[createInviteCode] 목업 초대 코드 생성:', payload);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const newCode: InviteCode = {
-        inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
-        groupId: payload.groupId,
-        role: payload.role,
-        maxUses: payload.maxUses || 1,
-        currentUses: 0,
-        expiresAt:
-          payload.expiresAt ||
-          new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        createdAt: new Date().toISOString(),
-        linkedStudent: payload.linkedStudentId
-          ? {
-              userId: payload.linkedStudentId,
-              name: '연결된 학생',
-            }
-          : undefined,
-      };
-      resolve(newCode);
-    }, 500);
-  });
+  throw new Error('초대 코드 기능은 아직 구현되지 않았습니다. (Phase 2 예정)');
 }
 
 /**
  * 그룹의 초대 코드 목록 조회 (선생님만 가능)
  *
- * TODO(F-002): 실제 API 연동
- * - GET /api/v1/groups/{groupId}/invite-codes
- * - Authorization: Bearer <access_token>
- * - 응답: { success: true, data: { items: InviteCode[] } }
+ * TODO(Phase 2): 백엔드 API 구현 후 연동
+ * GET /api/v1/groups/{groupId}/invite-codes
  *
  * @param groupId 그룹 ID
  * @returns Promise<InviteCode[]>
@@ -256,47 +294,20 @@ export async function createInviteCode(
 export async function fetchInviteCodesByGroup(
   groupId: string
 ): Promise<InviteCode[]> {
-  // TODO(F-002): 실제 API 호출
-  // const response = await apiRequest<{ items: InviteCode[] }>('GET', `/api/v1/groups/${groupId}/invite-codes`);
-  // return response.items;
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[fetchInviteCodesByGroup] 목업 초대 코드 목록 반환:', groupId);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(getMockInviteCodesByGroup(groupId));
-    }, 300);
-  });
+  // TODO(Phase 2): 백엔드 초대 코드 API 구현 후 활성화
+  throw new Error('초대 코드 기능은 아직 구현되지 않았습니다. (Phase 2 예정)');
 }
 
 /**
  * 초대 코드로 그룹 참여 (학생/학부모)
  *
- * TODO(F-002): 실제 API 연동
- * - POST /api/v1/groups/join
- * - Authorization: Bearer <access_token>
- * - 요청: JoinGroupPayload
- * - 응답: { success: true, data: { group: Group, member: GroupMember } }
+ * TODO(Phase 2): 백엔드 API 구현 후 연동
+ * POST /api/v1/groups/join
  *
  * @param payload 초대 코드
  * @returns Promise<Group>
  */
 export async function joinGroup(payload: JoinGroupPayload): Promise<Group> {
-  // TODO(F-002): 실제 API 호출
-  // const response = await apiRequest<{ group: Group }>('POST', '/api/v1/groups/join', { body: payload });
-  // return response.group;
-
-  // 목업 데이터 반환 (개발 중)
-  console.log('[joinGroup] 목업 그룹 참여:', payload);
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      // 간단한 목업: 첫 번째 그룹 반환
-      const group = getMockGroupById('group-1');
-      if (group) {
-        resolve(group);
-      } else {
-        reject(new Error('유효하지 않은 초대 코드입니다.'));
-      }
-    }, 500);
-  });
+  // TODO(Phase 2): 백엔드 초대 코드 API 구현 후 활성화
+  throw new Error('초대 코드 기능은 아직 구현되지 않았습니다. (Phase 2 예정)');
 }
