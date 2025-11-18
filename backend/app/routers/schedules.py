@@ -77,6 +77,7 @@ def get_schedules(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error fetching schedules: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -134,6 +135,7 @@ def create_regular_schedule(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error creating regular schedule: {e}")
         import traceback
         traceback.print_exc()
@@ -187,6 +189,7 @@ def create_schedule(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error creating schedule: {e}")
         import traceback
         traceback.print_exc()
@@ -233,6 +236,7 @@ def get_schedule_detail(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error fetching schedule detail: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -291,6 +295,7 @@ def update_schedule(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error updating schedule: {e}")
         import traceback
         traceback.print_exc()
@@ -338,6 +343,7 @@ def delete_schedule(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error deleting schedule: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

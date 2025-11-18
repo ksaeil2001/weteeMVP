@@ -481,6 +481,7 @@ def refresh_tokens(request: Request, response: Response, db: Session = Depends(g
 
     except Exception as e:
         # 예상하지 못한 에러
+        db.rollback()
         print(f"❌ Unexpected error during token refresh: {e}")
         traceback.print_exc()
 

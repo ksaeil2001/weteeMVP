@@ -66,6 +66,7 @@ def create_lesson_record(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error creating lesson record: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -112,6 +113,7 @@ def get_lesson_record(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error getting lesson record: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -166,6 +168,7 @@ def update_lesson_record(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error updating lesson record: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -213,6 +216,7 @@ def delete_lesson_record(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error deleting lesson record: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

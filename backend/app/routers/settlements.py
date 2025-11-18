@@ -89,6 +89,7 @@ def get_teacher_monthly_dashboard(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error getting dashboard: {e}")
         import traceback
         traceback.print_exc()
@@ -154,6 +155,7 @@ def get_group_monthly_settlement_summary(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error getting settlement summary: {e}")
         import traceback
         traceback.print_exc()
@@ -224,6 +226,7 @@ def create_invoice_for_student(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error creating invoice: {e}")
         import traceback
         traceback.print_exc()
@@ -274,6 +277,7 @@ def get_invoice_detail(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error getting invoice detail: {e}")
         import traceback
         traceback.print_exc()
@@ -341,6 +345,7 @@ def list_group_invoices(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error listing invoices: {e}")
         import traceback
         traceback.print_exc()
@@ -404,6 +409,7 @@ def create_manual_payment(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error creating payment: {e}")
         import traceback
         traceback.print_exc()
@@ -461,6 +467,7 @@ def send_invoice(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error sending invoice: {e}")
         import traceback
         traceback.print_exc()
@@ -523,6 +530,7 @@ def cancel_invoice(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error canceling invoice: {e}")
         import traceback
         traceback.print_exc()
