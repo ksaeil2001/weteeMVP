@@ -17,7 +17,7 @@ import traceback
 
 from app.config import settings
 from app.database import init_db
-from app.routers import auth_router, notifications_router
+from app.routers import auth_router, notifications_router, groups_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -107,11 +107,13 @@ def health_check():
 # F-001: 회원가입 및 로그인
 app.include_router(auth_router, prefix="/api/v1")
 
+# F-002: 과외 그룹 생성 및 매칭
+app.include_router(groups_router, prefix="/api/v1")
+
 # F-008: 필수 알림 시스템
 app.include_router(notifications_router, prefix="/api/v1")
 
 # TODO: 다른 기능 라우터 추가
-# app.include_router(groups_router, prefix="/api/v1")  # F-002
 # app.include_router(schedules_router, prefix="/api/v1")  # F-003
 # app.include_router(attendance_router, prefix="/api/v1")  # F-004
 # app.include_router(lesson_records_router, prefix="/api/v1")  # F-005
