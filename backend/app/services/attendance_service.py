@@ -468,8 +468,32 @@ class AttendanceService:
         db.commit()
         db.refresh(attendance)
 
-        # TODO(F-008): 출결 수정 알림 발송
-        # - 학생 + 학부모에게 푸시 알림
+        # F-008: 출결 수정 알림 발송
+        try:
+            # 학생 + 학부모에게 알림 발송 (선생님 제외)
+            recipient_ids = AttendanceService._get_notification_recipients(db, group, attendance.student_id, exclude_teacher=True)
+            if recipient_ids:
+                status_text = {
+                    AttendanceStatus.PRESENT: "출석",
+                    AttendanceStatus.LATE: "지각",
+                    AttendanceStatus.EARLY_LEAVE: "조퇴",
+                    AttendanceStatus.ABSENT: "결석",
+                }.get(attendance.status, str(attendance.status))
+
+                schedule_time = schedule.start_at.strftime("%m월 %d일 %H:%M") if schedule.start_at else ""
+                NotificationService.create_notifications_for_group(
+                    db=db,
+                    user_ids=recipient_ids,
+                    notification_type=NotificationType.ATTENDANCE_CHANGED,
+                    title=f"✅ 출결 수정 - {status_text}",
+                    message=f"{schedule.title} ({schedule_time})",
+                    priority=NotificationPriority.NORMAL,
+                    related_resource_type="attendance",
+                    related_resource_id=attendance.id,
+                )
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to send attendance update notification: {e}")
+            # 알림 실패는 메인 로직에 영향을 주지 않음
 
         return AttendanceService._to_attendance_out(db, attendance)
 
