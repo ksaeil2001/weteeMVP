@@ -21,8 +21,8 @@ import type {
   NotificationPreference,
   ConnectedDevice,
   AccountDeletionEligibility,
+  UserRole,
 } from '@/types/settings';
-import { UserRole } from '@/types/auth';
 
 // ============================================================================
 // Mock User Profiles
@@ -107,13 +107,19 @@ export const mockParentUserProfile: FullUserProfile = {
  * 기본 알림 설정 (모두 활성화)
  */
 export const mockNotificationSettings: NotificationSettings = {
-  notification_enabled: true,
-  lesson_reminder_enabled: true,
-  attendance_alert_enabled: true,
-  payment_alert_enabled: true, // 끌 수 없음
+  push_enabled: true,
+  email_enabled: false,
+  notification_categories: {
+    schedule: true,
+    attendance: true,
+    payment: true,
+    group: true,
+  },
   night_mode_enabled: false,
-  night_start_time: '22:00',
-  night_end_time: '07:00',
+  night_mode_start: '22:00',
+  night_mode_end: '07:00',
+  theme: 'auto',
+  default_screen: null,
   updated_at: '2025-11-10T12:00:00Z',
 };
 
@@ -121,13 +127,19 @@ export const mockNotificationSettings: NotificationSettings = {
  * 야간 알림 제한 활성화된 설정
  */
 export const mockNotificationSettingsWithNightMode: NotificationSettings = {
-  notification_enabled: true,
-  lesson_reminder_enabled: true,
-  attendance_alert_enabled: false,
-  payment_alert_enabled: true,
+  push_enabled: true,
+  email_enabled: true,
+  notification_categories: {
+    schedule: true,
+    attendance: false,
+    payment: true,
+    group: true,
+  },
   night_mode_enabled: true,
-  night_start_time: '22:00',
-  night_end_time: '08:00',
+  night_mode_start: '22:00',
+  night_mode_end: '08:00',
+  theme: 'light',
+  default_screen: 'home',
   updated_at: '2025-11-15T18:00:00Z',
 };
 

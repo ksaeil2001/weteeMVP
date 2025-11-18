@@ -440,3 +440,36 @@ export const DEFAULT_PASSWORD_VALIDATION: PasswordValidation = {
   hasSpecialChar: false,
   isValid: false,
 };
+
+// ============================================================================
+// 설정 섹션 UI 타입
+// ============================================================================
+
+/**
+ * 설정 섹션 메타데이터 (UI용)
+ */
+export interface SettingsSectionMeta {
+  id: string;
+  title: string;
+  description: string;
+}
+
+/**
+ * 설정 토글 옵션 (UI용)
+ */
+export interface SettingsToggleOption {
+  id: string;
+  label: string;
+  description?: string;
+  enabled: boolean;
+}
+
+/**
+ * 설정 섹션 카드 정보 (UI용)
+ */
+export interface SettingsSectionCardInfo {
+  id: string;
+  title: string;
+  description: string;
+  options: SettingsToggleOption[];
+}

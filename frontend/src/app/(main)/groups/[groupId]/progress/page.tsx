@@ -43,8 +43,9 @@ export default function GroupProgressDashboardPage({
       try {
         setLoading(true);
         setError(null);
-        const data = await fetchGroupProgressSummary(groupId);
-        setSummary(data);
+        // TODO: 백엔드 API 구현 후 실제 데이터로 변환
+        await fetchGroupProgressSummary();
+        setSummary(null);
       } catch (err) {
         console.error('진도 요약 조회 실패:', err);
         setError('진도 정보를 불러오는데 실패했습니다.');

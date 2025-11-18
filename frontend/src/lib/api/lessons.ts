@@ -184,7 +184,7 @@ function convertBackendLessonRecordToFrontend(
     scheduleId: backendRecord.schedule_id,
     groupId: backendRecord.group_id,
     date: backendRecord.schedule_date ?? backendRecord.created_at.split('T')[0],
-    title: backendRecord.schedule_title,
+    title: backendRecord.schedule_title ?? undefined,
     content: backendRecord.content,
     studentFeedback: backendRecord.student_feedback ?? undefined,
     homework: backendRecord.homework ?? undefined,
@@ -570,15 +570,15 @@ export async function fetchTextbooks(groupId: string): Promise<Textbook[]> {
 /**
  * @deprecated 백엔드 API 미구현
  */
-export async function fetchGroupProgressSummary(): Promise<any> {
+export async function fetchGroupProgressSummary(): Promise<BackendProgressSummary[]> {
   console.warn('[fetchGroupProgressSummary] 백엔드 API 미구현');
-  return null;
+  return [];
 }
 
 /**
  * @deprecated 백엔드 API 미구현
  */
-export async function fetchStudentProgressSummary(): Promise<any> {
+export async function fetchStudentProgressSummary(): Promise<BackendProgressSummary | null> {
   console.warn('[fetchStudentProgressSummary] 백엔드 API 미구현');
   return null;
 }
@@ -586,7 +586,7 @@ export async function fetchStudentProgressSummary(): Promise<any> {
 /**
  * @deprecated 백엔드 API 미구현
  */
-export async function generateProgressReport(): Promise<any> {
+export async function generateProgressReport(): Promise<Record<string, unknown> | null> {
   console.warn('[generateProgressReport] 백엔드 API 미구현');
   return null;
 }

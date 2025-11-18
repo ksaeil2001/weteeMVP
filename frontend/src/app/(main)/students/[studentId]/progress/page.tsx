@@ -43,8 +43,9 @@ export default function StudentProgressReportPage({
       try {
         setLoading(true);
         setError(null);
-        const data = await fetchStudentProgressSummary(studentId);
-        setSummary(data);
+        // TODO: 백엔드 API 구현 후 실제 데이터로 변환
+        await fetchStudentProgressSummary();
+        setSummary(null);
       } catch (err) {
         console.error('학생 진도 요약 조회 실패:', err);
         setError('학생 진도 정보를 불러오는데 실패했습니다.');
