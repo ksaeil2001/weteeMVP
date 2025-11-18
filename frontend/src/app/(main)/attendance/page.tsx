@@ -2,220 +2,384 @@
  * Attendance Page - WeTee MVP
  * Screen: S-051 (출결 관리 화면)
  * Route: /attendance
+ * Feature: F-004 출결 관리
  *
- * Step 7: 출결 관리 기본 스켈레톤 페이지 (mock 데이터, UI 구조만)
+ * 역할:
+ * - 선생님의 월별 수업 일정 및 출결 현황 조회
+ * - 각 수업별 출결 체크 (출석/지각/결석/조퇴)
+ * - 출결 통계 요약 (월간 출결 현황)
  *
- * TODO (향후):
- * - 실제 출결 API 연동 (GET /api/attendance/summary, /logs 등)
- * - 달력 컴포넌트 연동 (월간/주간 뷰)
- * - 출결 상태 수정/토글 기능
- * - 학생/그룹/과목별 필터
- * - 'use client'로 전환 (useAuth, 클라이언트 상호작용 추가 시)
+ * 권한: TEACHER 전용
+ *
+ * 실제 API 연동:
+ * - GET /api/v1/schedules (일정 목록)
+ * - GET /api/v1/attendances/schedules/{scheduleId} (수업별 출결 조회)
+ * - POST /api/v1/attendances/schedules/{scheduleId}/batch (출결 일괄 등록)
  */
 
-import React from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import PageHeader from '@/components/common/PageHeader';
 import AttendanceSummaryCard from '@/components/attendance/AttendanceSummaryCard';
 import AttendanceStatusBadge from '@/components/attendance/AttendanceStatusBadge';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { fetchSchedules } from '@/lib/api/schedules';
+import {
+  fetchLessonAttendance,
+  checkAttendance,
+} from '@/lib/api/attendance';
+import type { Schedule } from '@/types/schedule';
 import type {
+  AttendanceRecord,
   AttendanceSummaryCounts,
   AttendanceStatus,
 } from '@/types/attendance';
 
-// UI 표시용 출결 변경 로그 타입
-interface AttendanceUIChangeLog {
-  id: string;
-  date: string;
-  studentName: string;
-  groupName: string;
-  previousStatus: AttendanceStatus;
-  currentStatus: AttendanceStatus;
-  reason?: string;
+/**
+ * UI용 스케줄+출결 복합 타입
+ */
+interface ScheduleWithAttendance extends Schedule {
+  attendanceRecords?: AttendanceRecord[];
+  attendanceChecked: boolean; // 출결이 이미 체크되었는지 여부
 }
 
 export default function AttendancePage() {
-  // Mock 데이터: 오늘 출결 요약
-  const mockTodaySummary: AttendanceSummaryCounts = {
-    totalStudents: 7,
-    present: 5,
-    late: 1,
-    absent: 1,
-    makeup: 0,
-    excused: 0,
-  };
+  const router = useRouter();
+  const { isAuthenticated, currentUser, currentRole } = useAuth();
 
-  // Mock 데이터: 최근 출결 변경 내역
-  const mockAttendanceChanges: AttendanceUIChangeLog[] = [
-    {
-      id: 'log-1',
-      date: '2025-11-12',
-      studentName: '김수학',
-      groupName: '고3 수학반',
-      previousStatus: 'ABSENT',
-      currentStatus: 'PRESENT',
-      reason: '결석 처리 오기 정정',
-    },
-    {
-      id: 'log-2',
-      date: '2025-11-11',
-      studentName: '이영어',
-      groupName: '고2 영어반',
-      previousStatus: 'PRESENT',
-      currentStatus: 'LATE',
-      reason: '지각 처리 (10분 지각)',
-    },
-    {
-      id: 'log-3',
-      date: '2025-11-10',
-      studentName: '박과학',
-      groupName: '중3 과학반',
-      previousStatus: 'LATE',
-      currentStatus: 'ABSENT',
-      reason: '지각에서 결석으로 변경',
-    },
-  ];
+  // 월 선택 상태
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
 
-  // Mock 데이터: 달력 날짜 (간단한 더미)
-  const weekDays = ['월', '화', '수', '목', '금', '토', '일'];
-  const mockCalendarDates = Array.from({ length: 35 }, (_, i) => i + 1);
+  // 데이터 상태
+  const [schedules, setSchedules] = useState<ScheduleWithAttendance[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // 월 선택 옵션 생성 (현재 월 기준 ±6개월)
+  function getMonthOptions() {
+    const options: string[] = [];
+    const now = new Date();
+    for (let i = -6; i <= 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      options.push(month);
+    }
+    return options;
+  }
+
+  // 일정 및 출결 데이터 로드
+  useEffect(() => {
+    if (!isAuthenticated || currentRole !== 'teacher') {
+      return;
+    }
+
+    loadAttendanceData();
+  }, [selectedMonth, isAuthenticated, currentRole]);
+
+  async function loadAttendanceData() {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // 선택된 월의 시작일과 종료일 계산
+      const [year, month] = selectedMonth.split('-').map(Number);
+      const fromDate = new Date(year, month - 1, 1);
+      const toDate = new Date(year, month, 0); // 해당 월의 마지막 날
+
+      const fromStr = fromDate.toISOString().split('T')[0];
+      const toStr = toDate.toISOString().split('T')[0];
+
+      // 1. 일정 목록 조회 (선택된 월 범위)
+      const fetchedSchedules = await fetchSchedules({
+        from: fromStr,
+        to: toStr,
+        status: 'CONFIRMED', // 확정된 일정만
+      });
+
+      // 2. 각 일정에 대해 출결 기록 조회
+      const schedulesWithAttendance: ScheduleWithAttendance[] = await Promise.all(
+        fetchedSchedules.map(async (schedule) => {
+          try {
+            const attendanceRecords = await fetchLessonAttendance(schedule.scheduleId);
+            return {
+              ...schedule,
+              attendanceRecords,
+              attendanceChecked: attendanceRecords.length > 0,
+            };
+          } catch (err) {
+            // 출결 기록이 없을 수 있음 (404 등)
+            return {
+              ...schedule,
+              attendanceRecords: [],
+              attendanceChecked: false,
+            };
+          }
+        })
+      );
+
+      // 날짜순 정렬 (최신순)
+      schedulesWithAttendance.sort((a, b) =>
+        new Date(b.startAt).getTime() - new Date(a.startAt).getTime()
+      );
+
+      setSchedules(schedulesWithAttendance);
+    } catch (err) {
+      console.error('출결 데이터 로딩 실패:', err);
+      setError('출결 정보를 불러오는 데 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // 출결 요약 계산
+  function calculateSummary(): AttendanceSummaryCounts {
+    const allRecords = schedules.flatMap((s) => s.attendanceRecords || []);
+
+    const present = allRecords.filter((r) => r.status === 'PRESENT').length;
+    const late = allRecords.filter((r) => r.status === 'LATE').length;
+    const absent = allRecords.filter((r) => r.status === 'ABSENT').length;
+    const earlyLeave = allRecords.filter((r) => r.status === 'EARLY_LEAVE').length;
+
+    return {
+      totalStudents: allRecords.length,
+      present,
+      late,
+      absent: absent + earlyLeave, // 결석 + 조퇴를 합산
+      makeup: 0,
+      excused: 0,
+    };
+  }
+
+  // 출결 체크 페이지로 이동
+  function handleCheckAttendance(scheduleId: string) {
+    router.push(`/attendance/check/${scheduleId}`);
+  }
+
+  // 권한 체크
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600 mb-4">로그인이 필요합니다.</p>
+          <button
+            onClick={() => router.push('/login')}
+            className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+          >
+            로그인하기
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentRole !== 'teacher') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600">선생님 계정만 접근 가능합니다.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const summary = calculateSummary();
 
   return (
     <div className="space-y-6">
       {/* 1) 페이지 헤더 */}
       <PageHeader
         title="출결 관리"
-        subtitle="학생들의 출석 상태를 달력과 리스트로 한눈에 확인합니다."
+        subtitle="학생들의 출석 상태를 관리하고 통계를 확인합니다."
         actions={
           <button
             type="button"
-            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
+            onClick={() => router.push('/attendance/statistics')}
+            className="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-colors"
           >
-            출석 수기 입력
+            📊 통계 보기
           </button>
         }
       />
 
-      {/* 2) 섹션 1: 오늘 출결 요약 */}
-      <div>
-        <AttendanceSummaryCard
-          title="오늘 출결 요약"
-          summary={mockTodaySummary}
-        />
-      </div>
-
-      {/* 3) 섹션 2: 이번 달 출결 달력 (목업) */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-bold text-gray-900 mb-4">
-          이번 달 출결 달력 (목업)
-        </h2>
-
-        {/* 요일 헤더 + 날짜 셀 그리드 */}
-        <div className="grid grid-cols-7 gap-2">
-          {/* 요일 헤더 */}
-          {weekDays.map((day) => (
-            <div
-              key={day}
-              className="text-center text-sm font-semibold text-gray-600 py-2"
-            >
-              {day}
-            </div>
+      {/* 2) 월 선택 */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <label
+          htmlFor="month-select"
+          className="block text-sm font-medium text-gray-700 mb-2"
+        >
+          조회 월 선택
+        </label>
+        <select
+          id="month-select"
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(e.target.value)}
+          className="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+        >
+          {getMonthOptions().map((month) => (
+            <option key={month} value={month}>
+              {month.replace('-', '년 ')}월
+            </option>
           ))}
-
-          {/* 날짜 셀 */}
-          {mockCalendarDates.map((date) => {
-            // 몇 개 날짜에만 간단한 출석 정보 표시 (더미)
-            const hasAttendance = date % 7 === 0 || date % 11 === 0;
-            const attendanceCount = hasAttendance
-              ? `${Math.floor(Math.random() * 5 + 3)}/7`
-              : null;
-
-            return (
-              <div
-                key={date}
-                className="border border-gray-200 rounded p-2 min-h-[60px] hover:bg-gray-50 cursor-pointer transition-colors"
-              >
-                <div className="text-sm font-medium text-gray-700">{date}</div>
-                {attendanceCount && (
-                  <div className="text-xs text-green-600 mt-1">
-                    출석 {attendanceCount}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* TODO: 실제 달력 컴포넌트 및 출결 데이터 연동 예정 */}
-        <div className="mt-4 text-sm text-gray-500 italic">
-          * 향후 실제 달력 라이브러리 및 출결 데이터를 연동할 예정입니다.
-        </div>
+        </select>
       </div>
 
-      {/* 4) 섹션 3: 최근 출결 변경 내역 */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        {/* 섹션 헤더 */}
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-bold text-gray-900">
-            최근 출결 변경 내역
-          </h2>
+      {/* 3) 월간 출결 요약 */}
+      <AttendanceSummaryCard
+        title={`${selectedMonth.replace('-', '년 ')}월 출결 요약`}
+        summary={summary}
+      />
+
+      {/* 4) 로딩 상태 */}
+      {loading && (
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-primary-600"></div>
+          <p className="mt-4 text-gray-600">출결 정보를 불러오는 중...</p>
         </div>
+      )}
 
-        {/* 변경 내역 리스트 */}
-        <div className="divide-y divide-gray-200">
-          {mockAttendanceChanges.map((log) => (
-            <div
-              key={log.id}
-              className="p-6 hover:bg-gray-50 cursor-pointer transition-colors"
-            >
-              <div className="flex items-start justify-between">
-                {/* 좌측: 변경 내역 정보 */}
-                <div className="flex-1">
-                  {/* 날짜 */}
-                  <div className="text-sm text-gray-500 mb-1">{log.date}</div>
+      {/* 5) 에러 상태 */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800">{error}</p>
+          <button
+            onClick={loadAttendanceData}
+            className="mt-2 text-sm text-red-600 hover:text-red-700 font-medium"
+          >
+            다시 시도
+          </button>
+        </div>
+      )}
 
-                  {/* 학생 이름 · 그룹 이름 */}
-                  <div className="text-base font-semibold text-gray-900 mb-2">
-                    {log.studentName} · {log.groupName}
-                  </div>
+      {/* 6) 수업별 출결 리스트 */}
+      {!loading && !error && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-bold text-gray-900">
+              수업별 출결 현황 ({schedules.length}개)
+            </h2>
+          </div>
 
-                  {/* 상태 변경: 이전 → 현재 */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <AttendanceStatusBadge status={log.previousStatus} />
-                    <span className="text-gray-400">→</span>
-                    <AttendanceStatusBadge status={log.currentStatus} />
-                  </div>
+          {schedules.length === 0 ? (
+            <div className="p-12 text-center">
+              <p className="text-gray-600 mb-2">
+                {selectedMonth.replace('-', '년 ')}월에 예정된 수업이 없습니다.
+              </p>
+              <p className="text-sm text-gray-500">
+                수업 일정을 먼저 등록해주세요.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {schedules.map((schedule) => {
+                const scheduleDate = new Date(schedule.startAt);
+                const isPast = scheduleDate < new Date();
 
-                  {/* 변경 사유 */}
-                  {log.reason && (
-                    <div className="text-sm text-gray-600">{log.reason}</div>
-                  )}
-                </div>
-
-                {/* 우측: 상세 보기 버튼 */}
-                <div className="ml-4">
-                  <button
-                    type="button"
-                    className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                return (
+                  <div
+                    key={schedule.scheduleId}
+                    className="p-6 hover:bg-gray-50 transition-colors"
                   >
-                    상세 보기 →
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        {/* 날짜 & 시간 */}
+                        <div className="text-sm text-gray-500 mb-1">
+                          {new Date(schedule.startAt).toLocaleDateString('ko-KR', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            weekday: 'short',
+                          })}{' '}
+                          {new Date(schedule.startAt).toLocaleTimeString('ko-KR', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                          {' - '}
+                          {new Date(schedule.endAt).toLocaleTimeString('ko-KR', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </div>
 
-      {/* 5) 개발 안내 섹션 */}
-      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-        <p className="font-semibold text-blue-900 mb-1">
-          ℹ️ Step 7 완료: 출결 관리 페이지 스켈레톤
-        </p>
-        <p className="text-blue-800">
-          현재 mock 데이터로 표시 중입니다. 실제 출결 API 및 달력 연동 시
-          데이터가 동적으로 업데이트됩니다.
-        </p>
-      </div>
+                        {/* 수업 제목 & 그룹명 */}
+                        <div className="text-base font-semibold text-gray-900 mb-2">
+                          {schedule.title}
+                          {schedule.groupName && (
+                            <span className="ml-2 text-sm font-normal text-gray-600">
+                              · {schedule.groupName}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* 출결 현황 */}
+                        {schedule.attendanceChecked ? (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm text-gray-600">출결 체크 완료:</span>
+                            {schedule.attendanceRecords?.map((record) => (
+                              <div
+                                key={record.attendanceId}
+                                className="flex items-center gap-1"
+                              >
+                                <span className="text-sm font-medium text-gray-700">
+                                  {record.studentName || record.studentId}
+                                </span>
+                                <AttendanceStatusBadge status={record.status} />
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-yellow-600">
+                            {isPast
+                              ? '⚠️ 출결이 아직 체크되지 않았습니다'
+                              : '출결 체크 대기 중'}
+                          </div>
+                        )}
+
+                        {schedule.location && (
+                          <div className="text-sm text-gray-500 mt-1">
+                            📍 {schedule.location}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 우측 액션 버튼 */}
+                      <div className="ml-4">
+                        <button
+                          onClick={() => handleCheckAttendance(schedule.scheduleId)}
+                          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                            schedule.attendanceChecked
+                              ? 'text-primary-700 bg-primary-50 hover:bg-primary-100'
+                              : 'text-white bg-primary-600 hover:bg-primary-700'
+                          }`}
+                        >
+                          {schedule.attendanceChecked ? '출결 수정' : '출결 체크'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 7) 안내 섹션 */}
+      {!loading && !error && schedules.length > 0 && (
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+          <p className="font-semibold text-blue-900 mb-1">
+            💡 출결 관리 안내
+          </p>
+          <p className="text-blue-800">
+            각 수업의 "출결 체크" 버튼을 클릭하여 학생별 출석 상태를 기록할 수 있습니다.
+            이미 체크된 출결은 "출결 수정" 버튼으로 수정 가능합니다.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

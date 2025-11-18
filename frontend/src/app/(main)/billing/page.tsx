@@ -16,11 +16,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/lib/hooks/useAuth';
 import type { BillingDashboardCard } from '@/types/billing';
 import { fetchBillingDashboard } from '@/lib/api/billing';
 
 export default function BillingDashboardPage() {
   const router = useRouter();
+  const { isAuthenticated, currentUser, currentRole } = useAuth();
+
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -29,18 +32,29 @@ export default function BillingDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // TODO(F-006): useAuth 훅으로 실제 teacherId 가져오기
-  const mockTeacherId = 'teacher-001';
-
   useEffect(() => {
+    if (!isAuthenticated || currentRole !== 'teacher' || !currentUser) {
+      setLoading(false);
+      return;
+    }
     loadBillingDashboard();
-  }, [selectedMonth]);
+  }, [selectedMonth, isAuthenticated, currentRole, currentUser]);
 
   async function loadBillingDashboard() {
+    if (!currentUser) {
+      setError('사용자 정보를 찾을 수 없습니다.');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchBillingDashboard(mockTeacherId, selectedMonth);
+
+      // 참고: fetchBillingDashboard는 현재 백엔드에 구현되지 않은 엔드포인트입니다.
+      // billing.ts 파일에서 빈 배열을 반환하도록 되어 있습니다.
+      // TODO(v2): 백엔드에 GET /api/v1/settlements/dashboard 엔드포인트 추가 필요
+      const data = await fetchBillingDashboard(currentUser.id, selectedMonth);
       setCards(data);
     } catch (err) {
       console.error('정산 대시보드 로딩 실패:', err);
@@ -104,6 +118,33 @@ export default function BillingDashboardPage() {
       default:
         return status;
     }
+  }
+
+  // 권한 체크
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600 mb-4">로그인이 필요합니다.</p>
+          <button
+            onClick={() => router.push('/login')}
+            className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+          >
+            로그인하기
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentRole !== 'teacher') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600">선생님 계정만 접근 가능합니다.</p>
+        </div>
+      </div>
+    );
   }
 
   return (
