@@ -78,12 +78,6 @@ class Attendance(Base):
         nullable=False
     )
 
-    # Table constraints
-    # 한 일정(schedule)에 한 학생당 하나의 출결 기록만 허용
-    __table_args__ = (
-        UniqueConstraint('schedule_id', 'student_id', name='uq_attendance_schedule_student'),
-    )
-
     # Relationships
     # Schedule과의 관계 (N:1)
     schedule = relationship("Schedule", back_populates="attendances")
