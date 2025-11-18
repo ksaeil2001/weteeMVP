@@ -5,7 +5,7 @@ API_명세서.md 6.1 기반 인증 엔드포인트 구현
 
 from datetime import datetime
 import traceback
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError, IntegrityError
 
@@ -28,8 +28,78 @@ from app.core.security import (
     decode_refresh_token,
 )
 from app.core.limiter import limiter
+from app.config import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+# Cookie configuration
+COOKIE_ACCESS_TOKEN_KEY = "wetee_access_token"
+COOKIE_REFRESH_TOKEN_KEY = "wetee_refresh_token"
+COOKIE_MAX_AGE_ACCESS = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60  # Convert to seconds
+COOKIE_MAX_AGE_REFRESH = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60  # Convert to seconds
+
+
+def set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+    """
+    Set authentication tokens as httpOnly cookies
+
+    Security features:
+    - HttpOnly: Prevents JavaScript access (XSS protection)
+    - Secure: Only sent over HTTPS (disabled in development)
+    - SameSite=Strict: CSRF protection
+    - Path=/: Available for all routes
+
+    Args:
+        response: FastAPI Response object
+        access_token: JWT access token
+        refresh_token: JWT refresh token
+    """
+    # Access Token cookie
+    response.set_cookie(
+        key=COOKIE_ACCESS_TOKEN_KEY,
+        value=access_token,
+        max_age=COOKIE_MAX_AGE_ACCESS,
+        httponly=True,
+        secure=not settings.DEBUG,  # HTTPS only in production
+        samesite="strict",
+        path="/",
+    )
+
+    # Refresh Token cookie
+    response.set_cookie(
+        key=COOKIE_REFRESH_TOKEN_KEY,
+        value=refresh_token,
+        max_age=COOKIE_MAX_AGE_REFRESH,
+        httponly=True,
+        secure=not settings.DEBUG,  # HTTPS only in production
+        samesite="strict",
+        path="/",
+    )
+
+
+def clear_auth_cookies(response: Response) -> None:
+    """
+    Clear authentication cookies (for logout)
+
+    Args:
+        response: FastAPI Response object
+    """
+    response.delete_cookie(
+        key=COOKIE_ACCESS_TOKEN_KEY,
+        path="/",
+        httponly=True,
+        secure=not settings.DEBUG,
+        samesite="strict",
+    )
+
+    response.delete_cookie(
+        key=COOKIE_REFRESH_TOKEN_KEY,
+        path="/",
+        httponly=True,
+        secure=not settings.DEBUG,
+        samesite="strict",
+    )
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -173,9 +243,14 @@ def register(request: Request, payload: RegisterRequest, db: Session = Depends(g
         )
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post("/login", response_model=UserResponse)
 @limiter.limit("5/minute")
-def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)):
+def login(
+    request: Request,
+    response: Response,
+    payload: LoginRequest,
+    db: Session = Depends(get_db)
+):
     """
     로그인
 
@@ -184,10 +259,14 @@ def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)
     **기능**:
     - 이메일/비밀번호 검증
     - Access Token (15분) + Refresh Token (7일) 발급
+    - 토큰은 httpOnly 쿠키로 설정 (XSS 방지)
     - 마지막 로그인 시각 업데이트
 
-    **보안**:
+    **보안 강화**:
     - Rate Limiting: 5회/분 (brute-force 공격 방지)
+    - HttpOnly Cookies: JavaScript에서 토큰 접근 불가 (XSS 방지)
+    - Secure Flag: HTTPS에서만 전송 (운영 환경)
+    - SameSite=Strict: CSRF 공격 방지
     - 이메일/비밀번호 오류 시 동일한 에러 메시지 반환 (어느 쪽이 틀렸는지 노출 금지)
     - TODO: 5회 연속 실패 시 계정 잠금 (F-001)
 
@@ -235,19 +314,17 @@ def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)
     user.last_login_at = datetime.utcnow()
     db.commit()
 
-    # 6. 응답 생성
-    return LoginResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        token_type="bearer",
-        user=UserResponse(
-            user_id=user.id,
-            email=user.email,
-            name=user.name,
-            role=user.role.value,
-            is_email_verified=user.is_email_verified,
-            created_at=user.created_at,
-        ),
+    # 6. 토큰을 httpOnly 쿠키로 설정 (보안 강화)
+    set_auth_cookies(response, access_token, refresh_token)
+
+    # 7. 응답 생성 (토큰은 쿠키로만 전달, body에는 사용자 정보만 포함)
+    return UserResponse(
+        user_id=user.id,
+        email=user.email,
+        name=user.name,
+        role=user.role.value,
+        is_email_verified=user.is_email_verified,
+        created_at=user.created_at,
     )
 
 
@@ -300,33 +377,50 @@ def verify_email():
     }
 
 
-@router.post("/refresh", response_model=RefreshResponse)
+@router.post("/refresh", status_code=status.HTTP_200_OK)
 @limiter.limit("20/minute")
-def refresh_tokens(request: Request, payload: RefreshRequest, db: Session = Depends(get_db)):
+def refresh_tokens(request: Request, response: Response, db: Session = Depends(get_db)):
     """
     토큰 갱신
 
     POST /api/v1/auth/refresh
 
     **기능**:
+    - httpOnly 쿠키에서 Refresh Token 읽기 (보안 강화)
     - Refresh Token 검증
     - 새로운 Access Token + Refresh Token 발급
+    - 새 토큰을 httpOnly 쿠키로 설정
     - 사용자 활성 상태 확인
 
-    **보안**:
+    **보안 강화**:
     - Rate Limiting: 20회/분
+    - HttpOnly 쿠키: JavaScript에서 토큰 접근 불가
     - Refresh Token 타입 검증
     - 사용자 존재 및 활성 상태 확인
 
     Related: F-001 3.1, API_명세서.md 6.1.4, 3.2
     """
     try:
-        # 1. Refresh Token 검증
+        # 1. 쿠키에서 Refresh Token 읽기
+        refresh_token = request.cookies.get(COOKIE_REFRESH_TOKEN_KEY)
+
+        if not refresh_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "code": "AUTH005",
+                    "message": "Refresh Token이 없습니다.",
+                },
+            )
+
+        # 2. Refresh Token 검증
         from jose import JWTError
 
         try:
-            decoded = decode_refresh_token(payload.refresh_token)
+            decoded = decode_refresh_token(refresh_token)
         except JWTError as e:
+            # 유효하지 않은 토큰인 경우 쿠키 삭제
+            clear_auth_cookies(response)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail={
@@ -335,9 +429,10 @@ def refresh_tokens(request: Request, payload: RefreshRequest, db: Session = Depe
                 },
             )
 
-        # 2. 사용자 ID 추출
+        # 3. 사용자 ID 추출
         user_id = decoded.get("sub")
         if not user_id:
+            clear_auth_cookies(response)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail={
@@ -346,9 +441,10 @@ def refresh_tokens(request: Request, payload: RefreshRequest, db: Session = Depe
                 },
             )
 
-        # 3. 사용자 존재 및 활성 상태 확인
+        # 4. 사용자 존재 및 활성 상태 확인
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
+            clear_auth_cookies(response)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail={
@@ -358,6 +454,7 @@ def refresh_tokens(request: Request, payload: RefreshRequest, db: Session = Depe
             )
 
         if not user.is_active:
+            clear_auth_cookies(response)
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail={
@@ -366,15 +463,17 @@ def refresh_tokens(request: Request, payload: RefreshRequest, db: Session = Depe
                 },
             )
 
-        # 4. 새 토큰 발급
+        # 5. 새 토큰 발급
         new_access_token = create_access_token({"sub": user.id})
         new_refresh_token = create_refresh_token({"sub": user.id})
 
-        return RefreshResponse(
-            access_token=new_access_token,
-            refresh_token=new_refresh_token,
-            token_type="Bearer",
-        )
+        # 6. 새 토큰을 httpOnly 쿠키로 설정
+        set_auth_cookies(response, new_access_token, new_refresh_token)
+
+        return {
+            "success": True,
+            "message": "토큰이 갱신되었습니다.",
+        }
 
     except HTTPException:
         # HTTPException은 그대로 재전송
@@ -395,15 +494,19 @@ def refresh_tokens(request: Request, payload: RefreshRequest, db: Session = Depe
 
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
-def logout(current_user: User = Depends(get_current_user)):
+def logout(response: Response, current_user: User = Depends(get_current_user)):
     """
     로그아웃
 
     POST /api/v1/auth/logout
 
     **기능**:
-    - 클라이언트 측에서 토큰 삭제 필요
+    - httpOnly 쿠키에서 토큰 삭제 (보안 강화)
     - MVP 단계에서는 stateless JWT 사용 (서버에서 별도 무효화 불필요)
+
+    **보안 강화**:
+    - 쿠키 삭제를 서버에서 처리 (Set-Cookie 헤더로 Max-Age=0 설정)
+    - 클라이언트는 응답만 확인하면 됨
 
     **향후 개선** (TODO):
     - Refresh Token을 Redis 블랙리스트나 DB에 저장하여 서버 측 무효화
@@ -411,9 +514,12 @@ def logout(current_user: User = Depends(get_current_user)):
 
     Related: F-001, API_명세서.md
     """
+    # 쿠키에서 토큰 삭제
+    clear_auth_cookies(response)
+
     return {
         "success": True,
-        "message": "로그아웃되었습니다. 클라이언트에서 토큰을 삭제해주세요."
+        "message": "로그아웃되었습니다."
     }
 
 

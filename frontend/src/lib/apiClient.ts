@@ -160,6 +160,7 @@ export async function apiRequest<T>(
     method: options.method ?? 'GET',
     headers: defaultHeaders,
     body: options.body,
+    credentials: 'include', // httpOnly 쿠키 자동 전송 (보안 강화)
   });
 
   // JSON 파싱 시도 (실패하면 null)

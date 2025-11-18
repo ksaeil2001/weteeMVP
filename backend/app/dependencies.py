@@ -4,7 +4,7 @@ FastAPI Dependencies
 """
 
 from typing import Optional
-from fastapi import Depends, HTTPException, status, Header
+from fastapi import Depends, HTTPException, status, Header, Request
 from sqlalchemy.orm import Session
 from jose import JWTError
 
@@ -12,18 +12,24 @@ from app.database import get_db
 from app.core.security import decode_access_token
 from app.models.user import User
 
+# Cookie key for access token (same as in auth.py)
+COOKIE_ACCESS_TOKEN_KEY = "wetee_access_token"
+
 
 def get_current_user(
+    request: Request,
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db),
 ) -> User:
     """
     현재 로그인한 사용자를 반환하는 의존성
 
-    Authorization 헤더에서 Bearer 토큰을 추출하고,
-    해당 토큰으로 사용자를 조회합니다.
+    토큰 읽기 우선순위 (보안 강화):
+    1. httpOnly 쿠키에서 Access Token 읽기 (프론트엔드용, XSS 방지)
+    2. Authorization 헤더에서 Bearer 토큰 읽기 (API 클라이언트용, 하위 호환성)
 
     Args:
+        request: FastAPI Request 객체 (쿠키 읽기용)
         authorization: Authorization 헤더 (Bearer <token>)
         db: 데이터베이스 세션
 
@@ -41,34 +47,24 @@ def get_current_user(
             return {"user_id": current_user.id}
     """
 
-    # 1. Authorization 헤더 검증
-    if not authorization:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "code": "AUTH001",
-                "message": "인증이 필요합니다.",
-            },
-        )
+    token = None
 
-    # 2. Bearer 토큰 추출
-    parts = authorization.split(" ", 1)
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "code": "AUTH001",
-                "message": "잘못된 인증 헤더 형식입니다. (Bearer <token>)",
-            },
-        )
+    # 1. 먼저 쿠키에서 토큰 읽기 (보안 강화)
+    token = request.cookies.get(COOKIE_ACCESS_TOKEN_KEY)
 
-    token = parts[1].strip()
+    # 2. 쿠키에 없으면 Authorization 헤더에서 읽기 (하위 호환성)
+    if not token and authorization:
+        parts = authorization.split(" ", 1)
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            token = parts[1].strip()
+
+    # 3. 토큰이 없으면 인증 실패
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={
                 "code": "AUTH001",
-                "message": "토큰이 비어 있습니다.",
+                "message": "인증이 필요합니다.",
             },
         )
 
