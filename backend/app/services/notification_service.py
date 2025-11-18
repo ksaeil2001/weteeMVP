@@ -352,6 +352,148 @@ class NotificationService:
         return NotificationService._to_notification_out(notification)
 
     @staticmethod
+    def create_notification(
+        db: Session,
+        user_id: str,
+        notification_type: NotificationType,
+        title: str,
+        message: str,
+        priority: NotificationPriority = NotificationPriority.NORMAL,
+        category: Optional[NotificationCategory] = None,
+        related_resource_type: Optional[str] = None,
+        related_resource_id: Optional[str] = None,
+        is_required: bool = False,
+    ) -> NotificationOut:
+        """
+        알림 생성 (실제 이벤트용)
+
+        이 메서드는 F-003~F-006 등 다른 기능에서 호출되어
+        실시간 이벤트 기반 알림을 생성합니다.
+
+        Args:
+            db: 데이터베이스 세션
+            user_id: 알림 수신자 ID
+            notification_type: 알림 타입
+            title: 알림 제목
+            message: 알림 메시지
+            priority: 우선순위 (기본: NORMAL)
+            category: 카테고리 (기본: type으로부터 자동 결정)
+            related_resource_type: 관련 리소스 타입 (schedule, attendance, lesson, payment 등)
+            related_resource_id: 관련 리소스 ID
+            is_required: 필수 알림 여부 (false로 설정되면 사용자가 설정에서 끌 수 있음)
+
+        Returns:
+            NotificationOut: 생성된 알림
+
+        Example:
+            ```python
+            # 수업 일정 리마인더
+            NotificationService.create_notification(
+                db=db,
+                user_id=student_id,
+                notification_type=NotificationType.SCHEDULE_REMINDER,
+                title="🔔 1시간 후 수업",
+                message=f"{student_name} - {subject} ({time})",
+                priority=NotificationPriority.HIGH,
+                category=NotificationCategory.SCHEDULE,
+                related_resource_type="schedule",
+                related_resource_id=schedule_id,
+            )
+            ```
+        """
+        # 카테고리 자동 결정 (type으로부터)
+        if category is None:
+            type_to_category_map = {
+                NotificationType.SCHEDULE_REMINDER: NotificationCategory.SCHEDULE,
+                NotificationType.SCHEDULE_CHANGED: NotificationCategory.SCHEDULE,
+                NotificationType.SCHEDULE_CANCELLED: NotificationCategory.SCHEDULE,
+                NotificationType.ATTENDANCE_CHANGED: NotificationCategory.ATTENDANCE,
+                NotificationType.LESSON_RECORD_CREATED: NotificationCategory.LESSON,
+                NotificationType.HOMEWORK_ASSIGNED: NotificationCategory.LESSON,
+                NotificationType.MAKEUP_CLASS_AVAILABLE: NotificationCategory.SCHEDULE,
+                NotificationType.MAKEUP_CLASS_REQUESTED: NotificationCategory.SCHEDULE,
+                NotificationType.BILLING_ISSUED: NotificationCategory.PAYMENT,
+                NotificationType.PAYMENT_CONFIRMED: NotificationCategory.PAYMENT,
+                NotificationType.PAYMENT_FAILED: NotificationCategory.PAYMENT,
+                NotificationType.GROUP_INVITE: NotificationCategory.GROUP,
+                NotificationType.SYSTEM_NOTICE: NotificationCategory.SYSTEM,
+            }
+            category = type_to_category_map.get(notification_type, NotificationCategory.SYSTEM)
+
+        # 알림 객체 생성
+        notification = Notification(
+            user_id=user_id,
+            type=notification_type,
+            category=category,
+            title=title,
+            message=message,
+            priority=priority,
+            channel=NotificationChannel.IN_APP,
+            delivery_status=NotificationDeliveryStatus.SENT,
+            is_read=False,
+            is_required=is_required,
+            related_resource_type=related_resource_type,
+            related_resource_id=related_resource_id,
+        )
+
+        db.add(notification)
+        db.commit()
+        db.refresh(notification)
+
+        return NotificationService._to_notification_out(notification)
+
+    @staticmethod
+    def create_notifications_for_group(
+        db: Session,
+        user_ids: List[str],
+        notification_type: NotificationType,
+        title: str,
+        message: str,
+        priority: NotificationPriority = NotificationPriority.NORMAL,
+        category: Optional[NotificationCategory] = None,
+        related_resource_type: Optional[str] = None,
+        related_resource_id: Optional[str] = None,
+        is_required: bool = False,
+    ) -> List[NotificationOut]:
+        """
+        그룹 알림 생성 (여러 사용자에게 동일 알림)
+
+        F-002의 그룹 내 여러 멤버에게 동일 알림을 발송하는 경우 사용
+
+        Args:
+            db: 데이터베이스 세션
+            user_ids: 알림을 받을 사용자 ID 리스트
+            notification_type: 알림 타입
+            title: 알림 제목
+            message: 알림 메시지
+            priority: 우선순위
+            category: 카테고리
+            related_resource_type: 관련 리소스 타입
+            related_resource_id: 관련 리소스 ID
+            is_required: 필수 알림 여부
+
+        Returns:
+            List[NotificationOut]: 생성된 알림 리스트
+        """
+        notifications = []
+        for user_id in user_ids:
+            notification = NotificationService.create_notification(
+                db=db,
+                user_id=user_id,
+                notification_type=notification_type,
+                title=title,
+                message=message,
+                priority=priority,
+                category=category,
+                related_resource_type=related_resource_type,
+                related_resource_id=related_resource_id,
+                is_required=is_required,
+            )
+            notifications.append(notification)
+
+        return notifications
+
+    @staticmethod
     def _to_notification_out(notification: Notification) -> NotificationOut:
         """
         Notification 모델을 NotificationOut 스키마로 변환
