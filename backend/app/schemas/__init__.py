@@ -17,6 +17,14 @@ from app.schemas.schedule import (
     CreateSchedulePayload,
     UpdateSchedulePayload,
 )
+from app.schemas.attendance import (
+    AttendanceOut,
+    AttendanceListResponse,
+    AttendanceStatsResponse,
+    CreateAttendancePayload,
+    BatchCreateAttendancePayload,
+    UpdateAttendancePayload,
+)
 
 __all__ = [
     "RegisterRequest",
@@ -29,4 +37,10 @@ __all__ = [
     "CreateRegularSchedulePayload",
     "CreateSchedulePayload",
     "UpdateSchedulePayload",
+    "AttendanceOut",
+    "AttendanceListResponse",
+    "AttendanceStatsResponse",
+    "CreateAttendancePayload",
+    "BatchCreateAttendancePayload",
+    "UpdateAttendancePayload",
 ]
