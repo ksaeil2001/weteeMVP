@@ -13,9 +13,10 @@
  * 출결 상태 타입
  * - PRESENT: 출석
  * - LATE: 지각
+ * - EARLY_LEAVE: 조퇴
  * - ABSENT: 결석
  */
-export type AttendanceStatus = 'PRESENT' | 'LATE' | 'ABSENT';
+export type AttendanceStatus = 'PRESENT' | 'LATE' | 'EARLY_LEAVE' | 'ABSENT';
 
 /**
  * 출결 기록
@@ -138,6 +139,11 @@ export const ATTENDANCE_STATUS_COLORS: Record<
     text: 'text-yellow-800',
     label: '지각',
   },
+  EARLY_LEAVE: {
+    bg: 'bg-orange-100',
+    text: 'text-orange-800',
+    label: '조퇴',
+  },
   ABSENT: {
     bg: 'bg-red-100',
     text: 'text-red-800',
@@ -151,6 +157,7 @@ export const ATTENDANCE_STATUS_COLORS: Record<
 export const ATTENDANCE_STATUS_ICONS: Record<AttendanceStatus, string> = {
   PRESENT: '✓',
   LATE: '⏰',
+  EARLY_LEAVE: '🚪',
   ABSENT: '✗',
 };
 

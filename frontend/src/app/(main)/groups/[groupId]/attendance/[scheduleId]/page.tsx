@@ -270,8 +270,8 @@ export default function LessonAttendanceCheckPage() {
                   </h3>
 
                   {/* Status Buttons */}
-                  <div className="grid grid-cols-3 gap-2 mb-3">
-                    {(['PRESENT', 'LATE', 'ABSENT'] as AttendanceStatus[]).map(
+                  <div className="grid grid-cols-4 gap-2 mb-3">
+                    {(['PRESENT', 'LATE', 'EARLY_LEAVE', 'ABSENT'] as AttendanceStatus[]).map(
                       (status) => {
                         const isSelected = currentStatus === status;
                         const colorConfig = ATTENDANCE_STATUS_COLORS[status];
@@ -300,11 +300,11 @@ export default function LessonAttendanceCheckPage() {
                     )}
                   </div>
 
-                  {/* Notes Input (지각/결석인 경우) */}
-                  {(currentStatus === 'LATE' || currentStatus === 'ABSENT') && (
+                  {/* Notes Input (지각/조퇴/결석인 경우) */}
+                  {(currentStatus === 'LATE' || currentStatus === 'EARLY_LEAVE' || currentStatus === 'ABSENT') && (
                     <div className="mt-3">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        {currentStatus === 'ABSENT' ? '결석 사유' : '지각 사유'}{' '}
+                        {currentStatus === 'ABSENT' ? '결석 사유' : currentStatus === 'EARLY_LEAVE' ? '조퇴 사유' : '지각 사유'}{' '}
                         {currentStatus === 'ABSENT' && (
                           <span className="text-red-500">*</span>
                         )}
@@ -317,6 +317,8 @@ export default function LessonAttendanceCheckPage() {
                         placeholder={
                           currentStatus === 'ABSENT'
                             ? '결석 사유를 입력해주세요 (필수)'
+                            : currentStatus === 'EARLY_LEAVE'
+                            ? '조퇴 사유를 입력해주세요 (선택)'
                             : '지각 사유를 입력해주세요 (선택)'
                         }
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"

@@ -24,6 +24,10 @@ const AttendanceStatusBadge: React.FC<AttendanceStatusBadgeProps> = ({
       label: '지각',
       colorClass: 'bg-yellow-100 text-yellow-700',
     },
+    EARLY_LEAVE: {
+      label: '조퇴',
+      colorClass: 'bg-orange-100 text-orange-700',
+    },
     ABSENT: {
       label: '결석',
       colorClass: 'bg-red-100 text-red-700',
