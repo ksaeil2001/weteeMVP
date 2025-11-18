@@ -544,6 +544,482 @@ class SettlementService:
             paid_at=invoice.paid_at,
         )
 
-    # TODO(우선순위 2): 청구서 발송 (send_invoice)
-    # TODO(우선순위 2): 청구서 취소 (cancel_invoice)
-    # TODO(우선순위 2): 결제 처리 (mark_invoice_paid)
+    @staticmethod
+    def send_invoice(
+        db: Session,
+        user: User,
+        invoice_id: str
+    ) -> InvoiceDetailResponse:
+        """
+        청구서 발송 (DRAFT → SENT)
+
+        POST /api/v1/invoices/{invoice_id}/send
+
+        Business Logic (F-006):
+        - 청구서 상태를 DRAFT → SENT로 변경
+        - sent_at 타임스탬프 기록
+        - 학부모/학생에게 F-008 알림 발송
+        - TEACHER만 가능
+
+        Args:
+            db: 데이터베이스 세션
+            user: 현재 사용자 (TEACHER만 가능)
+            invoice_id: 청구서 ID
+
+        Returns:
+            InvoiceDetailResponse: 발송된 청구서 상세
+
+        Raises:
+            HTTPException: 권한이 없거나 청구서가 없거나 이미 발송된 경우
+        """
+        # 청구서 조회
+        invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+        if not invoice:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "INVOICE_NOT_FOUND", "message": "청구서를 찾을 수 없습니다."}
+            )
+
+        # 선생님 권한 확인
+        if invoice.teacher_id != user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "PERMISSION_DENIED", "message": "자신이 발행한 청구서만 발송할 수 있습니다."}
+            )
+
+        # 상태 확인 (DRAFT만 발송 가능)
+        if invoice.status != InvoiceStatus.DRAFT:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "INVALID_STATUS",
+                    "message": f"DRAFT 상태의 청구서만 발송할 수 있습니다. 현재 상태: {invoice.status.value}"
+                }
+            )
+
+        # 상태 변경
+        invoice.status = InvoiceStatus.SENT
+        invoice.sent_at = datetime.utcnow()
+        invoice.updated_at = datetime.utcnow()
+
+        db.commit()
+        db.refresh(invoice)
+
+        # F-008 알림 발송 (학생에게)
+        from app.models.notification import (
+            Notification,
+            NotificationCategory,
+            NotificationType,
+            NotificationPriority,
+            NotificationChannel,
+            NotificationDeliveryStatus,
+        )
+
+        notification = Notification(
+            user_id=invoice.student_id,
+            category=NotificationCategory.PAYMENT,
+            type=NotificationType.BILLING_ISSUED,
+            title=f"💳 {invoice.billing_period_start.month}월 과외비 청구서 도착",
+            message=f"{invoice.invoice_number} - {invoice.amount_due:,}원이 청구되었습니다.",
+            priority=NotificationPriority.CRITICAL,
+            channel=NotificationChannel.IN_APP,
+            delivery_status=NotificationDeliveryStatus.SENT,
+            is_read=False,
+            is_required=True,
+            metadata={
+                "invoice_id": invoice.id,
+                "invoice_number": invoice.invoice_number,
+                "amount_due": invoice.amount_due,
+                "due_date": invoice.due_date.isoformat() if invoice.due_date else None,
+            }
+        )
+
+        db.add(notification)
+        db.commit()
+
+        # TODO: 학부모에게도 알림 발송 (학생-학부모 관계 정의 후)
+
+        # 응답 생성
+        student = db.query(User).filter(User.id == invoice.student_id).first()
+        return InvoiceDetailResponse(
+            invoice_id=invoice.id,
+            invoice_number=invoice.invoice_number,
+            teacher_id=invoice.teacher_id,
+            group_id=invoice.group_id,
+            student=StudentInfo(user_id=student.id, name=student.name) if student else StudentInfo(user_id=invoice.student_id, name="Unknown"),
+            billing_period=BillingPeriod(
+                start_date=invoice.billing_period_start,
+                end_date=invoice.billing_period_end
+            ),
+            billing_type=invoice.billing_type.value,
+            status=invoice.status.value,
+            lesson_unit_price=invoice.lesson_unit_price,
+            contracted_lessons=invoice.contracted_lessons,
+            attended_lessons=invoice.attended_lessons,
+            absent_lessons=invoice.absent_lessons,
+            amount_due=invoice.amount_due,
+            amount_paid=invoice.amount_paid,
+            discount_amount=invoice.discount_amount,
+            due_date=invoice.due_date,
+            memo=invoice.memo,
+            created_at=invoice.created_at,
+            updated_at=invoice.updated_at,
+            sent_at=invoice.sent_at,
+            paid_at=invoice.paid_at,
+        )
+
+    @staticmethod
+    def cancel_invoice(
+        db: Session,
+        user: User,
+        invoice_id: str,
+        reason: Optional[str] = None
+    ) -> InvoiceDetailResponse:
+        """
+        청구서 취소 (CANCELED 상태로 변경)
+
+        POST /api/v1/invoices/{invoice_id}/cancel
+
+        Business Logic (F-006):
+        - 청구서 상태를 CANCELED로 변경
+        - DRAFT 또는 SENT 상태에서만 취소 가능
+        - 이미 결제된 청구서는 취소 불가
+        - TEACHER만 가능
+
+        Args:
+            db: 데이터베이스 세션
+            user: 현재 사용자 (TEACHER만 가능)
+            invoice_id: 청구서 ID
+            reason: 취소 사유 (선택)
+
+        Returns:
+            InvoiceDetailResponse: 취소된 청구서 상세
+
+        Raises:
+            HTTPException: 권한이 없거나 청구서가 없거나 취소 불가능한 상태인 경우
+        """
+        # 청구서 조회
+        invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+        if not invoice:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "INVOICE_NOT_FOUND", "message": "청구서를 찾을 수 없습니다."}
+            )
+
+        # 선생님 권한 확인
+        if invoice.teacher_id != user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "PERMISSION_DENIED", "message": "자신이 발행한 청구서만 취소할 수 있습니다."}
+            )
+
+        # 상태 확인 (DRAFT, SENT만 취소 가능)
+        if invoice.status not in [InvoiceStatus.DRAFT, InvoiceStatus.SENT]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "INVALID_STATUS",
+                    "message": f"DRAFT 또는 SENT 상태의 청구서만 취소할 수 있습니다. 현재 상태: {invoice.status.value}"
+                }
+            )
+
+        # 결제 확인 (결제된 금액이 있으면 취소 불가)
+        if invoice.amount_paid > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "PAYMENT_EXISTS",
+                    "message": f"이미 {invoice.amount_paid:,}원이 결제되어 취소할 수 없습니다."
+                }
+            )
+
+        # 상태 변경
+        invoice.status = InvoiceStatus.CANCELED
+        invoice.updated_at = datetime.utcnow()
+
+        # 메모에 취소 사유 추가
+        if reason:
+            cancel_memo = f"[취소] {reason}"
+            if invoice.memo:
+                invoice.memo = f"{invoice.memo}\n{cancel_memo}"
+            else:
+                invoice.memo = cancel_memo
+
+        db.commit()
+        db.refresh(invoice)
+
+        # 응답 생성
+        student = db.query(User).filter(User.id == invoice.student_id).first()
+        return InvoiceDetailResponse(
+            invoice_id=invoice.id,
+            invoice_number=invoice.invoice_number,
+            teacher_id=invoice.teacher_id,
+            group_id=invoice.group_id,
+            student=StudentInfo(user_id=student.id, name=student.name) if student else StudentInfo(user_id=invoice.student_id, name="Unknown"),
+            billing_period=BillingPeriod(
+                start_date=invoice.billing_period_start,
+                end_date=invoice.billing_period_end
+            ),
+            billing_type=invoice.billing_type.value,
+            status=invoice.status.value,
+            lesson_unit_price=invoice.lesson_unit_price,
+            contracted_lessons=invoice.contracted_lessons,
+            attended_lessons=invoice.attended_lessons,
+            absent_lessons=invoice.absent_lessons,
+            amount_due=invoice.amount_due,
+            amount_paid=invoice.amount_paid,
+            discount_amount=invoice.discount_amount,
+            due_date=invoice.due_date,
+            memo=invoice.memo,
+            created_at=invoice.created_at,
+            updated_at=invoice.updated_at,
+            sent_at=invoice.sent_at,
+            paid_at=invoice.paid_at,
+        )
+
+    @staticmethod
+    def mark_invoice_paid(
+        db: Session,
+        user: User,
+        invoice_id: str,
+        payload: PaymentCreateRequest
+    ) -> PaymentResponse:
+        """
+        결제 처리 (수동 결제 확인)
+
+        POST /api/v1/invoices/{invoice_id}/payments
+
+        Business Logic (F-006):
+        - Payment 레코드 생성
+        - Transaction 레코드 생성 (CHARGE)
+        - Invoice의 amount_paid 업데이트
+        - 전액 결제 시 상태를 PAID로 변경, paid_at 기록
+        - 부분 결제 시 상태를 PARTIALLY_PAID로 변경
+        - TEACHER만 가능 (현금 수령 등 수동 확인)
+
+        Args:
+            db: 데이터베이스 세션
+            user: 현재 사용자 (TEACHER만 가능)
+            invoice_id: 청구서 ID
+            payload: PaymentCreateRequest
+
+        Returns:
+            PaymentResponse: 결제 정보
+
+        Raises:
+            HTTPException: 권한이 없거나 청구서가 없는 경우
+        """
+        # 청구서 조회
+        invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+        if not invoice:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "INVOICE_NOT_FOUND", "message": "청구서를 찾을 수 없습니다."}
+            )
+
+        # 선생님 권한 확인
+        if invoice.teacher_id != user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "PERMISSION_DENIED", "message": "자신이 발행한 청구서만 결제 처리할 수 있습니다."}
+            )
+
+        # 상태 확인 (이미 취소된 청구서는 결제 불가)
+        if invoice.status == InvoiceStatus.CANCELED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "INVOICE_CANCELED", "message": "취소된 청구서는 결제할 수 없습니다."}
+            )
+
+        # Payment 생성
+        payment = Payment(
+            invoice_id=invoice.id,
+            method=PaymentMethod(payload.method),
+            status=PaymentStatus.SUCCESS,
+            amount=payload.amount,
+            requested_at=datetime.utcnow(),
+            approved_at=datetime.utcnow(),
+        )
+
+        db.add(payment)
+        db.flush()  # ID 생성
+
+        # Transaction 생성
+        transaction = Transaction(
+            invoice_id=invoice.id,
+            type=TransactionType.CHARGE,
+            amount=payload.amount,
+            note=payload.memo or f"{payment.method.value} 결제 - {payload.amount:,}원"
+        )
+
+        db.add(transaction)
+
+        # Invoice 업데이트
+        invoice.amount_paid += payload.amount
+        invoice.updated_at = datetime.utcnow()
+
+        # 결제 완료 여부 확인
+        if invoice.amount_paid >= invoice.amount_due:
+            invoice.status = InvoiceStatus.PAID
+            invoice.paid_at = datetime.utcnow()
+        elif invoice.amount_paid > 0:
+            invoice.status = InvoiceStatus.PARTIALLY_PAID
+
+        db.commit()
+        db.refresh(payment)
+
+        # F-008 알림 발송 (선생님에게)
+        from app.models.notification import (
+            Notification,
+            NotificationCategory,
+            NotificationType,
+            NotificationPriority,
+            NotificationChannel,
+            NotificationDeliveryStatus,
+        )
+
+        notification = Notification(
+            user_id=invoice.teacher_id,
+            category=NotificationCategory.PAYMENT,
+            type=NotificationType.PAYMENT_CONFIRMED,
+            title=f"💰 {invoice.billing_period_start.month}월 과외비 결제 완료",
+            message=f"{invoice.invoice_number} - {payload.amount:,}원이 결제되었습니다.",
+            priority=NotificationPriority.NORMAL,
+            channel=NotificationChannel.IN_APP,
+            delivery_status=NotificationDeliveryStatus.SENT,
+            is_read=False,
+            metadata={
+                "invoice_id": invoice.id,
+                "payment_id": payment.id,
+                "amount": payload.amount,
+            }
+        )
+
+        db.add(notification)
+        db.commit()
+
+        # 응답 생성
+        return PaymentResponse(
+            payment_id=payment.id,
+            invoice_id=payment.invoice_id,
+            method=payment.method.value,
+            status=payment.status.value,
+            amount=payment.amount,
+            provider=payment.provider,
+            provider_payment_key=payment.provider_payment_key,
+            card_last4=payment.card_last4,
+            card_company=payment.card_company,
+            requested_at=payment.requested_at,
+            approved_at=payment.approved_at,
+            canceled_at=payment.canceled_at,
+            failure_reason=payment.failure_reason,
+            cancel_reason=payment.cancel_reason,
+        )
+
+    @staticmethod
+    def list_group_invoices(
+        db: Session,
+        user: User,
+        group_id: str,
+        year: Optional[int] = None,
+        month: Optional[int] = None,
+        status: Optional[str] = None,
+        page: int = 1,
+        size: int = 20
+    ) -> InvoiceListResponse:
+        """
+        그룹별 청구서 목록 조회 (필터링, 페이징)
+
+        GET /api/v1/settlements/groups/{group_id}/invoices
+
+        Args:
+            db: 데이터베이스 세션
+            user: 현재 사용자
+            group_id: 그룹 ID
+            year: 필터 - 연도 (선택)
+            month: 필터 - 월 (선택)
+            status: 필터 - 상태 (선택)
+            page: 페이지 번호 (1부터 시작)
+            size: 페이지 크기
+
+        Returns:
+            InvoiceListResponse: 청구서 목록 + 페이징 정보
+
+        Raises:
+            HTTPException: 권한이 없거나 그룹이 없는 경우
+        """
+        # 그룹 존재 확인
+        group = db.query(Group).filter(Group.id == group_id).first()
+        if not group:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "GROUP_NOT_FOUND", "message": "그룹을 찾을 수 없습니다."}
+            )
+
+        # 권한 확인
+        if user.role == UserRole.TEACHER:
+            # 선생님: 자신이 소유한 그룹의 청구서만
+            if group.owner_id != user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={"code": "PERMISSION_DENIED", "message": "자신이 소유한 그룹의 청구서만 조회할 수 있습니다."}
+                )
+        # TODO: 학부모/학생 권한 확인 (본인 관련 청구서만)
+
+        # 기본 쿼리
+        query = db.query(Invoice).filter(Invoice.group_id == group_id)
+
+        # 필터 적용
+        if year:
+            query = query.filter(extract('year', Invoice.billing_period_start) == year)
+
+        if month:
+            query = query.filter(extract('month', Invoice.billing_period_start) == month)
+
+        if status and status != "all":
+            try:
+                status_enum = InvoiceStatus(status)
+                query = query.filter(Invoice.status == status_enum)
+            except ValueError:
+                pass  # 잘못된 status는 무시
+
+        # 전체 개수 계산
+        total = query.count()
+
+        # 페이징
+        offset = (page - 1) * size
+        invoices = query.order_by(desc(Invoice.created_at)).offset(offset).limit(size).all()
+
+        # 응답 변환
+        items = []
+        for invoice in invoices:
+            student = db.query(User).filter(User.id == invoice.student_id).first()
+            items.append(InvoiceBasicInfo(
+                invoice_id=invoice.id,
+                invoice_number=invoice.invoice_number,
+                student=StudentInfo(
+                    user_id=student.id,
+                    name=student.name
+                ) if student else StudentInfo(user_id=invoice.student_id, name="Unknown"),
+                billing_period=BillingPeriod(
+                    start_date=invoice.billing_period_start,
+                    end_date=invoice.billing_period_end
+                ),
+                status=invoice.status.value,
+                amount_due=invoice.amount_due,
+                amount_paid=invoice.amount_paid,
+                due_date=invoice.due_date,
+                created_at=invoice.created_at,
+                sent_at=invoice.sent_at,
+            ))
+
+        # 페이징 정보
+        total_pages = (total + size - 1) // size  # 올림 계산
+
+        return InvoiceListResponse(
+            items=items,
+            total=total,
+            page=page,
+            size=size,
+            total_pages=total_pages,
+        )
