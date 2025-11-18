@@ -252,62 +252,134 @@ export async function deleteGroup(groupId: string): Promise<void> {
 }
 
 // ==========================
-// Invite Code Functions (TODO: Phase 2 - Backend Not Yet Implemented)
+// Invite Code Functions (F-002)
 // ==========================
+
+/**
+ * 백엔드 초대 코드 응답 타입
+ */
+interface BackendInviteCodeOut {
+  invite_code_id: string;
+  code: string;
+  group_id: string;
+  target_role: 'STUDENT' | 'PARENT';
+  created_by: string;
+  expires_at: string;
+  max_uses: number;
+  used_count: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+/**
+ * 백엔드 그룹 참여 응답 타입
+ */
+interface BackendJoinGroupResponse {
+  group: BackendGroupOut;
+  member: BackendGroupMember;
+  message: string;
+}
+
+/**
+ * 백엔드 초대 코드 응답을 프론트엔드 타입으로 변환
+ */
+function convertBackendInviteCodeToFrontend(backendCode: BackendInviteCodeOut): InviteCode {
+  return {
+    inviteCodeId: backendCode.invite_code_id,
+    code: backendCode.code,
+    groupId: backendCode.group_id,
+    role: backendCode.target_role.toLowerCase() as 'student' | 'parent',
+    maxUses: backendCode.max_uses,
+    usedCount: backendCode.used_count,
+    expiresAt: backendCode.expires_at,
+    isActive: backendCode.is_active,
+    createdAt: backendCode.created_at,
+  };
+}
 
 /**
  * 초대 코드 발급 (선생님만 가능)
  *
- * TODO(Phase 2): 백엔드 API 구현 후 연동
  * POST /api/v1/groups/{groupId}/invite-codes
  *
  * @param payload 초대 코드 발급 정보
  * @returns Promise<InviteCode>
+ *
+ * @example
+ * ```ts
+ * const inviteCode = await createInviteCode({
+ *   groupId: 'group-123',
+ *   role: 'student',
+ *   maxUses: 1,
+ *   expiresInDays: 7,
+ * });
+ * console.log(inviteCode.code); // "ABC123"
+ * ```
  */
 export async function createInviteCode(
   payload: CreateInviteCodePayload
 ): Promise<InviteCode> {
-  // TODO(Phase 2): 백엔드 초대 코드 API 구현 후 활성화
-  // const response = await apiRequest<InviteCode>(`/groups/${payload.groupId}/invite-codes`, {
-  //   method: 'POST',
-  //   body: JSON.stringify({
-  //     role: payload.role,
-  //     max_uses: payload.maxUses,
-  //     expires_at: payload.expiresAt,
-  //     linked_student_id: payload.linkedStudentId,
-  //   }),
-  // });
-  // return response;
+  const backendCode = await apiRequest<BackendInviteCodeOut>(
+    `/groups/${payload.groupId}/invite-codes`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        target_role: payload.role.toUpperCase(),
+        max_uses: payload.maxUses ?? 1,
+        expires_in_days: payload.expiresInDays ?? 7,
+      }),
+    }
+  );
 
-  throw new Error('초대 코드 기능은 아직 구현되지 않았습니다. (Phase 2 예정)');
+  return convertBackendInviteCodeToFrontend(backendCode);
 }
 
 /**
  * 그룹의 초대 코드 목록 조회 (선생님만 가능)
  *
- * TODO(Phase 2): 백엔드 API 구현 후 연동
  * GET /api/v1/groups/{groupId}/invite-codes
  *
  * @param groupId 그룹 ID
  * @returns Promise<InviteCode[]>
+ *
+ * @example
+ * ```ts
+ * const codes = await fetchInviteCodesByGroup('group-123');
+ * ```
  */
 export async function fetchInviteCodesByGroup(
   groupId: string
 ): Promise<InviteCode[]> {
-  // TODO(Phase 2): 백엔드 초대 코드 API 구현 후 활성화
-  throw new Error('초대 코드 기능은 아직 구현되지 않았습니다. (Phase 2 예정)');
+  const backendCodes = await apiRequest<BackendInviteCodeOut[]>(
+    `/groups/${groupId}/invite-codes`,
+    {
+      method: 'GET',
+    }
+  );
+
+  return backendCodes.map(convertBackendInviteCodeToFrontend);
 }
 
 /**
  * 초대 코드로 그룹 참여 (학생/학부모)
  *
- * TODO(Phase 2): 백엔드 API 구현 후 연동
  * POST /api/v1/groups/join
  *
  * @param payload 초대 코드
  * @returns Promise<Group>
+ *
+ * @example
+ * ```ts
+ * const group = await joinGroup({ code: 'ABC123' });
+ * ```
  */
 export async function joinGroup(payload: JoinGroupPayload): Promise<Group> {
-  // TODO(Phase 2): 백엔드 초대 코드 API 구현 후 활성화
-  throw new Error('초대 코드 기능은 아직 구현되지 않았습니다. (Phase 2 예정)');
+  const response = await apiRequest<BackendJoinGroupResponse>('/groups/join', {
+    method: 'POST',
+    body: JSON.stringify({
+      code: payload.code,
+    }),
+  });
+
+  return convertBackendGroupToFrontend(response.group);
 }
