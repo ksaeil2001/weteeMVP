@@ -32,6 +32,11 @@ class GroupBase(BaseModel):
     subject: str = Field(..., min_length=1, max_length=50, description="과목")
     description: Optional[str] = Field(None, description="그룹 설명")
 
+    # 정산 관련 필드 (F-006)
+    lesson_fee: int = Field(0, ge=0, description="회당 수업료 (원)")
+    payment_type: Literal["prepaid", "postpaid"] = Field("postpaid", description="정산 방식 (선불/후불)")
+    payment_cycle: int = Field(4, ge=1, description="정산 주기 (회)")
+
 
 class GroupCreate(GroupBase):
     """
@@ -47,6 +52,9 @@ class GroupCreate(GroupBase):
                 "name": "중3 수학 반A",
                 "subject": "수학",
                 "description": "중학교 3학년 수학 과외 그룹입니다.",
+                "lesson_fee": 50000,
+                "payment_type": "postpaid",
+                "payment_cycle": 4,
             }
         }
 

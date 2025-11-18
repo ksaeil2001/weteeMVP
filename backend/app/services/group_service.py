@@ -133,6 +133,9 @@ class GroupService:
             subject=group_create.subject,
             description=group_create.description,
             owner_id=owner.id,
+            lesson_fee=group_create.lesson_fee,
+            payment_type=group_create.payment_type,
+            payment_cycle=group_create.payment_cycle,
             status=GroupStatus.ACTIVE,
         )
 

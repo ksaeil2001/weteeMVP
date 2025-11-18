@@ -24,12 +24,21 @@ def hash_password(password: str) -> str:
     """
     Hash a password using bcrypt
 
+    bcrypt는 최대 72바이트까지만 처리 가능하므로,
+    UTF-8 인코딩 기준 72바이트를 초과하면 자동으로 잘라냅니다.
+
     Args:
         password: Plain text password
 
     Returns:
         Hashed password string
     """
+    # bcrypt는 72바이트 제한이 있으므로 초과 시 자르기
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) > 72:
+        # 72바이트로 자르되, UTF-8 문자가 깨지지 않도록 처리
+        password = password_bytes[:72].decode('utf-8', errors='ignore')
+
     return pwd_context.hash(password)
 
 
