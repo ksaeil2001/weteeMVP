@@ -34,6 +34,11 @@ from app.schemas.invoice import (
     TeacherDashboardResponse,  # F-006: Dashboard
     StudentDashboardItem,
     MonthlyComparisonItem,
+    StudentSettlementSummaryResponse,  # F-006: Student Settlement
+    StudentMonthlyInvoice,
+    SettlementStatisticsResponse,  # F-006: Statistics
+    MonthlyRevenueChartItem,
+    ReceiptResponse,  # F-006: Receipt
 )
 from app.services.notification_service import NotificationService
 
@@ -1186,4 +1191,333 @@ class SettlementService:
             unpaid_students=unpaid_students,
             students=students,
             monthly_comparison=monthly_comparison
+        )
+
+    @staticmethod
+    def get_student_settlement_summary(
+        db: Session,
+        user: User,
+        student_id: str,
+        year: int
+    ) -> StudentSettlementSummaryResponse:
+        """
+        학생별 정산 요약 조회
+
+        GET /api/v1/settlements/students/{student_id}?year=YYYY
+
+        Business Logic:
+        - 특정 학생의 연간 수업료 내역 조회
+        - 월별 청구서 내역, 결제 상태 등 제공
+        - 선생님: 자신이 담당하는 학생만 조회 가능
+        - 학부모: 본인 자녀만 조회 가능
+        - 학생: 본인 것만 조회 가능
+
+        Args:
+            db: 데이터베이스 세션
+            user: 현재 사용자
+            student_id: 학생 ID
+            year: 조회 연도
+
+        Returns:
+            StudentSettlementSummaryResponse: 학생별 정산 요약
+
+        Raises:
+            HTTPException: 권한이 없거나 학생을 찾을 수 없는 경우
+        """
+        # 학생 정보 조회
+        student = db.query(User).filter(User.id == student_id).first()
+        if not student:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "STUDENT_NOT_FOUND", "message": "학생을 찾을 수 없습니다."}
+            )
+
+        # 권한 확인
+        if user.role == UserRole.TEACHER:
+            # 선생님: 자신이 발행한 청구서만 조회 가능
+            # 해당 학생의 청구서가 하나라도 있는지 확인
+            has_invoice = db.query(Invoice).filter(
+                Invoice.teacher_id == user.id,
+                Invoice.student_id == student_id
+            ).first()
+            if not has_invoice:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={"code": "PERMISSION_DENIED", "message": "해당 학생의 정산 내역을 조회할 권한이 없습니다."}
+                )
+        elif user.role == UserRole.PARENT:
+            # TODO(v2): 학부모는 자녀의 청구서만 조회 가능
+            # 현재는 단순히 student_id == user.id 체크
+            if student_id != user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={"code": "PERMISSION_DENIED", "message": "본인 자녀의 정산 내역만 조회할 수 있습니다."}
+                )
+        elif user.role == UserRole.STUDENT:
+            # 학생: 본인 것만
+            if student_id != user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={"code": "PERMISSION_DENIED", "message": "본인의 정산 내역만 조회할 수 있습니다."}
+                )
+
+        # 해당 연도의 청구서 조회
+        start_date = date(year, 1, 1)
+        end_date = date(year, 12, 31)
+
+        invoices = db.query(Invoice).filter(
+            Invoice.student_id == student_id,
+            Invoice.billing_period_start >= start_date,
+            Invoice.billing_period_start <= end_date,
+            Invoice.status != InvoiceStatus.CANCELED
+        ).order_by(Invoice.billing_period_start).all()
+
+        # 월별 청구서 목록 생성
+        monthly_invoices = []
+        for invoice in invoices:
+            group = db.query(Group).filter(Group.id == invoice.group_id).first()
+
+            monthly_invoices.append(StudentMonthlyInvoice(
+                year=invoice.billing_period_start.year,
+                month=invoice.billing_period_start.month,
+                invoice_id=invoice.id,
+                invoice_number=invoice.invoice_number,
+                group_name=group.name if group else "Unknown",
+                total_lessons=invoice.attended_lessons,
+                amount_charged=invoice.amount_due,
+                amount_paid=invoice.amount_paid,
+                status=invoice.status.value,
+                due_date=invoice.due_date
+            ))
+
+        # 연간 통계 계산
+        total_lessons = sum(inv.attended_lessons for inv in invoices)
+        total_charged = sum(inv.amount_due for inv in invoices)
+        total_paid = sum(inv.amount_paid for inv in invoices)
+        total_unpaid = total_charged - total_paid
+
+        return StudentSettlementSummaryResponse(
+            student_id=student_id,
+            student_name=student.name,
+            year=year,
+            total_lessons=total_lessons,
+            total_charged=total_charged,
+            total_paid=total_paid,
+            total_unpaid=total_unpaid,
+            monthly_invoices=monthly_invoices
+        )
+
+    @staticmethod
+    def get_settlement_statistics(
+        db: Session,
+        user: User,
+        start_year: int,
+        start_month: int,
+        end_year: int,
+        end_month: int
+    ) -> SettlementStatisticsResponse:
+        """
+        정산 통계 조회 (월별/연도별)
+
+        GET /api/v1/settlements/statistics?start_year=YYYY&start_month=MM&end_year=YYYY&end_month=MM
+
+        Business Logic:
+        - 선생님의 특정 기간 동안의 정산 통계 집계
+        - 월별 수입 차트 데이터 제공
+        - 평균 수입, 평균 수업료 등 계산
+        - TEACHER만 가능
+
+        Args:
+            db: 데이터베이스 세션
+            user: 현재 사용자 (TEACHER만 가능)
+            start_year: 시작 연도
+            start_month: 시작 월
+            end_year: 종료 연도
+            end_month: 종료 월
+
+        Returns:
+            SettlementStatisticsResponse: 정산 통계
+
+        Raises:
+            HTTPException: TEACHER가 아닌 경우
+        """
+        # TEACHER 권한 확인
+        if user.role != UserRole.TEACHER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "PERMISSION_DENIED", "message": "통계는 선생님만 조회할 수 있습니다."}
+            )
+
+        # 기간 설정
+        start_date = date(start_year, start_month, 1)
+        _, last_day = monthrange(end_year, end_month)
+        end_date = date(end_year, end_month, last_day)
+
+        # 전체 기간의 청구서 조회
+        all_invoices = db.query(Invoice).filter(
+            Invoice.teacher_id == user.id,
+            Invoice.billing_period_start >= start_date,
+            Invoice.billing_period_start <= end_date,
+            Invoice.status != InvoiceStatus.CANCELED
+        ).all()
+
+        # 전체 통계 계산
+        total_lessons = sum(inv.attended_lessons for inv in all_invoices)
+        total_charged = sum(inv.amount_due for inv in all_invoices)
+        total_paid = sum(inv.amount_paid for inv in all_invoices)
+
+        # 월별 차트 데이터 생성
+        monthly_chart = []
+        current = date(start_year, start_month, 1)
+
+        while current <= end_date:
+            _, last_day_of_month = monthrange(current.year, current.month)
+            month_start = date(current.year, current.month, 1)
+            month_end = date(current.year, current.month, last_day_of_month)
+
+            # 해당 월의 청구서 필터링
+            month_invoices = [
+                inv for inv in all_invoices
+                if month_start <= inv.billing_period_start <= month_end
+            ]
+
+            month_total_lessons = sum(inv.attended_lessons for inv in month_invoices)
+            month_total_charged = sum(inv.amount_due for inv in month_invoices)
+            month_total_paid = sum(inv.amount_paid for inv in month_invoices)
+
+            # 평균 수업료 계산
+            if month_total_lessons > 0:
+                avg_lesson_price = month_total_charged // month_total_lessons
+            else:
+                avg_lesson_price = 0
+
+            # 활동 학생 수 계산 (해당 월에 청구서가 있는 고유 학생 수)
+            active_students = len(set(inv.student_id for inv in month_invoices))
+
+            monthly_chart.append(MonthlyRevenueChartItem(
+                year=current.year,
+                month=current.month,
+                total_lessons=month_total_lessons,
+                total_charged=month_total_charged,
+                total_paid=month_total_paid,
+                avg_lesson_price=avg_lesson_price,
+                active_students=active_students
+            ))
+
+            # 다음 달로 이동
+            if current.month == 12:
+                current = date(current.year + 1, 1, 1)
+            else:
+                current = date(current.year, current.month + 1, 1)
+
+        # 월평균 수입 계산
+        num_months = len(monthly_chart)
+        avg_monthly_revenue = total_paid // num_months if num_months > 0 else 0
+
+        # 전체 평균 수업료 계산
+        avg_lesson_price = total_charged // total_lessons if total_lessons > 0 else 0
+
+        return SettlementStatisticsResponse(
+            period_start=f"{start_year}-{start_month:02d}",
+            period_end=f"{end_year}-{end_month:02d}",
+            total_lessons=total_lessons,
+            total_charged=total_charged,
+            total_paid=total_paid,
+            avg_monthly_revenue=avg_monthly_revenue,
+            avg_lesson_price=avg_lesson_price,
+            monthly_chart=monthly_chart
+        )
+
+    @staticmethod
+    def get_invoice_receipt(
+        db: Session,
+        user: User,
+        invoice_id: str
+    ) -> ReceiptResponse:
+        """
+        영수증 정보 조회
+
+        GET /api/v1/invoices/{invoice_id}/receipt
+
+        Business Logic:
+        - 결제 완료된 청구서의 영수증 정보 조회
+        - PDF 생성은 TODO(v2)로 남김
+        - 선생님/학부모/학생: 각자 권한 내에서 조회 가능
+
+        Args:
+            db: 데이터베이스 세션
+            user: 현재 사용자
+            invoice_id: 청구서 ID
+
+        Returns:
+            ReceiptResponse: 영수증 정보
+
+        Raises:
+            HTTPException: 청구서가 없거나 권한이 없거나 결제 미완료인 경우
+        """
+        # 청구서 조회
+        invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+        if not invoice:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "INVOICE_NOT_FOUND", "message": "청구서를 찾을 수 없습니다."}
+            )
+
+        # 권한 확인
+        if user.role == UserRole.TEACHER:
+            if invoice.teacher_id != user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={"code": "PERMISSION_DENIED", "message": "자신이 발행한 청구서만 조회할 수 있습니다."}
+                )
+        else:
+            # 학부모/학생: 본인 관련 청구서만
+            if invoice.student_id != user.id:
+                # TODO(v2): 학부모는 자녀 청구서도 조회 가능하도록 확장
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={"code": "PERMISSION_DENIED", "message": "본인 관련 청구서만 조회할 수 있습니다."}
+                )
+
+        # 결제 완료 여부 확인
+        if invoice.status != InvoiceStatus.PAID:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "PAYMENT_NOT_COMPLETED",
+                    "message": f"결제 완료된 청구서만 영수증을 조회할 수 있습니다. 현재 상태: {invoice.status.value}"
+                }
+            )
+
+        # 선생님 정보 조회
+        teacher = db.query(User).filter(User.id == invoice.teacher_id).first()
+        # 학생 정보 조회
+        student = db.query(User).filter(User.id == invoice.student_id).first()
+        # 그룹 정보 조회
+        group = db.query(Group).filter(Group.id == invoice.group_id).first()
+
+        # 결제 정보 조회
+        payment = db.query(Payment).filter(
+            Payment.invoice_id == invoice.id,
+            Payment.status == PaymentStatus.SUCCESS
+        ).order_by(desc(Payment.approved_at)).first()
+
+        return ReceiptResponse(
+            invoice_id=invoice.id,
+            invoice_number=invoice.invoice_number,
+            teacher_name=teacher.name if teacher else "Unknown",
+            teacher_phone=teacher.phone if teacher else "Unknown",
+            student_name=student.name if student else "Unknown",
+            group_name=group.name if group else "Unknown",
+            billing_period=BillingPeriod(
+                start_date=invoice.billing_period_start,
+                end_date=invoice.billing_period_end
+            ),
+            total_lessons=invoice.attended_lessons,
+            lesson_unit_price=invoice.lesson_unit_price,
+            amount_due=invoice.amount_due,
+            amount_paid=invoice.amount_paid,
+            payment_method=payment.method.value if payment else None,
+            paid_at=invoice.paid_at,
+            issued_at=invoice.created_at
         )
