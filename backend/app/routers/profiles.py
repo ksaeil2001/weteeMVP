@@ -21,11 +21,12 @@ from app.schemas.profile import (
     PasswordChangeResponse,
 )
 from app.services.profile_service import ProfileService
+from app.core.response import success_response
 
 router = APIRouter(prefix="/users", tags=["profiles"])
 
 
-@router.get("/me", response_model=UserProfileOut)
+@router.get("/me")
 def get_my_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -44,7 +45,9 @@ def get_my_profile(
     Related: F-007, API_명세서.md 6.7.1
     """
     try:
-        return ProfileService.get_user_profile(db, current_user)
+        profile_data = ProfileService.get_user_profile(db, current_user)
+
+        return success_response(data=profile_data.model_dump(mode=\'json\') if hasattr(profile_data, \'model_dump\') else profile_data)
     except Exception as e:
         db.rollback()
         raise HTTPException(
@@ -53,7 +56,7 @@ def get_my_profile(
         )
 
 
-@router.patch("/me", response_model=UserProfileOut)
+@router.patch("/me")
 def update_my_profile(
     update_data: UserProfileUpdate,
     current_user: User = Depends(get_current_user),
@@ -79,7 +82,9 @@ def update_my_profile(
     Related: F-007, API_명세서.md 6.7.2
     """
     try:
-        return ProfileService.update_user_profile(db, current_user, update_data)
+        profile_data = ProfileService.update_user_profile(db, current_user, update_data)
+
+        return success_response(data=profile_data.model_dump(mode=\'json\') if hasattr(profile_data, \'model_dump\') else profile_data)
     except HTTPException:
         raise
     except Exception as e:
@@ -90,7 +95,7 @@ def update_my_profile(
         )
 
 
-@router.post("/me/profile-image", response_model=ProfileImageUploadResponse)
+@router.post("/me/profile-image")
 async def upload_profile_image(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
@@ -148,7 +153,7 @@ async def upload_profile_image(
 
     try:
         ProfileService.update_profile_image(db, current_user, image_url)
-        return ProfileImageUploadResponse(
+        response_data = ProfileImageUploadResponse(
             profile_image_url=image_url,
             uploaded_at=datetime.utcnow(),
         )
@@ -160,7 +165,7 @@ async def upload_profile_image(
         )
 
 
-@router.get("/me/settings", response_model=NotificationSettingsOut)
+@router.get("/me/settings")
 def get_notification_settings(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -180,7 +185,9 @@ def get_notification_settings(
     Related: F-007, F-008, API_명세서.md 6.7.4
     """
     try:
-        return ProfileService.get_notification_settings(db, current_user)
+        settings_data = ProfileService.get_notification_settings(db, current_user)
+
+        return success_response(data=settings_data.model_dump(mode=\'json\') if hasattr(settings_data, \'model_dump\') else settings_data)
     except Exception as e:
         db.rollback()
         raise HTTPException(
@@ -189,7 +196,7 @@ def get_notification_settings(
         )
 
 
-@router.patch("/me/settings", response_model=NotificationSettingsOut)
+@router.patch("/me/settings")
 def update_notification_settings(
     update_data: NotificationSettingsUpdate,
     current_user: User = Depends(get_current_user),
@@ -217,7 +224,9 @@ def update_notification_settings(
     Related: F-007, F-008, API_명세서.md 6.7.5
     """
     try:
-        return ProfileService.update_notification_settings(db, current_user, update_data)
+        settings_data = ProfileService.update_notification_settings(db, current_user, update_data)
+
+        return success_response(data=settings_data.model_dump(mode=\'json\') if hasattr(settings_data, \'model_dump\') else settings_data)
     except HTTPException:
         raise
     except Exception as e:
@@ -228,7 +237,7 @@ def update_notification_settings(
         )
 
 
-@router.post("/me/change-password", response_model=PasswordChangeResponse)
+@router.post("/me/change-password")
 def change_password(
     password_data: PasswordChangeRequest,
     current_user: User = Depends(get_current_user),
@@ -272,7 +281,7 @@ def change_password(
             # - 비밀번호 변경 알림 이메일 발송
             # - 다른 기기에서 로그인된 세션 무효화
 
-            return PasswordChangeResponse(
+            response_data = PasswordChangeResponse(
                 message="비밀번호가 성공적으로 변경되었습니다",
                 changed_at=datetime.utcnow(),
             )

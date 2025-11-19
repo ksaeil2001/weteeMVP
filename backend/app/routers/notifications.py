@@ -21,11 +21,12 @@ from app.schemas.notification import (
     FCMTokenResponse,
 )
 from app.services.notification_service import NotificationService
+from app.core.response import success_response
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
-@router.get("", response_model=NotificationListResponse)
+get@router.get("")
 def get_notifications(
     category: Optional[str] = Query(None, description="카테고리 필터 (all/schedule/attendance/payment/lesson/group/system)"),
     status: Optional[str] = Query("all", description="상태 필터 (all/read/unread)"),
@@ -67,8 +68,9 @@ def get_notifications(
             page=page,
             size=size,
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except Exception as e:
         db.rollback()
         print(f"🔥 Error fetching notifications: {e}")
@@ -81,7 +83,7 @@ def get_notifications(
         )
 
 
-@router.get("/summary", response_model=NotificationSummary)
+get@router.get("/summary")
 def get_notification_summary(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -112,8 +114,9 @@ def get_notification_summary(
             db=db,
             user_id=current_user.id,
         )
-        return summary
-
+        return success_response(
+            data=summary.model_dump(mode='json') if hasattr(summary, 'model_dump') else summary
+        )
     except Exception as e:
         db.rollback()
         print(f"🔥 Error fetching notification summary: {e}")
@@ -126,7 +129,7 @@ def get_notification_summary(
         )
 
 
-@router.patch("/{notification_id}/read", status_code=status.HTTP_204_NO_CONTENT)
+patch@router.patch("/{notification_id}/read", status_code=status.HTTP_204_NO_CONTENT)
 def mark_notification_as_read(
     notification_id: str,
     current_user: User = Depends(get_current_user),
@@ -165,10 +168,10 @@ def mark_notification_as_read(
             },
         )
 
-    return None  # 204 No Content
+    return success_response(data={}, status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/read-all", response_model=MarkAllReadResponse)
+post@router.post("/read-all")
 def mark_all_notifications_as_read(
     payload: MarkAllReadRequest,
     current_user: User = Depends(get_current_user),
@@ -198,8 +201,9 @@ def mark_all_notifications_as_read(
             user_id=current_user.id,
             category=payload.category,
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except Exception as e:
         db.rollback()
         print(f"🔥 Error marking all notifications as read: {e}")
@@ -212,7 +216,7 @@ def mark_all_notifications_as_read(
         )
 
 
-@router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
+delete@router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_notification(
     notification_id: str,
     current_user: User = Depends(get_current_user),
@@ -250,10 +254,10 @@ def delete_notification(
             },
         )
 
-    return None  # 204 No Content
+    return success_response(data={}, status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/test", response_model=NotificationOut, status_code=status.HTTP_201_CREATED)
+post@router.post("/test", status_code=status.HTTP_201_CREATED)
 def create_test_notification(
     payload: CreateTestNotificationRequest,
     current_user: User = Depends(get_current_user),
@@ -286,8 +290,11 @@ def create_test_notification(
             user_id=current_user.id,
             test_type=payload.type,
         )
-        return notification
-
+        return success_response(
+            data=notification.model_dump(mode='json',
+            status_code=status.HTTP_201_CREATED
+        ) if hasattr(notification, 'model_dump') else notification
+        )
     except Exception as e:
         db.rollback()
         print(f"🔥 Error creating test notification: {e}")
@@ -305,7 +312,7 @@ def create_test_notification(
 # MVP에서는 구현하지 않음
 # ==========================
 
-@router.post("/fcm-token", response_model=FCMTokenResponse, status_code=status.HTTP_201_CREATED)
+post@router.post("/fcm-token", status_code=status.HTTP_201_CREATED)
 def register_fcm_token(
     payload: FCMTokenRequest,
     current_user: User = Depends(get_current_user),
@@ -340,7 +347,7 @@ def register_fcm_token(
     )
 
 
-@router.delete("/fcm-token", status_code=status.HTTP_204_NO_CONTENT)
+delete@router.delete("/fcm-token", status_code=status.HTTP_204_NO_CONTENT)
 def unregister_fcm_token(
     fcm_token: str = Query(..., description="FCM 토큰"),
     current_user: User = Depends(get_current_user),

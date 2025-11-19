@@ -18,11 +18,12 @@ from app.schemas.schedule import (
     ScheduleListResponse,
 )
 from app.services.schedule_service import ScheduleService
+from app.core.response import success_response
 
 router = APIRouter(prefix="/schedules", tags=["schedules"])
 
 
-@router.get("", response_model=ScheduleListResponse)
+get@router.get("")
 def get_schedules(
     group_id: Optional[str] = Query(None, description="그룹 ID 필터"),
     type: Optional[str] = Query(None, description="일정 타입 필터 (REGULAR/MAKEUP/EXAM/HOLIDAY/OTHER)"),
@@ -72,8 +73,9 @@ def get_schedules(
             page=page,
             size=size,
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -88,7 +90,7 @@ def get_schedules(
         )
 
 
-@router.post("/regular", response_model=List[ScheduleOut], status_code=status.HTTP_201_CREATED)
+post@router.post("/regular", status_code=status.HTTP_201_CREATED)
 def create_regular_schedule(
     payload: CreateRegularSchedulePayload,
     current_user: User = Depends(get_current_user),
@@ -130,8 +132,11 @@ def create_regular_schedule(
             user=current_user,
             payload=payload,
         )
-        return schedules
-
+        return success_response(
+            data=schedules.model_dump(mode='json',
+            status_code=status.HTTP_201_CREATED
+        ) if hasattr(schedules, 'model_dump') else schedules
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -148,7 +153,7 @@ def create_regular_schedule(
         )
 
 
-@router.post("", response_model=ScheduleOut, status_code=status.HTTP_201_CREATED)
+post@router.post("", status_code=status.HTTP_201_CREATED)
 def create_schedule(
     payload: CreateSchedulePayload,
     current_user: User = Depends(get_current_user),
@@ -184,8 +189,11 @@ def create_schedule(
             user=current_user,
             payload=payload,
         )
-        return schedule
-
+        return success_response(
+            data=schedule.model_dump(mode='json',
+            status_code=status.HTTP_201_CREATED
+        ) if hasattr(schedule, 'model_dump') else schedule
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -202,7 +210,7 @@ def create_schedule(
         )
 
 
-@router.get("/{schedule_id}", response_model=ScheduleOut)
+get@router.get("/{schedule_id}")
 def get_schedule_detail(
     schedule_id: str,
     current_user: User = Depends(get_current_user),
@@ -231,8 +239,9 @@ def get_schedule_detail(
             user=current_user,
             schedule_id=schedule_id,
         )
-        return schedule
-
+        return success_response(
+            data=schedule.model_dump(mode='json') if hasattr(schedule, 'model_dump') else schedule
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -247,7 +256,7 @@ def get_schedule_detail(
         )
 
 
-@router.patch("/{schedule_id}", response_model=ScheduleOut)
+patch@router.patch("/{schedule_id}")
 def update_schedule(
     schedule_id: str,
     payload: UpdateSchedulePayload,
@@ -290,8 +299,9 @@ def update_schedule(
             schedule_id=schedule_id,
             payload=payload,
         )
-        return schedule
-
+        return success_response(
+            data=schedule.model_dump(mode='json') if hasattr(schedule, 'model_dump') else schedule
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -308,7 +318,7 @@ def update_schedule(
         )
 
 
-@router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
+delete@router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_schedule(
     schedule_id: str,
     current_user: User = Depends(get_current_user),
@@ -338,7 +348,7 @@ def delete_schedule(
             user=current_user,
             schedule_id=schedule_id,
         )
-        return None
+        return success_response(data={}, status_code=status.HTTP_204_NO_CONTENT)
 
     except HTTPException as e:
         raise e
@@ -355,10 +365,10 @@ def delete_schedule(
 
 
 # TODO(Phase 2): Makeup Slots Endpoints
-# @router.post("/makeup-slots", ...)
-# @router.get("/makeup-slots", ...)
-# @router.post("/makeup-slots/{slot_id}/book", ...)
+# post@router.post("/makeup-slots", ...)
+# get@router.get("/makeup-slots", ...)
+# post@router.post("/makeup-slots/{slot_id}/book", ...)
 
 # TODO(Phase 2): Exam Schedules Endpoints
-# @router.post("/exams", ...)
-# @router.get("/exams", ...)
+# post@router.post("/exams", ...)
+# get@router.get("/exams", ...)

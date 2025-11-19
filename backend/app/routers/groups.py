@@ -21,11 +21,12 @@ from app.schemas.group import (
     JoinGroupResponse,  # 추가
 )
 from app.services.group_service import GroupService
+from app.core.response import success_response
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
 
-@router.get("", response_model=GroupListResponse)
+@router.get("")
 def get_groups(
     page: int = Query(1, ge=1, description="페이지 번호 (1부터 시작)"),
     size: int = Query(20, ge=1, le=100, description="페이지 크기 (1-100)"),
@@ -66,7 +67,9 @@ def get_groups(
             role_filter=role,
             status_filter=status,
         )
-        return result
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
 
     except Exception as e:
         db.rollback()
@@ -80,7 +83,7 @@ def get_groups(
         )
 
 
-@router.post("", response_model=GroupOut, status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED)
 def create_group(
     group_create: GroupCreate,
     current_user: User = Depends(get_current_user),
@@ -122,7 +125,10 @@ def create_group(
             owner=current_user,
             group_create=group_create,
         )
-        return group
+        return success_response(
+            data=group.model_dump(mode='json') if hasattr(group, 'model_dump') else group,
+            status_code=status.HTTP_201_CREATED
+        )
 
     except Exception as e:
         db.rollback()
@@ -136,7 +142,7 @@ def create_group(
         )
 
 
-@router.get("/{group_id}", response_model=GroupOut)
+@router.get("/{group_id}")
 def get_group_detail(
     group_id: str,
     current_user: User = Depends(get_current_user),
@@ -178,10 +184,12 @@ def get_group_detail(
             },
         )
 
-    return group
+    return success_response(
+        data=group.model_dump(mode='json') if hasattr(group, 'model_dump') else group
+    )
 
 
-@router.patch("/{group_id}", response_model=GroupOut)
+@router.patch("/{group_id}")
 def update_group(
     group_id: str,
     group_update: GroupUpdate,
@@ -230,7 +238,9 @@ def update_group(
             },
         )
 
-    return group
+    return success_response(
+        data=group.model_dump(mode='json') if hasattr(group, 'model_dump') else group
+    )
 
 
 @router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -275,14 +285,14 @@ def delete_group(
             },
         )
 
-    return None  # 204 No Content
+    return success_response(data={}, status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ==========================
 # Invite Code Management - F-002
 # ==========================
 
-@router.post("/{group_id}/invite-codes", response_model=InviteCodeOut, status_code=status.HTTP_201_CREATED)
+@router.post("/{group_id}/invite-codes", status_code=status.HTTP_201_CREATED)
 def create_invite_code(
     group_id: str,
     invite_code_create: InviteCodeCreate,
@@ -332,7 +342,10 @@ def create_invite_code(
                 },
             )
 
-        return result
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result,
+            status_code=status.HTTP_201_CREATED
+        )
 
     except HTTPException:
         raise
@@ -348,7 +361,7 @@ def create_invite_code(
         )
 
 
-@router.get("/{group_id}/invite-codes", response_model=List[InviteCodeOut])
+@router.get("/{group_id}/invite-codes")
 def get_invite_codes(
     group_id: str,
     current_user: User = Depends(get_current_user),
@@ -392,7 +405,9 @@ def get_invite_codes(
                 },
             )
 
-        return result
+        return success_response(
+            data=[item.model_dump(mode='json') if hasattr(item, 'model_dump') else item for item in result]
+        )
 
     except HTTPException:
         raise
@@ -408,7 +423,7 @@ def get_invite_codes(
         )
 
 
-@router.post("/join", response_model=JoinGroupResponse, status_code=status.HTTP_200_OK)
+@router.post("/join", status_code=status.HTTP_200_OK)
 def join_group_with_code(
     request: JoinGroupRequest,
     current_user: User = Depends(get_current_user),
@@ -476,10 +491,14 @@ def join_group_with_code(
         group_out = GroupService._to_group_out(group)
         member_out = GroupService._to_group_member_out(member)
 
-        return JoinGroupResponse(
+        response_data = JoinGroupResponse(
             group=group_out,
             member=member_out,
             message="그룹에 성공적으로 참여했습니다",
+        )
+
+        return success_response(
+            data=response_data.model_dump(mode='json') if hasattr(response_data, 'model_dump') else response_data
         )
 
     except HTTPException:

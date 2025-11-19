@@ -29,6 +29,7 @@ from app.schemas.invoice import (
     ReceiptResponse,  # F-006: Receipt
 )
 from app.services.settlement_service import SettlementService
+from app.core.response import success_response
 from app.services.notification_service import NotificationService
 from app.core.security import verify_toss_signature
 from app.config import settings
@@ -44,7 +45,7 @@ invoices_router = APIRouter(prefix="/invoices", tags=["invoices"])
 # Dashboard API - F-006 시나리오 5
 # ==========================
 
-@router.get("/dashboard", response_model=TeacherDashboardResponse)
+get@router.get("/dashboard")
 def get_teacher_monthly_dashboard(
     year: int = Query(..., ge=2020, le=2100, description="조회 연도"),
     month: int = Query(..., ge=1, le=12, description="조회 월"),
@@ -87,8 +88,9 @@ def get_teacher_monthly_dashboard(
             year=year,
             month=month
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -109,7 +111,7 @@ def get_teacher_monthly_dashboard(
 # 정산 요약
 # ==========================
 
-@router.get("/groups/{group_id}/summary", response_model=SettlementSummaryResponse)
+get@router.get("/groups/{group_id}/summary")
 def get_group_monthly_settlement_summary(
     group_id: str = Path(..., description="그룹 ID"),
     year: int = Query(..., ge=2020, le=2100, description="정산 연도"),
@@ -153,8 +155,9 @@ def get_group_monthly_settlement_summary(
             year=year,
             month=month
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -175,7 +178,7 @@ def get_group_monthly_settlement_summary(
 # 청구서 생성
 # ==========================
 
-@router.post("/groups/{group_id}/invoices", response_model=InvoiceDetailResponse, status_code=status.HTTP_201_CREATED)
+post@router.post("/groups/{group_id}/invoices", status_code=status.HTTP_201_CREATED)
 def create_invoice_for_student(
     group_id: str = Path(..., description="그룹 ID"),
     payload: InvoiceCreateRequest = ...,
@@ -224,8 +227,11 @@ def create_invoice_for_student(
             group_id=group_id,
             payload=payload
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json',
+            status_code=status.HTTP_201_CREATED
+        ) if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -246,7 +252,7 @@ def create_invoice_for_student(
 # 청구서 상세 조회
 # ==========================
 
-@invoices_router.get("/{invoice_id}", response_model=InvoiceDetailResponse)
+@invoices_router.get("/{invoice_id}")
 def get_invoice_detail(
     invoice_id: str = Path(..., description="청구서 ID"),
     current_user: User = Depends(get_current_user),
@@ -275,8 +281,11 @@ def get_invoice_detail(
             user=current_user,
             invoice_id=invoice_id
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json',
+            status_code=status.HTTP_201_CREATED
+        ) if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -297,7 +306,7 @@ def get_invoice_detail(
 # 그룹별 청구서 목록 조회
 # ==========================
 
-@router.get("/groups/{group_id}/invoices", response_model=InvoiceListResponse)
+get@router.get("/groups/{group_id}/invoices")
 def list_group_invoices(
     group_id: str = Path(..., description="그룹 ID"),
     year: Optional[int] = Query(None, ge=2020, le=2100, description="필터: 연도"),
@@ -343,8 +352,9 @@ def list_group_invoices(
             page=page,
             size=size
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -365,7 +375,7 @@ def list_group_invoices(
 # 수동 결제 확인
 # ==========================
 
-@invoices_router.post("/{invoice_id}/payments", response_model=PaymentResponse, status_code=status.HTTP_201_CREATED)
+@invoices_router.post("/{invoice_id}/payments", status_code=status.HTTP_201_CREATED)
 def create_manual_payment(
     invoice_id: str = Path(..., description="청구서 ID"),
     payload: PaymentCreateRequest = ...,
@@ -407,8 +417,9 @@ def create_manual_payment(
             invoice_id=invoice_id,
             payload=payload
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -429,7 +440,7 @@ def create_manual_payment(
 # 청구서 발송
 # ==========================
 
-@invoices_router.post("/{invoice_id}/send", response_model=InvoiceDetailResponse)
+@invoices_router.post("/{invoice_id}/send")
 def send_invoice(
     invoice_id: str = Path(..., description="청구서 ID"),
     current_user: User = Depends(get_current_user),
@@ -465,8 +476,9 @@ def send_invoice(
             user=current_user,
             invoice_id=invoice_id
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -487,7 +499,7 @@ def send_invoice(
 # 청구서 취소
 # ==========================
 
-@invoices_router.post("/{invoice_id}/cancel", response_model=InvoiceDetailResponse)
+@invoices_router.post("/{invoice_id}/cancel")
 def cancel_invoice(
     invoice_id: str = Path(..., description="청구서 ID"),
     reason: Optional[str] = Query(None, description="취소 사유"),
@@ -528,8 +540,9 @@ def cancel_invoice(
             invoice_id=invoice_id,
             reason=reason
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -550,7 +563,7 @@ def cancel_invoice(
 # 학생별 정산 및 통계 - F-006
 # ==========================
 
-@router.get("/students/{student_id}", response_model=StudentSettlementSummaryResponse)
+get@router.get("/students/{student_id}")
 def get_student_settlement_summary(
     student_id: str = Path(..., description="학생 ID"),
     year: int = Query(..., ge=2020, le=2100, description="조회 연도"),
@@ -586,8 +599,9 @@ def get_student_settlement_summary(
             student_id=student_id,
             year=year
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -604,7 +618,7 @@ def get_student_settlement_summary(
         )
 
 
-@router.get("/statistics", response_model=SettlementStatisticsResponse)
+get@router.get("/statistics")
 def get_settlement_statistics(
     start_year: int = Query(..., ge=2020, le=2100, description="시작 연도"),
     start_month: int = Query(..., ge=1, le=12, description="시작 월"),
@@ -652,8 +666,9 @@ def get_settlement_statistics(
             end_year=end_year,
             end_month=end_month
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -674,7 +689,7 @@ def get_settlement_statistics(
 # 영수증 조회 - F-006
 # ==========================
 
-@invoices_router.get("/{invoice_id}/receipt", response_model=ReceiptResponse)
+@invoices_router.get("/{invoice_id}/receipt")
 def get_invoice_receipt(
     invoice_id: str = Path(..., description="청구서 ID"),
     current_user: User = Depends(get_current_user),
@@ -707,8 +722,9 @@ def get_invoice_receipt(
             user=current_user,
             invoice_id=invoice_id
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
