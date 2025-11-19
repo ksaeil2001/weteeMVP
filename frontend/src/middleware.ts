@@ -18,18 +18,20 @@
  *    - /_next/* : Next.js 내부 리소스 (제외)
  *    - /favicon.ico, /images/* 등 정적 파일 (제외)
  *
- * 인증 확인 방법 (임시):
- * - 쿠키에 `wetee_access_token` 존재 여부로 판단
+ * 인증 확인 방법:
+ * - 쿠키에서 `wetee_access_token` 추출
+ * - JWT 토큰 디코딩 및 만료 시간(exp) 검증
+ * - 만료되었거나 잘못된 토큰이면 로그인 페이지로 리다이렉트
  *
  * TODO (향후 구현):
- * - JWT 토큰 검증 (서버 사이드)
  * - 역할별 권한 체크 (teacher/student/parent)
- * - 토큰 만료 체크 및 자동 갱신
- * - 백엔드 API와 연동하여 실제 인증 검증
+ * - 토큰 자동 갱신 (Refresh Token)
+ * - 백엔드 API와 연동하여 실제 인증 검증 (토큰 블랙리스트 체크 등)
  */
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { jwtDecode } from 'jwt-decode';
 
 /**
  * 인증이 필요한 경로 (로그인 필수)
@@ -71,6 +73,44 @@ const PUBLIC_PATHS = [
 ];
 
 /**
+ * JWT 토큰의 유효성을 검증합니다.
+ *
+ * @param token - 검증할 JWT 토큰
+ * @returns 토큰이 유효하면 true, 만료되었거나 잘못된 토큰이면 false
+ */
+function isValidToken(token: string | undefined): boolean {
+  if (!token) {
+    return false;
+  }
+
+  try {
+    // JWT 디코딩
+    const decoded = jwtDecode<{ exp: number }>(token);
+
+    // 만료 시간 확인 (exp는 초 단위 Unix timestamp)
+    const currentTime = Math.floor(Date.now() / 1000);
+    const isExpired = decoded.exp < currentTime;
+
+    // 개발 환경에서는 상세 로그 출력
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Middleware] Token validation:', {
+        expired: isExpired,
+        expiresAt: new Date(decoded.exp * 1000).toISOString(),
+        currentTime: new Date(currentTime * 1000).toISOString(),
+      });
+    }
+
+    return !isExpired;
+  } catch (error) {
+    // 토큰 디코딩 실패 (잘못된 형식, 손상된 토큰 등)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[Middleware] Token decode error:', error);
+    }
+    return false;
+  }
+}
+
+/**
  * Route Guard 미들웨어
  */
 export function middleware(request: NextRequest) {
@@ -81,9 +121,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. 인증 상태 확인 (임시: 쿠키로 판단)
+  // 2. 인증 상태 확인 (JWT 토큰 검증)
   const accessToken = request.cookies.get('wetee_access_token')?.value;
-  const isAuthenticated = !!accessToken;
+  const isAuthenticated = isValidToken(accessToken);
 
   // 3. 보호된 경로 접근 체크
   const isProtectedPath = PROTECTED_PATHS.some(
