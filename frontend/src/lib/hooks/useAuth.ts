@@ -141,9 +141,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    * - 백엔드에서 최신 사용자 정보를 가져와서 상태 업데이트
    * - 앱 초기 로드 시 sessionStorage에 user 정보가 없을 때 사용
    *
+   * 무한 루프 방지:
+   * - loadMe 함수 자체는 안정적인 참조를 유지하기 위해 store 내부에 정의
+   * - 실제 API 호출 로직만 수행하며, 외부 의존성 없음
+   *
    * @throws {ApiError} 사용자 정보 로드 실패 시 에러 발생
    */
   loadMe: async () => {
+    const state = get();
+
+    // 이미 로딩 중이면 스킵 (중복 호출 방지)
+    if (state.isLoading) {
+      console.log('[useAuth.loadMe] 이미 로딩 중, 중복 호출 스킵');
+      return;
+    }
+
     try {
       set({ isLoading: true });
 
