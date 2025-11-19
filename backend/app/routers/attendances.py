@@ -68,6 +68,7 @@ def create_attendance(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error creating attendance: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -124,6 +125,7 @@ def batch_create_attendances(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error batch creating attendances: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -172,6 +174,7 @@ def get_attendance(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error fetching attendance: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -229,6 +232,7 @@ def update_attendance(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error updating attendance: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -278,6 +282,7 @@ def get_attendances_by_schedule(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error fetching attendances by schedule: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -339,6 +344,7 @@ def get_attendances_by_student(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error fetching attendances by student: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -403,6 +409,7 @@ def get_attendance_stats(
     except HTTPException as e:
         raise e
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error fetching attendance stats: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -46,6 +46,7 @@ def get_my_profile(
     try:
         return ProfileService.get_user_profile(db, current_user)
     except Exception as e:
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="프로필 조회에 실패했습니다",
@@ -152,6 +153,7 @@ async def upload_profile_image(
             uploaded_at=datetime.utcnow(),
         )
     except Exception as e:
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="이미지 업로드에 실패했습니다",
@@ -180,6 +182,7 @@ def get_notification_settings(
     try:
         return ProfileService.get_notification_settings(db, current_user)
     except Exception as e:
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="설정 조회에 실패했습니다",

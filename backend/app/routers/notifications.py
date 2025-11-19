@@ -70,6 +70,7 @@ def get_notifications(
         return result
 
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error fetching notifications: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -114,6 +115,7 @@ def get_notification_summary(
         return summary
 
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error fetching notification summary: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -199,6 +201,7 @@ def mark_all_notifications_as_read(
         return result
 
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error marking all notifications as read: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -286,6 +289,7 @@ def create_test_notification(
         return notification
 
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error creating test notification: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

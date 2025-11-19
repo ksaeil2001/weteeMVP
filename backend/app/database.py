@@ -32,10 +32,17 @@ def get_db():
     Usage: db: Session = Depends(get_db)
 
     데이터베이스 세션을 제공하는 의존성 함수
+
+    세션 누수 방지를 위해 예외 발생 시 자동으로 롤백합니다.
     """
     db = SessionLocal()
     try:
         yield db
+    except Exception as e:
+        # 예외 발생 시 롤백 처리 (세션 누수 방지)
+        db.rollback()
+        print(f"⚠️  Database session rolled back due to exception: {e}")
+        raise
     finally:
         db.close()
 

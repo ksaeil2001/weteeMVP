@@ -69,6 +69,7 @@ def get_groups(
         return result
 
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error fetching groups: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -124,6 +125,7 @@ def create_group(
         return group
 
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error creating group: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -335,6 +337,7 @@ def create_invite_code(
     except HTTPException:
         raise
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error creating invite code: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -394,6 +397,7 @@ def get_invite_codes(
     except HTTPException:
         raise
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error fetching invite codes: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -481,6 +485,7 @@ def join_group_with_code(
     except HTTPException:
         raise
     except Exception as e:
+        db.rollback()
         print(f"🔥 Error joining group with code: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
