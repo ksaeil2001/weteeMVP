@@ -62,3 +62,11 @@ websockets==15.0.1
 # Rate Limiting (F-001 보안 강화)
 slowapi==0.1.9
 
+# Testing (pytest and related packages)
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+pytest-mock==3.14.0
+httpx==0.28.1  # Already included but needed for TestClient
+faker==33.3.0  # For generating test data
+
