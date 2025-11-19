@@ -5,7 +5,7 @@ Group Service - F-002 과외 그룹 생성 및 매칭 비즈니스 로직
 
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, List
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, desc, or_
 import random
 import string
@@ -193,9 +193,10 @@ class GroupService:
         if not is_member:
             return None
 
-        # 멤버 목록 조회
+        # 멤버 목록 조회 (N+1 최적화: user 정보 함께 로드)
         members = (
             db.query(GroupMember)
+            .options(joinedload(GroupMember.user))
             .filter(
                 GroupMember.group_id == group_id,
                 GroupMember.invite_status == GroupMemberInviteStatus.ACCEPTED,

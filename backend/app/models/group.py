@@ -170,6 +170,7 @@ class GroupMember(Base):
 
     # Relationships
     group = relationship("Group", back_populates="members")
+    user = relationship("User", foreign_keys=[user_id])
 
     def __repr__(self):
         return f"<GroupMember {self.id} - Group:{self.group_id} User:{self.user_id} ({self.role})>"

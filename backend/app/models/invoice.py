@@ -8,7 +8,7 @@ Related:
 - F-004 (Attendance - 정산 계산의 기반)
 """
 
-from sqlalchemy import Column, String, Text, DateTime, Enum as SQLEnum, ForeignKey, Integer, Date, Numeric
+from sqlalchemy import Column, String, Text, DateTime, Enum as SQLEnum, ForeignKey, Integer, Date, Numeric, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime, date
 import uuid
@@ -121,6 +121,11 @@ class Invoice(Base):
     )
     sent_at = Column(DateTime, nullable=True)  # 청구서 발송 시각
     paid_at = Column(DateTime, nullable=True)  # 결제 완료 시각
+
+    # Table Arguments: 복합 인덱스
+    __table_args__ = (
+        Index('idx_invoice_group_billing_period', 'group_id', 'billing_period_start', 'billing_period_end'),
+    )
 
     # Relationships
     # Payment와의 관계 (1:N)

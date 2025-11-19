@@ -235,10 +235,11 @@ class ScheduleService:
             ).all()
         ]
 
-        # F-005: N+1 문제 해결 - lesson_record를 eager load
+        # F-005: N+1 문제 해결 - lesson_record, attendances를 eager load
         # 쿼리 시작
         query = db.query(Schedule).options(
-            joinedload(Schedule.lesson_record)
+            joinedload(Schedule.lesson_record),
+            joinedload(Schedule.attendances)
         ).filter(Schedule.group_id.in_(user_group_ids))
 
         # 필터 적용
@@ -399,7 +400,11 @@ class ScheduleService:
         Returns:
             ScheduleOut: 일정 상세
         """
-        schedule = db.query(Schedule).filter(Schedule.id == schedule_id).first()
+        # N+1 최적화: attendances, lesson_record 함께 로드
+        schedule = db.query(Schedule).options(
+            joinedload(Schedule.attendances),
+            joinedload(Schedule.lesson_record)
+        ).filter(Schedule.id == schedule_id).first()
         if not schedule:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -430,7 +435,11 @@ class ScheduleService:
         Returns:
             ScheduleOut: 수정된 일정
         """
-        schedule = db.query(Schedule).filter(Schedule.id == schedule_id).first()
+        # N+1 최적화: attendances, lesson_record 함께 로드
+        schedule = db.query(Schedule).options(
+            joinedload(Schedule.attendances),
+            joinedload(Schedule.lesson_record)
+        ).filter(Schedule.id == schedule_id).first()
         if not schedule:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

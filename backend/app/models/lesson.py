@@ -9,7 +9,7 @@ Related:
 - Textbook (진도 기록과 N:1 관계)
 """
 
-from sqlalchemy import Column, String, Text, Integer, Boolean, DateTime, ForeignKey, CheckConstraint
+from sqlalchemy import Column, String, Text, Integer, Boolean, DateTime, ForeignKey, CheckConstraint, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -79,6 +79,11 @@ class LessonRecord(Base):
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
         nullable=False
+    )
+
+    # Table Arguments: 복합 인덱스
+    __table_args__ = (
+        Index('idx_lesson_record_group_created', 'group_id', 'created_at'),
     )
 
     # Relationships
