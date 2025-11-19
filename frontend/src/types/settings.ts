@@ -60,6 +60,7 @@ export type StudentProfile = {
  * 학부모 추가 프로필 정보
  * DB: parents 테이블
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type ParentProfile = {
   // 향후 확장 가능
 };

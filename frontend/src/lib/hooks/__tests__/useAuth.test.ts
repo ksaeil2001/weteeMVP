@@ -244,7 +244,7 @@ describe('useAuth Hook', () => {
       await act(async () => {
         try {
           await result.current.loadMe()
-        } catch (error) {
+        } catch {
           // Expected to throw
         }
       })
@@ -316,7 +316,7 @@ describe('useAuth Hook', () => {
       await act(async () => {
         try {
           await result.current.refreshSession()
-        } catch (error) {
+        } catch {
           // Expected to throw
         }
       })

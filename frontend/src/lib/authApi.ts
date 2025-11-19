@@ -21,11 +21,9 @@
 import { apiRequest } from './apiClient';
 import type {
   LoginRequestPayload,
-  LoginResponseData,
   RegisterRequestPayload,
   RegisterResponseData,
   RefreshTokenRequestPayload,
-  RefreshTokenResponseData,
 } from '@/types/auth';
 
 /**
@@ -199,7 +197,7 @@ export async function registerWithEmail(
  * ```
  */
 export async function refreshAccessToken(
-  payload: RefreshTokenRequestPayload,
+  _payload: RefreshTokenRequestPayload,
 ): Promise<{ success: boolean }> {
   // API 호출 (refreshToken은 쿠키에서 자동 전송)
   const responseData = await apiRequest<{

@@ -37,6 +37,7 @@ export default function StudentBillingPage() {
 
   useEffect(() => {
     loadStudentBillingSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId, selectedMonth]);
 
   async function loadStudentBillingSummary() {

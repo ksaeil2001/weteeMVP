@@ -26,7 +26,7 @@ import { fetchTextbooks } from '@/lib/api/lessons';
 import { createLessonRecord } from '@/lib/api/lessons';
 import type { Textbook, CreateLessonRecordPayload } from '@/types/lesson';
 import type { Schedule } from '@/types/schedule';
-import type { Group, GroupMember } from '@/types/group';
+import type { Group } from '@/types/group';
 
 // TODO(F-005): 실제 스케줄·그룹 정보 조회 API 연동
 // 현재는 간단한 목업 데이터 사용

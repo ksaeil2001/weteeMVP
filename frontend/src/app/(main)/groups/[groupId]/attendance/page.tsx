@@ -38,7 +38,7 @@ export default function GroupAttendanceDashboardPage() {
   const params = useParams();
   const groupId = params?.groupId as string;
 
-  const { currentRole, isAuthenticated } = useAuth();
+  const { currentRole } = useAuth();
 
   const [group, setGroup] = useState<Group | null>(null);
   const [summaries, setSummaries] = useState<LessonAttendanceSummary[]>([]);

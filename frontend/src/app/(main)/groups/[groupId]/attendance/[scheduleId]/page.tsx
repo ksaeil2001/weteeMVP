@@ -30,7 +30,6 @@ import { fetchGroupById } from '@/lib/api/groups';
 import {
   fetchLessonAttendance,
   checkAttendance,
-  updateAttendance,
 } from '@/lib/api/attendance';
 import type { Group } from '@/types/group';
 import type {
@@ -48,10 +47,10 @@ export default function LessonAttendanceCheckPage() {
   const groupId = params?.groupId as string;
   const scheduleId = params?.scheduleId as string;
 
-  const { currentRole, isAuthenticated } = useAuth();
+  const { currentRole } = useAuth();
 
   const [group, setGroup] = useState<Group | null>(null);
-  const [attendanceRecords, setAttendanceRecords] = useState<
+  const [_attendanceRecords, setAttendanceRecords] = useState<
     AttendanceRecord[]
   >([]);
   const [isLoading, setIsLoading] = useState(true);

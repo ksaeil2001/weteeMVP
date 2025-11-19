@@ -12,7 +12,7 @@
 
 import type {
   AttendanceRecord,
-  AttendanceStatus,
+  // AttendanceStatus,
   LessonAttendanceSummary,
   StudentAttendanceStats,
   AttendanceHistoryItem,

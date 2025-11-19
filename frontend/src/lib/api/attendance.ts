@@ -280,8 +280,8 @@ export async function fetchLessonAttendance(
  * @returns Promise<LessonAttendanceSummary[]>
  */
 export async function fetchGroupAttendanceSummaries(
-  groupId: string,
-  period: { startDate: string; endDate: string }
+  _groupId: string,
+  _period: { startDate: string; endDate: string }
 ): Promise<LessonAttendanceSummary[]> {
   // TODO(v2): 백엔드 API 구현 후 연동
   // GET /api/v1/groups/{group_id}/attendances/summaries?start_date=...&end_date=...

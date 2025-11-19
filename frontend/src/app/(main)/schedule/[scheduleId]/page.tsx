@@ -100,6 +100,7 @@ export default function ScheduleDetailPage() {
     if (scheduleId) {
       loadSchedule();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scheduleId]);
 
   async function loadSchedule() {

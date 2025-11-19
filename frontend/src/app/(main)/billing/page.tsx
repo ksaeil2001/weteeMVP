@@ -38,6 +38,7 @@ export default function BillingDashboardPage() {
       return;
     }
     loadBillingDashboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth, isAuthenticated, currentRole, currentUser]);
 
   async function loadBillingDashboard() {

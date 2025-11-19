@@ -26,7 +26,7 @@ import { fetchBillingStatementById, updateBillingStatus } from '@/lib/api/billin
 export default function BillingStatementDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { isAuthenticated, currentRole } = useAuth();
+  const { currentRole } = useAuth();
   const statementId = params.statementId as string;
 
   const [statement, setStatement] = useState<BillingStatement | null>(null);
@@ -36,6 +36,7 @@ export default function BillingStatementDetailPage() {
 
   useEffect(() => {
     loadStatement();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statementId]);
 
   async function loadStatement() {
