@@ -92,20 +92,14 @@ export default function LessonsPage() {
         status: 'CONFIRMED', // 확정된 일정만
       });
 
-      // 2. 각 일정에 대해 수업 기록 조회 시도
-      // TODO(v2): 백엔드에 일정 목록 조회 시 lesson_record_id를 포함하도록 개선하여 N+1 문제 해결
-      const schedulesWithLessonRecords: ScheduleWithLessonRecord[] = await Promise.all(
-        fetchedSchedules.map(async (schedule) => {
-          // 참고: 현재 백엔드 API에는 schedule_id로 lesson_record를 직접 조회하는 엔드포인트가 없음
-          // 대신 각 schedule에 연결된 lesson_record_id가 있다면 조회 가능
-          // 임시로 수업 기록 없음으로 처리
-          return {
-            ...schedule,
-            lessonRecord: undefined,
-            hasLessonRecord: false,
-          };
-        })
-      );
+      // 2. 백엔드에서 lesson_record_id를 포함하여 반환하므로 N+1 문제 해결됨
+      const schedulesWithLessonRecords: ScheduleWithLessonRecord[] = fetchedSchedules.map((schedule) => {
+        return {
+          ...schedule,
+          lessonRecord: undefined, // 상세 정보는 필요 시 개별 조회
+          hasLessonRecord: !!schedule.lessonRecordId, // lesson_record_id가 있으면 수업 기록 존재
+        };
+      });
 
       // 날짜순 정렬 (최신순)
       schedulesWithLessonRecords.sort((a, b) =>
@@ -275,39 +269,16 @@ export default function LessonsPage() {
                         </div>
 
                         {/* 수업 기록 현황 */}
-                        {schedule.hasLessonRecord && schedule.lessonRecord ? (
+                        {schedule.hasLessonRecord ? (
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
                               <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded">
                                 ✓ 기록 완료
                               </span>
-                              {schedule.lessonRecord.isShared && (
-                                <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded">
-                                  학부모 공유됨
-                                </span>
-                              )}
                             </div>
-                            <p className="text-sm text-gray-700 line-clamp-2">
-                              {schedule.lessonRecord.content}
+                            <p className="text-sm text-gray-600">
+                              수업 기록이 작성되었습니다. 상세 내용은 &quot;상세 보기&quot; 버튼을 클릭하세요.
                             </p>
-                            {schedule.lessonRecord.homework && (
-                              <p className="text-sm text-orange-600">
-                                📝 숙제: {schedule.lessonRecord.homework.substring(0, 50)}
-                                {schedule.lessonRecord.homework.length > 50 ? '...' : ''}
-                              </p>
-                            )}
-                            {schedule.lessonRecord.progressRecords &&
-                              schedule.lessonRecord.progressRecords.length > 0 && (
-                                <p className="text-sm text-gray-600">
-                                  📖 진도:{' '}
-                                  {schedule.lessonRecord.progressRecords
-                                    .map(
-                                      (pr) =>
-                                        `${pr.textbook.name} ${pr.pageStart}-${pr.pageEnd}쪽`
-                                    )
-                                    .join(', ')}
-                                </p>
-                              )}
                           </div>
                         ) : (
                           <div className="text-sm text-yellow-600">
@@ -326,11 +297,11 @@ export default function LessonsPage() {
 
                       {/* 우측 액션 버튼 */}
                       <div className="ml-4 flex flex-col gap-2">
-                        {schedule.hasLessonRecord && schedule.lessonRecord ? (
+                        {schedule.hasLessonRecord && schedule.lessonRecordId ? (
                           <>
                             <button
                               onClick={() =>
-                                handleViewLessonRecord(schedule.lessonRecord!.lessonRecordId)
+                                handleViewLessonRecord(schedule.lessonRecordId!)
                               }
                               className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors whitespace-nowrap"
                             >
@@ -340,7 +311,7 @@ export default function LessonsPage() {
                               <button
                                 onClick={() =>
                                   router.push(
-                                    `/lessons/${schedule.lessonRecord!.lessonRecordId}/edit`
+                                    `/lessons/${schedule.lessonRecordId}/edit`
                                   )
                                 }
                                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors whitespace-nowrap"
