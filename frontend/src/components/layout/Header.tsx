@@ -208,14 +208,19 @@ export const Header: React.FC = () => {
               type="button"
               onClick={handleNotificationClick}
               className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              aria-label="알림"
+              aria-label={`알림 ${notificationSummary && notificationSummary.total_unread > 0 ? `읽지 않은 알림 ${notificationSummary.total_unread}개` : ''}`}
               aria-expanded={isNotificationMenuOpen}
             >
-              <span className="text-xl">🔔</span>
+              <span className="text-xl" aria-hidden="true">🔔</span>
               {/* 읽지 않은 알림 뱃지 */}
               {notificationSummary && notificationSummary.total_unread > 0 && (
-                <span className="absolute top-1 right-1 bg-red-600 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                <span
+                  className="absolute top-1 right-1 bg-red-600 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
                   {notificationSummary.total_unread > 9 ? '9+' : notificationSummary.total_unread}
+                  <span className="sr-only">개의 읽지 않은 알림</span>
                 </span>
               )}
             </button>
@@ -249,6 +254,7 @@ export const Header: React.FC = () => {
                           className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${
                             notification.status === 'unread' ? 'bg-blue-50/30' : ''
                           }`}
+                          aria-label={`${notification.title} - ${notification.status === 'unread' ? '읽지 않음' : '읽음'}`}
                         >
                           <div className="flex gap-2">
                             <div className="flex-shrink-0 text-lg">
@@ -324,8 +330,9 @@ export const Header: React.FC = () => {
                         setIsProfileMenuOpen(false);
                         // TODO: 프로필 페이지로 이동
                       }}
+                      aria-label="설정으로 이동"
                     >
-                      <span className="mr-2">⚙️</span>
+                      <span className="mr-2" aria-hidden="true">⚙️</span>
                       설정
                     </button>
 
@@ -337,8 +344,9 @@ export const Header: React.FC = () => {
                       type="button"
                       className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
                       onClick={handleLogout}
+                      aria-label="로그아웃"
                     >
-                      <span className="mr-2">🚪</span>
+                      <span className="mr-2" aria-hidden="true">🚪</span>
                       로그아웃
                     </button>
                   </div>

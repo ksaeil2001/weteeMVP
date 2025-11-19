@@ -28,6 +28,67 @@ body {
   line-height: var(--line-height-body1);
 }
 
+/**
+ * Accessibility - Keyboard Navigation & Focus Styles
+ * Based on: UX_UI_설계서.md Section 7.6 (접근성)
+ *
+ * WCAG 2.1 준수:
+ * - 키보드 네비게이션: Tab으로 모든 요소 접근 가능
+ * - 포커스 표시: 파란색 테두리 (2pt)
+ * - 명도 대비: 4.5:1 이상
+ */
+
+/* Focus visible for interactive elements */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible {
+  outline: 2px solid var(--color-primary-500, #007AFF);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Remove default outline for mouse users (but keep for keyboard) */
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible),
+input:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible),
+select:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Screen reader only text (sr-only) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Skip to main content link (for keyboard users) */
+.skip-to-main {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--color-primary-500, #007AFF);
+  color: white;
+  padding: 8px 16px;
+  text-decoration: none;
+  z-index: 100;
+}
+
+.skip-to-main:focus {
+  top: 0;
+}
+
 /* Tailwind utility extensions */
 @layer utilities {
   .text-balance {
