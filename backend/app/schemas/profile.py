@@ -38,7 +38,9 @@ class UserProfileUpdate(BaseModel):
     PATCH /api/v1/users/me
     """
     name: Optional[str] = Field(None, min_length=1, max_length=50)
-    phone: Optional[str] = Field(None, pattern=r"^\d{3}-\d{4}-\d{4}$")
+    # 하이픈 있는 형식(010-XXXX-XXXX) 또는 없는 형식(010XXXXXXXX) 둘 다 허용
+    # 서비스 레이어에서 자동으로 하이픈 추가
+    phone: Optional[str] = Field(None, pattern=r"^(\d{10,11}|\d{3}-\d{3,4}-\d{4})$")
 
     @field_validator("name")
     def validate_name(cls, v):
