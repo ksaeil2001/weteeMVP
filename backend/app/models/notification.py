@@ -3,7 +3,7 @@ Notification Model - F-008 필수 알림 시스템
 데이터베이스_설계서.md의 notifications 테이블 정의를 기반으로 구현
 """
 
-from sqlalchemy import Column, String, Boolean, DateTime, Enum as SQLEnum, Text, Integer
+from sqlalchemy import Column, String, Boolean, DateTime, Enum as SQLEnum, Text, Integer, ForeignKey
 from datetime import datetime
 import uuid
 import enum
@@ -96,7 +96,7 @@ class Notification(Base):
 
     # User Reference (Foreign Key)
     # F-008: 알림 수신자
-    user_id = Column(String(36), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Notification Type & Category
     type = Column(

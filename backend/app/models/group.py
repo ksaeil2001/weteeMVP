@@ -67,7 +67,7 @@ class Group(Base):
 
     # Owner (선생님)
     # Foreign Key to users table
-    owner_id = Column(String(36), nullable=False, index=True)
+    owner_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # F-006: 수업료 정산 관련 필드
     lesson_fee = Column(Integer, nullable=False, default=0)  # 회당 수업료 (원)
@@ -148,8 +148,8 @@ class GroupMember(Base):
     )
 
     # Foreign Keys
-    group_id = Column(String(36), ForeignKey("groups.id"), nullable=False, index=True)
-    user_id = Column(String(36), nullable=False, index=True)  # FK to users table
+    group_id = Column(String(36), ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Role
     role = Column(
@@ -211,8 +211,8 @@ class InviteCode(Base):
     code = Column(String(6), nullable=False, unique=True, index=True)  # 6자리 코드 (예: AB12CD)
 
     # Foreign Keys
-    group_id = Column(String(36), ForeignKey("groups.id"), nullable=False, index=True)
-    created_by = Column(String(36), nullable=False, index=True)  # FK to users table (선생님)
+    group_id = Column(String(36), ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_by = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)  # FK to users table (선생님)
 
     # Target Role
     target_role = Column(
