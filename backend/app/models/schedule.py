@@ -100,7 +100,8 @@ class Schedule(Base):
 
     # Original Schedule (보강/변경인 경우)
     # 보강 수업이거나 일정 변경된 경우, 원래 일정 ID
-    original_schedule_id = Column(String(36), nullable=True, index=True)
+    # Self-reference: 원본 일정이 삭제되면 NULL로 설정 (보강 일정은 유지)
+    original_schedule_id = Column(String(36), ForeignKey("schedules.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # Cancellation / Rescheduling Reason
     cancel_reason = Column(Text, nullable=True)

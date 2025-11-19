@@ -71,7 +71,16 @@ def create_tables() -> None:
     print("🏗️  Creating tables...")
 
     # 모델 임포트 (테이블 등록)
+    # 모든 모델을 임포트해야 테이블이 생성됨
     from app.models import user  # noqa: F401
+    from app.models import group  # noqa: F401
+    from app.models import schedule  # noqa: F401
+    from app.models import attendance  # noqa: F401
+    from app.models import lesson  # noqa: F401
+    from app.models import textbook  # noqa: F401
+    from app.models import invoice  # noqa: F401
+    from app.models import notification  # noqa: F401
+    from app.models import settings  # noqa: F401
 
     # 테이블 생성
     Base.metadata.create_all(bind=engine)
