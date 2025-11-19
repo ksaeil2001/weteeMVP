@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * Settings Page - WeTee MVP
  *
@@ -10,7 +12,6 @@
  * - 실제 설정 로딩/저장 API 연동 (GET/PUT /api/settings 등)
  * - 토글/선택 항목의 실시간 상태 변경 및 검증
  * - 계정/보안/알림/정산 등 섹션별 상세 설정 화면 분리
- * - 'use client'로 전환 (useAuth, 클라이언트 상호작용 추가 시)
  */
 
 import React from 'react';
