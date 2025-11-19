@@ -24,6 +24,9 @@ from app.schemas.invoice import (
     PaymentCreateRequest,
     PaymentResponse,
     TeacherDashboardResponse,  # F-006: Dashboard API
+    StudentSettlementSummaryResponse,  # F-006: Student Settlement
+    SettlementStatisticsResponse,  # F-006: Statistics
+    ReceiptResponse,  # F-006: Receipt
 )
 from app.services.settlement_service import SettlementService
 from app.services.notification_service import NotificationService
@@ -539,6 +542,185 @@ def cancel_invoice(
             detail={
                 "code": "INVOICE005",
                 "message": "청구서 취소 중 오류가 발생했습니다.",
+            },
+        )
+
+
+# ==========================
+# 학생별 정산 및 통계 - F-006
+# ==========================
+
+@router.get("/students/{student_id}", response_model=StudentSettlementSummaryResponse)
+def get_student_settlement_summary(
+    student_id: str = Path(..., description="학생 ID"),
+    year: int = Query(..., ge=2020, le=2100, description="조회 연도"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    학생별 정산 요약 조회
+
+    GET /api/v1/settlements/students/{student_id}?year=YYYY
+
+    **기능**:
+    - 특정 학생의 연간 수업료 내역 조회
+    - 월별 청구서 내역, 결제 상태 등 제공
+
+    **권한**:
+    - TEACHER: 자신이 담당하는 학생만
+    - 학부모: 본인 자녀만
+    - 학생: 본인 것만
+
+    **Query Parameters**:
+    - year: 조회 연도 (예: 2025)
+
+    **Response**:
+    - StudentSettlementSummaryResponse: 학생별 정산 요약
+
+    Related: F-006, API_명세서.md 6.6
+    """
+    try:
+        result = SettlementService.get_student_settlement_summary(
+            db=db,
+            user=current_user,
+            student_id=student_id,
+            year=year
+        )
+        return result
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        db.rollback()
+        print(f"🔥 Error getting student settlement summary: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "SETTLEMENT002",
+                "message": "학생별 정산 조회 중 오류가 발생했습니다.",
+            },
+        )
+
+
+@router.get("/statistics", response_model=SettlementStatisticsResponse)
+def get_settlement_statistics(
+    start_year: int = Query(..., ge=2020, le=2100, description="시작 연도"),
+    start_month: int = Query(..., ge=1, le=12, description="시작 월"),
+    end_year: int = Query(..., ge=2020, le=2100, description="종료 연도"),
+    end_month: int = Query(..., ge=1, le=12, description="종료 월"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    정산 통계 조회 (월별/연도별)
+
+    GET /api/v1/settlements/statistics?start_year=YYYY&start_month=MM&end_year=YYYY&end_month=MM
+
+    **기능**:
+    - 선생님의 특정 기간 동안의 정산 통계 집계
+    - 월별 수입 차트 데이터 제공
+    - 평균 수입, 평균 수업료 등 계산
+
+    **권한**: TEACHER만 가능
+
+    **Query Parameters**:
+    - start_year: 시작 연도 (예: 2025)
+    - start_month: 시작 월 (1-12)
+    - end_year: 종료 연도 (예: 2025)
+    - end_month: 종료 월 (1-12)
+
+    **Response**:
+    - SettlementStatisticsResponse: 정산 통계
+
+    Related: F-006 시나리오 5
+    """
+    try:
+        # TEACHER 권한 확인
+        if current_user.role != UserRole.TEACHER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "PERMISSION_DENIED", "message": "통계는 선생님만 조회할 수 있습니다."}
+            )
+
+        result = SettlementService.get_settlement_statistics(
+            db=db,
+            user=current_user,
+            start_year=start_year,
+            start_month=start_month,
+            end_year=end_year,
+            end_month=end_month
+        )
+        return result
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        db.rollback()
+        print(f"🔥 Error getting settlement statistics: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "STATISTICS001",
+                "message": "정산 통계 조회 중 오류가 발생했습니다.",
+            },
+        )
+
+
+# ==========================
+# 영수증 조회 - F-006
+# ==========================
+
+@invoices_router.get("/{invoice_id}/receipt", response_model=ReceiptResponse)
+def get_invoice_receipt(
+    invoice_id: str = Path(..., description="청구서 ID"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    영수증 정보 조회
+
+    GET /api/v1/invoices/{invoice_id}/receipt
+
+    **기능**:
+    - 결제 완료된 청구서의 영수증 정보 조회
+    - TODO(v2): PDF 생성 기능 추가 예정
+
+    **권한**:
+    - TEACHER: 자신이 발행한 청구서만
+    - 학부모/학생: 본인 관련 청구서만
+
+    **Response**:
+    - ReceiptResponse: 영수증 정보
+
+    **Business Rule**:
+    - 결제 완료된 청구서만 영수증 조회 가능 (status = PAID)
+
+    Related: F-006, API_명세서.md 6.6.5
+    """
+    try:
+        result = SettlementService.get_invoice_receipt(
+            db=db,
+            user=current_user,
+            invoice_id=invoice_id
+        )
+        return result
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        db.rollback()
+        print(f"🔥 Error getting invoice receipt: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "RECEIPT001",
+                "message": "영수증 조회 중 오류가 발생했습니다.",
             },
         )
 

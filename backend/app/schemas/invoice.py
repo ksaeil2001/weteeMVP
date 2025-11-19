@@ -544,3 +544,217 @@ class TeacherDashboardResponse(BaseModel):
                 ]
             }
         }
+
+
+# ==========================
+# Student Settlement (학생별 정산) Schemas
+# ==========================
+
+
+class StudentMonthlyInvoice(BaseModel):
+    """
+    학생별 월별 청구서 항목
+    """
+    year: int = Field(..., description="연도")
+    month: int = Field(..., description="월")
+    invoice_id: Optional[str] = Field(None, description="청구서 ID")
+    invoice_number: Optional[str] = Field(None, description="청구서 번호")
+    group_name: str = Field(..., description="그룹 이름")
+    total_lessons: int = Field(..., ge=0, description="수업 횟수")
+    amount_charged: int = Field(..., ge=0, description="청구 금액 (원)")
+    amount_paid: int = Field(..., ge=0, description="결제 금액 (원)")
+    status: InvoiceStatusEnum = Field(..., description="청구서 상태")
+    due_date: Optional[date] = Field(None, description="지불 기한")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "year": 2025,
+                "month": 11,
+                "invoice_id": "invoice-uuid-123",
+                "invoice_number": "TUT-2025-001",
+                "group_name": "중3 수학 반",
+                "total_lessons": 8,
+                "amount_charged": 400000,
+                "amount_paid": 400000,
+                "status": "PAID",
+                "due_date": "2025-12-05"
+            }
+        }
+
+
+class StudentSettlementSummaryResponse(BaseModel):
+    """
+    학생별 정산 요약 응답
+
+    GET /api/v1/settlements/students/{student_id}?year=YYYY
+    """
+    student_id: str = Field(..., description="학생 ID")
+    student_name: str = Field(..., description="학생 이름")
+    year: int = Field(..., description="조회 연도")
+
+    # 연간 요약
+    total_lessons: int = Field(..., ge=0, description="총 수업 횟수")
+    total_charged: int = Field(..., ge=0, description="총 청구 금액 (원)")
+    total_paid: int = Field(..., ge=0, description="총 결제 금액 (원)")
+    total_unpaid: int = Field(..., ge=0, description="미결제 금액 (원)")
+
+    # 월별 내역
+    monthly_invoices: List[StudentMonthlyInvoice] = Field(..., description="월별 청구서 내역")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "student_id": "student-uuid-123",
+                "student_name": "박민수",
+                "year": 2025,
+                "total_lessons": 96,
+                "total_charged": 4800000,
+                "total_paid": 4500000,
+                "total_unpaid": 300000,
+                "monthly_invoices": [
+                    {
+                        "year": 2025,
+                        "month": 11,
+                        "invoice_id": "invoice-uuid-123",
+                        "invoice_number": "TUT-2025-001",
+                        "group_name": "중3 수학 반",
+                        "total_lessons": 8,
+                        "amount_charged": 400000,
+                        "amount_paid": 400000,
+                        "status": "PAID",
+                        "due_date": "2025-12-05"
+                    }
+                ]
+            }
+        }
+
+
+# ==========================
+# Statistics (통계) Schemas
+# ==========================
+
+
+class MonthlyRevenueChartItem(BaseModel):
+    """
+    월별 수입 차트 데이터 항목
+    """
+    year: int = Field(..., description="연도")
+    month: int = Field(..., description="월")
+    total_lessons: int = Field(..., ge=0, description="총 수업 횟수")
+    total_charged: int = Field(..., ge=0, description="총 청구 금액 (원)")
+    total_paid: int = Field(..., ge=0, description="총 결제 금액 (원)")
+    avg_lesson_price: int = Field(..., ge=0, description="평균 수업료 (원)")
+    active_students: int = Field(..., ge=0, description="활동 학생 수")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "year": 2025,
+                "month": 11,
+                "total_lessons": 35,
+                "total_charged": 1750000,
+                "total_paid": 1400000,
+                "avg_lesson_price": 50000,
+                "active_students": 5
+            }
+        }
+
+
+class SettlementStatisticsResponse(BaseModel):
+    """
+    정산 통계 응답
+
+    GET /api/v1/settlements/statistics?start_year=YYYY&start_month=MM&end_year=YYYY&end_month=MM
+    """
+    period_start: str = Field(..., description="시작 기간 (YYYY-MM)")
+    period_end: str = Field(..., description="종료 기간 (YYYY-MM)")
+
+    # 전체 요약
+    total_lessons: int = Field(..., ge=0, description="총 수업 횟수")
+    total_charged: int = Field(..., ge=0, description="총 청구 금액 (원)")
+    total_paid: int = Field(..., ge=0, description="총 결제 금액 (원)")
+    avg_monthly_revenue: int = Field(..., ge=0, description="월평균 수입 (원)")
+    avg_lesson_price: int = Field(..., ge=0, description="평균 수업료 (원)")
+
+    # 월별 차트 데이터
+    monthly_chart: List[MonthlyRevenueChartItem] = Field(..., description="월별 수입 차트 데이터")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "period_start": "2025-06",
+                "period_end": "2025-11",
+                "total_lessons": 210,
+                "total_charged": 10500000,
+                "total_paid": 9800000,
+                "avg_monthly_revenue": 1633333,
+                "avg_lesson_price": 50000,
+                "monthly_chart": [
+                    {
+                        "year": 2025,
+                        "month": 11,
+                        "total_lessons": 35,
+                        "total_charged": 1750000,
+                        "total_paid": 1400000,
+                        "avg_lesson_price": 50000,
+                        "active_students": 5
+                    }
+                ]
+            }
+        }
+
+
+# ==========================
+# Receipt (영수증) Schemas
+# ==========================
+
+
+class ReceiptResponse(BaseModel):
+    """
+    영수증 정보 응답
+
+    GET /api/v1/invoices/{invoice_id}/receipt
+
+    TODO(v2): PDF 생성 기능 추가
+    """
+    invoice_id: str = Field(..., description="청구서 ID")
+    invoice_number: str = Field(..., description="청구서 번호")
+    teacher_name: str = Field(..., description="발행인 (선생님 이름)")
+    teacher_phone: str = Field(..., description="발행인 전화번호")
+    student_name: str = Field(..., description="수신인 (학생 이름)")
+    group_name: str = Field(..., description="그룹 이름")
+    billing_period: BillingPeriod = Field(..., description="수업 기간")
+    total_lessons: int = Field(..., ge=0, description="수업 횟수")
+    lesson_unit_price: int = Field(..., ge=0, description="회당 수업료 (원)")
+    amount_due: int = Field(..., ge=0, description="총 청구 금액 (원)")
+    amount_paid: int = Field(..., ge=0, description="결제 금액 (원)")
+    payment_method: Optional[str] = Field(None, description="결제 수단")
+    paid_at: Optional[datetime] = Field(None, description="결제 일시")
+    issued_at: datetime = Field(..., description="발행 일시")
+
+    # TODO(v2): PDF URL 추가
+    # receipt_pdf_url: Optional[str] = Field(None, description="영수증 PDF URL (S3, 7일 만료)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "invoice_id": "invoice-uuid-123",
+                "invoice_number": "TUT-2025-001",
+                "teacher_name": "김선생",
+                "teacher_phone": "010-1234-5678",
+                "student_name": "박민수",
+                "group_name": "중3 수학 반",
+                "billing_period": {
+                    "start_date": "2025-11-01",
+                    "end_date": "2025-11-30"
+                },
+                "total_lessons": 8,
+                "lesson_unit_price": 50000,
+                "amount_due": 400000,
+                "amount_paid": 400000,
+                "payment_method": "CARD",
+                "paid_at": "2025-12-01T14:00:00Z",
+                "issued_at": "2025-11-12T09:30:00Z"
+            }
+        }
