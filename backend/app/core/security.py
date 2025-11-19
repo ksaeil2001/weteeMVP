@@ -33,13 +33,14 @@ def hash_password(password: str) -> str:
     Returns:
         Hashed password string
     """
-    # bcrypt는 72바이트 제한이 있으므로 초과 시 자르기
+    # bcrypt는 72바이트 제한이 있으므로 항상 잘라내기
     password_bytes = password.encode('utf-8')
+    # 최대 72바이트로 제한하되, UTF-8 문자가 깨지지 않도록 처리
     if len(password_bytes) > 72:
-        # 72바이트로 자르되, UTF-8 문자가 깨지지 않도록 처리
-        password = password_bytes[:72].decode('utf-8', errors='ignore')
+        password_bytes = password_bytes[:72]
 
-    return pwd_context.hash(password)
+    # bytes로 전달하여 bcrypt의 자동 인코딩 문제 방지
+    return pwd_context.hash(password_bytes)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -53,7 +54,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Returns:
         True if password matches, False otherwise
     """
-    return pwd_context.verify(plain_password, hashed_password)
+    # 비밀번호를 동일한 방식으로 처리 (bytes로 변환, 72바이트 제한)
+    password_bytes = plain_password.encode('utf-8')
+    if len(password_bytes) > 72:
+        password_bytes = password_bytes[:72]
+
+    return pwd_context.verify(password_bytes, hashed_password)
 
 
 def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
