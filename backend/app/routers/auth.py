@@ -28,6 +28,7 @@ from app.core.security import (
     decode_refresh_token,
 )
 from app.core.limiter import limiter
+from app.core.response import success_response
 from app.config import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -102,7 +103,7 @@ def clear_auth_cookies(response: Response) -> None:
     )
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", status_code=status.HTTP_201_CREATED)
 @limiter.limit("10/minute")
 def register(
     request: Request,
@@ -192,13 +193,18 @@ def register(
 
         # 8. 응답 생성 (토큰은 쿠키로만 전달, body에는 사용자 정보만 포함)
         # TODO: 이메일 인증 코드 발송 (F-001 6.1.2)
-        return UserResponse(
+        user_data = UserResponse(
             user_id=new_user.id,
             email=new_user.email,
             name=new_user.name,
             role=new_user.role.value,
             is_email_verified=new_user.is_email_verified,
             created_at=new_user.created_at,
+        )
+
+        return success_response(
+            data={"user": user_data.model_dump(mode='json')},
+            status_code=status.HTTP_201_CREATED
         )
 
     except HTTPException:
@@ -258,7 +264,7 @@ def register(
         )
 
 
-@router.post("/login", response_model=UserResponse)
+@router.post("/login")
 @limiter.limit("5/minute")
 def login(
     request: Request,
@@ -333,7 +339,7 @@ def login(
     set_auth_cookies(response, access_token, refresh_token)
 
     # 7. 응답 생성 (토큰은 쿠키로만 전달, body에는 사용자 정보만 포함)
-    return UserResponse(
+    user_data = UserResponse(
         user_id=user.id,
         email=user.email,
         name=user.name,
@@ -342,8 +348,12 @@ def login(
         created_at=user.created_at,
     )
 
+    return success_response(
+        data={"user": user_data.model_dump(mode='json')}
+    )
 
-@router.get("/account", response_model=UserResponse)
+
+@router.get("/account")
 def get_account(current_user: User = Depends(get_current_user)):
     """
     현재 로그인한 사용자 정보 조회
@@ -361,13 +371,17 @@ def get_account(current_user: User = Depends(get_current_user)):
     Related: F-001, API_명세서.md 6.1.x
     """
 
-    return UserResponse(
+    user_data = UserResponse(
         user_id=current_user.id,
         email=current_user.email,
         name=current_user.name,
         role=current_user.role.value,
         is_email_verified=current_user.is_email_verified,
         created_at=current_user.created_at,
+    )
+
+    return success_response(
+        data={"user": user_data.model_dump(mode='json')}
     )
 
 
@@ -485,10 +499,9 @@ def refresh_tokens(request: Request, response: Response, db: Session = Depends(g
         # 6. 새 토큰을 httpOnly 쿠키로 설정
         set_auth_cookies(response, new_access_token, new_refresh_token)
 
-        return {
-            "success": True,
-            "message": "토큰이 갱신되었습니다.",
-        }
+        return success_response(
+            data={"message": "토큰이 갱신되었습니다."}
+        )
 
     except HTTPException:
         # HTTPException은 그대로 재전송
@@ -533,10 +546,9 @@ def logout(response: Response, current_user: User = Depends(get_current_user)):
     # 쿠키에서 토큰 삭제
     clear_auth_cookies(response)
 
-    return {
-        "success": True,
-        "message": "로그아웃되었습니다."
-    }
+    return success_response(
+        data={"message": "로그아웃되었습니다."}
+    )
 
 
 @router.post("/password-reset/request", status_code=status.HTTP_501_NOT_IMPLEMENTED)
