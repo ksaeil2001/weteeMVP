@@ -5,7 +5,7 @@ Lesson Record Service - F-005 수업 기록 및 진도 관리 비즈니스 로�
 
 from datetime import datetime, timedelta
 from typing import Optional, List, Tuple
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, desc, and_, or_
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status
@@ -191,7 +191,12 @@ class LessonService:
 
         try:
             db.commit()
+            # N+1 최적화: progress_records와 textbook을 함께 로드하여 refresh
             db.refresh(lesson_record)
+            # progress_records를 명시적으로 로드
+            lesson_record = db.query(LessonRecord).options(
+                joinedload(LessonRecord.progress_records).joinedload(ProgressRecord.textbook)
+            ).filter(LessonRecord.id == lesson_record.id).first()
         except IntegrityError as e:
             db.rollback()
             raise HTTPException(
@@ -262,7 +267,10 @@ class LessonService:
         Raises:
             HTTPException: 권한 없음, 존재하지 않음
         """
-        lesson_record = db.query(LessonRecord).filter(LessonRecord.id == lesson_record_id).first()
+        # N+1 최적화: progress_records와 textbook을 함께 로드
+        lesson_record = db.query(LessonRecord).options(
+            joinedload(LessonRecord.progress_records).joinedload(ProgressRecord.textbook)
+        ).filter(LessonRecord.id == lesson_record_id).first()
         if not lesson_record:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -315,7 +323,10 @@ class LessonService:
         Raises:
             HTTPException: 권한 없음, 수정 기한 초과 등
         """
-        lesson_record = db.query(LessonRecord).filter(LessonRecord.id == lesson_record_id).first()
+        # N+1 최적화: progress_records와 textbook을 함께 로드
+        lesson_record = db.query(LessonRecord).options(
+            joinedload(LessonRecord.progress_records).joinedload(ProgressRecord.textbook)
+        ).filter(LessonRecord.id == lesson_record_id).first()
         if not lesson_record:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -434,14 +445,26 @@ class LessonService:
         Returns:
             LessonRecordOut: 응답 스키마
         """
-        # 진도 기록 조회
-        progress_records = db.query(ProgressRecord).filter(
-            ProgressRecord.lesson_record_id == lesson_record.id
-        ).all()
+        # N+1 최적화: 이미 로드된 relationship 사용
+        # progress_records가 이미 joinedload로 로드되어 있으면 사용하고, 아니면 쿼리
+        if hasattr(lesson_record, 'progress_records') and lesson_record.progress_records is not None:
+            progress_records = lesson_record.progress_records
+        else:
+            # Fallback: joinedload가 사용되지 않은 경우
+            progress_records = db.query(ProgressRecord).options(
+                joinedload(ProgressRecord.textbook)
+            ).filter(
+                ProgressRecord.lesson_record_id == lesson_record.id
+            ).all()
 
         progress_records_out = []
         for pr in progress_records:
-            textbook = db.query(Textbook).filter(Textbook.id == pr.textbook_id).first()
+            # textbook이 이미 로드되어 있으면 사용하고, 아니면 쿼리
+            if hasattr(pr, 'textbook') and pr.textbook:
+                textbook = pr.textbook
+            else:
+                textbook = db.query(Textbook).filter(Textbook.id == pr.textbook_id).first()
+
             progress_records_out.append(ProgressRecordOut(
                 progress_record_id=pr.id,
                 lesson_record_id=pr.lesson_record_id,

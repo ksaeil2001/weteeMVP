@@ -88,6 +88,7 @@ class Attendance(Base):
     # Table Constraints
     # 데이터베이스_설계서.md: UNIQUE(schedule_id, student_id)
     # 한 일정에 한 학생당 하나의 출결 기록만 허용
+    # Note: UNIQUE 제약은 자동으로 복합 인덱스 (schedule_id, student_id)를 생성함
     __table_args__ = (
         UniqueConstraint('schedule_id', 'student_id', name='uq_attendance_schedule_student'),
     )
