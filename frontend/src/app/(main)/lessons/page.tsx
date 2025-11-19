@@ -24,7 +24,6 @@ import { useRouter } from 'next/navigation';
 import PageHeader from '@/components/common/PageHeader';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { fetchSchedules } from '@/lib/api/schedules';
-import { getLessonRecord } from '@/lib/api/lessons';
 import type { Schedule } from '@/types/schedule';
 import type { LessonRecord } from '@/types/lesson';
 
@@ -38,7 +37,7 @@ interface ScheduleWithLessonRecord extends Schedule {
 
 export default function LessonsPage() {
   const router = useRouter();
-  const { isAuthenticated, currentUser, currentRole } = useAuth();
+  const { isAuthenticated, currentRole } = useAuth();
 
   // 월 선택 상태
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
@@ -70,6 +69,7 @@ export default function LessonsPage() {
     }
 
     loadLessonData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth, isAuthenticated]);
 
   async function loadLessonData() {
@@ -376,7 +376,7 @@ export default function LessonsPage() {
             💡 수업 기록 작성 안내
           </p>
           <ul className="text-blue-800 space-y-1 list-disc list-inside">
-            <li>각 수업의 "기록 작성" 버튼을 클릭하여 수업 내용, 진도, 숙제를 기록할 수 있습니다.</li>
+            <li>각 수업의 &quot;기록 작성&quot; 버튼을 클릭하여 수업 내용, 진도, 숙제를 기록할 수 있습니다.</li>
             <li>작성 후 30일 이내에는 수정 가능하며, 24시간 이내에는 삭제도 가능합니다.</li>
             <li>최대 5개의 교재에 대한 진도를 동시에 기록할 수 있습니다.</li>
           </ul>

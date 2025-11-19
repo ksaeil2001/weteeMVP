@@ -31,7 +31,7 @@ export default function NotificationsPage() {
 
   // 상태 관리
   const [selectedCategory, setSelectedCategory] = useState<NotificationCategory>('all');
-  const [selectedStatus, setSelectedStatus] = useState<'all' | 'unread' | 'read'>('all');
+  const [selectedStatus] = useState<'all' | 'unread' | 'read'>('all');
   const [notificationData, setNotificationData] = useState<NotificationListResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);

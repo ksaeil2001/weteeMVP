@@ -44,7 +44,7 @@ export default function StudentAttendanceHistoryPage() {
   const params = useParams();
   const studentId = params?.studentId as string;
 
-  const { currentRole, isAuthenticated } = useAuth();
+  const { } = useAuth();
 
   const [stats, setStats] = useState<StudentAttendanceStats | null>(null);
   const [history, setHistory] = useState<AttendanceHistoryItem[]>([]);

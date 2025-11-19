@@ -22,7 +22,7 @@ import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { fetchLessonRecords, fetchTextbooks } from '@/lib/api/lessons';
-import type { LessonRecord, Textbook, LessonRecordListParams } from '@/types/lesson';
+import type { LessonRecord, Textbook } from '@/types/lesson';
 
 export default function GroupProgressHistoryPage({
   params,

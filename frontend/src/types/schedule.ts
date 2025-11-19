@@ -24,6 +24,7 @@ export type ScheduleType =
  */
 export type ScheduleStatus =
   | 'SCHEDULED'  // 예정
+  | 'CONFIRMED'  // 확정됨
   | 'DONE'       // 완료
   | 'CANCELED'   // 취소됨
   | 'RESCHEDULED'; // 일정 변경됨

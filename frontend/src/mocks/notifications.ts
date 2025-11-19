@@ -8,11 +8,11 @@ import {
   NotificationCategory,
   NotificationFilter,
   MarkAllReadResponse,
-  NotificationStatus,
+  // NotificationStatus,
 } from '@/types/notifications';
 
 // 목업 알림 데이터 저장소 (메모리)
-let mockNotifications: NotificationItem[] = [
+const mockNotifications: NotificationItem[] = [
   // 선생님용 알림 예시
   {
     notification_id: 'notif-001',
@@ -245,7 +245,7 @@ let mockNotifications: NotificationItem[] = [
  * 역할별 알림 목록 가져오기
  * 실제 환경에서는 백엔드가 사용자 역할에 맞는 알림만 반환
  */
-export function getMockNotificationsForRole(role: 'TEACHER' | 'STUDENT' | 'PARENT'): NotificationItem[] {
+export function getMockNotificationsForRole(_role: 'TEACHER' | 'STUDENT' | 'PARENT'): NotificationItem[] {
   // MVP에서는 모든 알림 반환 (실제로는 역할에 맞게 필터링)
   return mockNotifications;
 }
@@ -305,7 +305,7 @@ export async function getMockNotificationPage(
 /**
  * 읽지 않은 알림 개수 가져오기
  */
-export function getMockUnreadCount(userId?: string): number {
+export function getMockUnreadCount(_userId?: string): number {
   return mockNotifications.filter(n => n.status === 'unread').length;
 }
 
@@ -313,7 +313,7 @@ export function getMockUnreadCount(userId?: string): number {
  * 알림 요약 정보 가져오기
  * TODO(F-008): 실제 API 엔드포인트로 교체 - GET /api/v1/notifications/summary
  */
-export async function getMockNotificationSummary(userId?: string): Promise<NotificationSummary> {
+export async function getMockNotificationSummary(_userId?: string): Promise<NotificationSummary> {
   await new Promise(resolve => setTimeout(resolve, 200));
 
   const unreadNotifications = mockNotifications.filter(n => n.status === 'unread');

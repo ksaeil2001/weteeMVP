@@ -24,7 +24,7 @@ export default function GroupBillingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const groupId = params.groupId as string;
-  const studentIdParam = searchParams.get('student');
+  const _studentIdParam = searchParams.get('student');
 
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
@@ -36,6 +36,7 @@ export default function GroupBillingPage() {
 
   useEffect(() => {
     loadGroupBillingSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId, selectedMonth]);
 
   async function loadGroupBillingSummary() {

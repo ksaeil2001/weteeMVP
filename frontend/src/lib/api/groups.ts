@@ -285,14 +285,11 @@ interface BackendJoinGroupResponse {
  */
 function convertBackendInviteCodeToFrontend(backendCode: BackendInviteCodeOut): InviteCode {
   return {
-    inviteCodeId: backendCode.invite_code_id,
-    code: backendCode.code,
+    inviteCode: backendCode.code,
     groupId: backendCode.group_id,
     role: backendCode.target_role.toLowerCase() as 'student' | 'parent',
     maxUses: backendCode.max_uses,
-    usedCount: backendCode.used_count,
     expiresAt: backendCode.expires_at,
-    isActive: backendCode.is_active,
     createdAt: backendCode.created_at,
   };
 }
@@ -326,7 +323,7 @@ export async function createInviteCode(
       body: JSON.stringify({
         target_role: payload.role.toUpperCase(),
         max_uses: payload.maxUses ?? 1,
-        expires_in_days: payload.expiresInDays ?? 7,
+        expires_in_days: (payload as { expiresInDays?: number }).expiresInDays ?? 7,
       }),
     }
   );
@@ -377,7 +374,7 @@ export async function joinGroup(payload: JoinGroupPayload): Promise<Group> {
   const response = await apiRequest<BackendJoinGroupResponse>('/groups/join', {
     method: 'POST',
     body: JSON.stringify({
-      code: payload.code,
+      code: payload.inviteCode,
     }),
   });
 

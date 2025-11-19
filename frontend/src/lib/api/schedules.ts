@@ -449,7 +449,7 @@ export async function createMakeupSlots(
  * @returns Promise<MakeupSlot[]>
  */
 export async function fetchMakeupSlots(
-  groupId?: string
+  _groupId?: string
 ): Promise<MakeupSlot[]> {
   // TODO(Phase 2): 실제 API 구현 대기 중
   console.warn('[fetchMakeupSlots] Phase 2 기능: 목업 데이터 반환');
@@ -546,8 +546,8 @@ export async function createExamSchedule(
  * @returns Promise<ExamSchedule[]>
  */
 export async function fetchExamSchedules(
-  groupId?: string,
-  studentId?: string
+  _groupId?: string,
+  _studentId?: string
 ): Promise<ExamSchedule[]> {
   // TODO(Phase 2): 실제 API 구현 대기 중
   console.warn('[fetchExamSchedules] Phase 2 기능: 목업 데이터 반환');

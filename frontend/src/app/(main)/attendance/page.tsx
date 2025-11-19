@@ -28,13 +28,11 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { fetchSchedules } from '@/lib/api/schedules';
 import {
   fetchLessonAttendance,
-  checkAttendance,
 } from '@/lib/api/attendance';
 import type { Schedule } from '@/types/schedule';
 import type {
   AttendanceRecord,
   AttendanceSummaryCounts,
-  AttendanceStatus,
 } from '@/types/attendance';
 
 /**
@@ -47,7 +45,7 @@ interface ScheduleWithAttendance extends Schedule {
 
 export default function AttendancePage() {
   const router = useRouter();
-  const { isAuthenticated, currentUser, currentRole } = useAuth();
+  const { isAuthenticated, currentRole } = useAuth();
 
   // 월 선택 상태
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
@@ -79,6 +77,7 @@ export default function AttendancePage() {
     }
 
     loadAttendanceData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth, isAuthenticated, currentRole]);
 
   async function loadAttendanceData() {
@@ -111,7 +110,7 @@ export default function AttendancePage() {
               attendanceRecords,
               attendanceChecked: attendanceRecords.length > 0,
             };
-          } catch (err) {
+          } catch {
             // 출결 기록이 없을 수 있음 (404 등)
             return {
               ...schedule,
@@ -375,8 +374,8 @@ export default function AttendancePage() {
             💡 출결 관리 안내
           </p>
           <p className="text-blue-800">
-            각 수업의 "출결 체크" 버튼을 클릭하여 학생별 출석 상태를 기록할 수 있습니다.
-            이미 체크된 출결은 "출결 수정" 버튼으로 수정 가능합니다.
+            각 수업의 &quot;출결 체크&quot; 버튼을 클릭하여 학생별 출석 상태를 기록할 수 있습니다.
+            이미 체크된 출결은 &quot;출결 수정&quot; 버튼으로 수정 가능합니다.
           </p>
         </div>
       )}

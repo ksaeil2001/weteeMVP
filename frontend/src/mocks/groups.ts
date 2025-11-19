@@ -145,7 +145,7 @@ export function getMockGroupsByTeacher(): Group[] {
 /**
  * 학생/학부모의 그룹 목록 조회 (목업)
  */
-export function getMockGroupsByStudent(userId: string): Group[] {
+export function getMockGroupsByStudent(_userId: string): Group[] {
   // 실제로는 userId를 기준으로 필터링하지만, 목업에서는 단순화
   return mockGroups.filter((g) => g.memberCount > 0);
 }

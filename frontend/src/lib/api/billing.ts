@@ -8,7 +8,7 @@
 
 import type {
   BillingStatement,
-  BillingStatus,
+  // BillingStatus,
   GroupBillingSummary,
   StudentBillingSummary,
   BillingStatistics,
@@ -44,7 +44,7 @@ interface PaginationInfo {
  * @param params.month - 조회 월 (YYYY-MM)
  * @returns 그룹별 정산 요약 목록
  */
-export async function fetchBillingOverview(params: {
+export async function fetchBillingOverview(_params: {
   month: string;
 }): Promise<GroupBillingSummary[]> {
   // TODO(v2): 백엔드에 /api/v1/settlements/overview 엔드포인트 추가
@@ -62,8 +62,8 @@ export async function fetchBillingOverview(params: {
  * @returns 학생별 정산 카드 목록
  */
 export async function fetchBillingDashboard(
-  teacherId: string,
-  month: string
+  _teacherId: string,
+  _month: string
 ): Promise<BillingDashboardCard[]> {
   // TODO(v2): 백엔드에 /api/v1/settlements/dashboard 엔드포인트 추가
   // 현재는 임시로 빈 배열 반환
@@ -82,13 +82,13 @@ export async function fetchBillingDashboard(
  * @returns 그룹별 정산 요약
  */
 export async function fetchGroupBillingSummary(
-  groupId: string,
+  _groupId: string,
   params: { month: string }
 ): Promise<GroupBillingSummary> {
   const [year, month] = params.month.split('-');
 
   return apiRequest<GroupBillingSummary>(
-    `/settlements/groups/${groupId}/summary?year=${year}&month=${month}`
+    `/settlements/groups/${_groupId}/summary?year=${year}&month=${month}`
   );
 }
 
@@ -115,7 +115,7 @@ export async function fetchBillingStatementById(
  * @returns 정산서 상세 정보
  */
 export async function fetchBillingStatementByNumber(
-  statementNumber: string
+  _statementNumber: string
 ): Promise<BillingStatement> {
   // TODO(v2): 백엔드에 /api/v1/invoices/by-number/{statementNumber} 엔드포인트 추가
   throw new Error('Not implemented');
@@ -131,8 +131,8 @@ export async function fetchBillingStatementByNumber(
  * @returns 학생별 정산 요약
  */
 export async function fetchStudentBillingSummary(
-  studentId: string,
-  params: { month: string }
+  _studentId: string,
+  _params: { month: string }
 ): Promise<StudentBillingSummary> {
   // TODO(v2): 백엔드에 /api/v1/settlements/students/{studentId} 엔드포인트 추가
   throw new Error('Not implemented');
@@ -147,7 +147,7 @@ export async function fetchStudentBillingSummary(
  * @returns 정산서 목록
  */
 export async function fetchBillingStatements(
-  params: BillingListParams
+  _params: BillingListParams
 ): Promise<BillingStatement[]> {
   // TODO(v2): 백엔드에 /api/v1/invoices 엔드포인트 추가
   throw new Error('Not implemented');
@@ -164,8 +164,8 @@ export async function fetchBillingStatements(
  * @returns 미리보기 정산서 목록
  */
 export async function generateGroupBillingPreview(
-  groupId: string,
-  params: { month: string }
+  _groupId: string,
+  _params: { month: string }
 ): Promise<BillingStatement[]> {
   // TODO(v2): 백엔드에 미리보기 생성 엔드포인트 추가
   return [];
@@ -230,7 +230,7 @@ export async function issueBillingStatement(
  * @returns 업데이트된 청구서
  */
 export async function updateBillingStatus(
-  payload: UpdateBillingStatusPayload
+  _payload: UpdateBillingStatusPayload
 ): Promise<BillingStatement> {
   // TODO(v2): 백엔드에 PATCH /api/v1/invoices/{invoice_id}/status 엔드포인트 추가
   throw new Error('Not implemented');
@@ -245,7 +245,7 @@ export async function updateBillingStatus(
  * @returns 결제 정보
  */
 export async function createPayment(
-  payload: CreatePaymentPayload
+  _payload: CreatePaymentPayload
 ): Promise<PaymentInfo> {
   // TODO(v2): 토스페이먼츠 연동 후 POST /api/v1/payments 구현
   throw new Error('Not implemented - PG integration pending');
@@ -259,7 +259,7 @@ export async function createPayment(
  * @param statementId - 정산서 ID
  * @returns 영수증 정보
  */
-export async function fetchReceipt(statementId: string): Promise<Receipt> {
+export async function fetchReceipt(_statementId: string): Promise<Receipt> {
   // TODO(v2): 백엔드에 /api/v1/invoices/{invoice_id}/receipt 엔드포인트 추가
   throw new Error('Not implemented');
 }
@@ -273,7 +273,7 @@ export async function fetchReceipt(statementId: string): Promise<Receipt> {
  * @param params.to - 종료일 (YYYY-MM-DD)
  * @returns 정산 통계
  */
-export async function fetchBillingStatistics(params: {
+export async function fetchBillingStatistics(_params: {
   from: string;
   to: string;
 }): Promise<BillingStatistics> {
@@ -291,8 +291,8 @@ export async function fetchBillingStatistics(params: {
  * @returns 월별 수입 차트 데이터
  */
 export async function fetchMonthlyRevenueChart(
-  teacherId: string,
-  params?: { months?: number }
+  _teacherId: string,
+  _params?: { months?: number }
 ): Promise<MonthlyRevenueChart> {
   // TODO(v2): 백엔드에 차트 엔드포인트 추가
   throw new Error('Not implemented');
@@ -382,7 +382,7 @@ export async function confirmManualPayment(
  * @param size - 페이지 크기
  */
 export async function fetchGroupInvoices(
-  groupId: string,
+  _groupId: string,
   year?: number,
   month?: number,
   status?: string,
@@ -397,6 +397,6 @@ export async function fetchGroupInvoices(
   params.set('size', size.toString());
 
   return apiRequest<{ items: BillingStatement[]; pagination: PaginationInfo }>(
-    `/settlements/groups/${groupId}/invoices?${params.toString()}`
+    `/settlements/groups/${_groupId}/invoices?${params.toString()}`
   );
 }

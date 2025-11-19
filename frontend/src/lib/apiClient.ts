@@ -302,7 +302,7 @@ export async function apiRequest<T>(
   let json: Record<string, unknown> | null = null;
   try {
     json = await response.json();
-  } catch (parseError) {
+  } catch {
     // JSON 파싱 실패 → 서버가 HTML 에러 페이지를 반환했을 가능성
     if (!response.ok) {
       const err: ApiError = new Error(
@@ -337,7 +337,7 @@ export async function apiRequest<T>(
 
       // 원래 요청 재시도 (재시도 플래그 false로 설정하여 무한 재시도 방지, timeout 유지)
       return apiRequest<T>(path, options, false, timeout);
-    } catch (refreshError) {
+    } catch {
       // 갱신 실패 - 대기 중인 요청들 모두 실패 처리
       const err: ApiError = new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
       err.status = 401;

@@ -601,7 +601,7 @@ export async function shareProgressReportToParents(): Promise<void> {
 /**
  * @deprecated 백엔드 API 미구현
  */
-export async function fetchLessonRecordCards(): Promise<any[]> {
+export async function fetchLessonRecordCards(): Promise<unknown[]> {
   console.warn('[fetchLessonRecordCards] 백엔드 API 미구현');
   return [];
 }

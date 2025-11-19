@@ -404,7 +404,7 @@ export function getMockUserProfileById(userId: string): FullUserProfile | null {
 /**
  * 알림 설정 가져오기 (사용자 ID)
  */
-export function getMockNotificationSettings(userId: string): NotificationSettings {
+export function getMockNotificationSettings(_userId: string): NotificationSettings {
   // 실제로는 userId에 따라 다른 설정을 반환할 수 있음
   return mockNotificationSettings;
 }

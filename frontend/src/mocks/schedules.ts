@@ -12,8 +12,8 @@
 
 import type {
   Schedule,
-  ScheduleType,
-  ScheduleStatus,
+  // ScheduleType,
+  // ScheduleStatus,
   MakeupSlot,
   ExamSchedule,
 } from '@/types/schedule';
