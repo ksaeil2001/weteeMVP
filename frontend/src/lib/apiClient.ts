@@ -31,6 +31,15 @@ export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL;
 
 /**
+ * API 요청 타임아웃 설정 (밀리초)
+ *
+ * - 기본값: 30초 (30000ms)
+ * - 느린 네트워크 환경에서도 안정적으로 처리하기 위한 시간
+ * - 개별 요청에서 필요시 override 가능
+ */
+export const DEFAULT_TIMEOUT = 30000;
+
+/**
  * Access Token 공급자 함수 타입
  *
  * - 토큰이 없으면 null 또는 undefined 를 반환
@@ -193,7 +202,7 @@ export function isApiError(error: unknown): error is ApiError {
 }
 
 /**
- * 공통 API 요청 함수 (토큰 자동 갱신 포함)
+ * 공통 API 요청 함수 (토큰 자동 갱신 + 타임아웃 포함)
  *
  * 토큰 갱신 플로우:
  * 1. 401 Unauthorized 응답 시 자동으로 토큰 갱신 시도
@@ -201,9 +210,15 @@ export function isApiError(error: unknown): error is ApiError {
  * 3. 갱신 실패 시 로그인 페이지로 이동
  * 4. 동시 갱신 방지: isRefreshing 플래그로 중복 갱신 방지
  *
+ * 타임아웃 처리:
+ * 1. AbortController를 사용하여 타임아웃 구현
+ * 2. 기본 타임아웃: 30초 (DEFAULT_TIMEOUT)
+ * 3. 개별 요청에서 timeout 파라미터로 override 가능
+ *
  * @param path API 경로 (예: '/auth/login', '/groups')
  * @param options fetch RequestInit 옵션
  * @param _retry 재시도 여부 (내부 사용, 무한 재시도 방지)
+ * @param timeout 타임아웃 시간(ms), 기본값: DEFAULT_TIMEOUT (30초)
  * @returns API 응답 data 필드
  *
  * @throws {ApiError} API 호출 실패 시 에러 발생
@@ -220,8 +235,13 @@ export async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
   _retry = true,
+  timeout: number = DEFAULT_TIMEOUT,
 ): Promise<T> {
   const url = `${API_BASE_URL}${path}`;
+
+  // AbortController 설정 (타임아웃 처리용)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   // 기본 헤더 설정
   const defaultHeaders: HeadersInit = {
@@ -239,12 +259,44 @@ export async function apiRequest<T>(
     }
   }
 
-  const response = await fetch(url, {
-    method: options.method ?? 'GET',
-    headers: defaultHeaders,
-    body: options.body,
-    credentials: 'include', // httpOnly 쿠키 자동 전송 (보안 강화)
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: options.method ?? 'GET',
+      headers: defaultHeaders,
+      body: options.body,
+      credentials: 'include', // httpOnly 쿠키 자동 전송 (보안 강화)
+      signal: controller.signal, // 타임아웃용 AbortSignal
+    });
+  } catch (error) {
+    clearTimeout(timeoutId);
+
+    // 타임아웃 에러 처리
+    if (error instanceof Error && error.name === 'AbortError') {
+      const err: ApiError = new Error(
+        `요청 시간이 초과되었습니다. 네트워크 연결을 확인해주세요. (${timeout / 1000}초)`,
+      );
+      err.status = 408; // Request Timeout
+      err.code = 'TIMEOUT';
+      throw err;
+    }
+
+    // 네트워크 에러 처리 (연결 실패, DNS 실패 등)
+    if (error instanceof TypeError) {
+      const err: ApiError = new Error(
+        '네트워크 연결에 실패했습니다. 인터넷 연결을 확인해주세요.',
+      );
+      err.status = 0; // 네트워크 에러는 status 0
+      err.code = 'NETWORK_ERROR';
+      throw err;
+    }
+
+    // 기타 에러
+    throw error;
+  } finally {
+    // 타임아웃 타이머 정리
+    clearTimeout(timeoutId);
+  }
 
   // JSON 파싱 시도 (실패하면 null)
   let json: Record<string, unknown> | null = null;
@@ -269,8 +321,8 @@ export async function apiRequest<T>(
       return new Promise((resolve, reject) => {
         failedQueue.push({ resolve, reject });
       }).then(() => {
-        // 갱신 완료 후 원래 요청 재시도 (재시도 플래그 false로 설정)
-        return apiRequest<T>(path, options, false);
+        // 갱신 완료 후 원래 요청 재시도 (재시도 플래그 false로 설정, timeout 유지)
+        return apiRequest<T>(path, options, false, timeout);
       });
     }
 
@@ -283,8 +335,8 @@ export async function apiRequest<T>(
       processQueue();
       isRefreshing = false;
 
-      // 원래 요청 재시도 (재시도 플래그 false로 설정하여 무한 재시도 방지)
-      return apiRequest<T>(path, options, false);
+      // 원래 요청 재시도 (재시도 플래그 false로 설정하여 무한 재시도 방지, timeout 유지)
+      return apiRequest<T>(path, options, false, timeout);
     } catch (refreshError) {
       // 갱신 실패 - 대기 중인 요청들 모두 실패 처리
       const err: ApiError = new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
