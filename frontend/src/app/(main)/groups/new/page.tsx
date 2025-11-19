@@ -307,12 +307,12 @@ export default function CreateGroupPage() {
       </form>
 
       {/* 개발 안내 */}
-      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-        <p className="font-semibold text-blue-900 mb-1">
-          ℹ️ F-002 프론트엔드 스켈레톤 (목업 생성)
+      <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-sm">
+        <p className="font-semibold text-green-900 mb-1">
+          ✅ F-002 그룹 생성 - 백엔드 API 연동 완료
         </p>
-        <p className="text-blue-800">
-          현재 목업 모드로 작동합니다. 실제 API 연동 시 백엔드에 그룹이 생성됩니다.
+        <p className="text-green-800">
+          실제 백엔드 API(/api/v1/groups)와 연동되어 있습니다. 그룹 생성 시 데이터베이스에 저장됩니다.
         </p>
       </div>
     </div>
