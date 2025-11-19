@@ -232,6 +232,65 @@ API 요청 제한이 적용됩니다:
 - **미인증 사용자**: IP 주소 기반 제한
 - **제한 정책**: API 라우터별로 개별 설정 (예: 로그인 5회/분)
 
+### ⚠️ Git 보안 - 민감한 파일 관리
+
+**중요**: `.env` 파일과 `*.db` 파일은 절대 Git에 커밋하지 마세요!
+
+#### .gitignore 확인
+
+다음 항목이 `.gitignore`에 포함되어 있는지 확인하세요:
+
+```gitignore
+# Backend environment files
+.env
+.env.*
+!.env.example
+
+# Database files (SQLite - dev only)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+```
+
+#### 이미 .env 파일이 Git에 커밋된 경우
+
+만약 실수로 `.env` 파일을 커밋했다면, 다음 절차로 제거하세요:
+
+```bash
+# 1. Git 캐시에서 .env 파일 제거 (로컬 파일은 유지)
+git rm --cached backend/.env
+
+# 2. 변경사항 커밋
+git commit -m "Remove .env file from Git tracking"
+
+# 3. 원격 저장소에 푸시
+git push
+
+# 4. ⚠️ 중요: JWT 키 재생성
+# 기존 키가 이미 Git 히스토리에 노출되었으므로, 새로운 키를 생성해야 합니다
+python -c "import secrets; print('JWT_SECRET_KEY=' + secrets.token_hex(32))"
+python -c "import secrets; print('JWT_REFRESH_SECRET_KEY=' + secrets.token_hex(32))"
+
+# 5. .env 파일의 키를 새로 생성한 키로 교체
+```
+
+**주의**: Git 히스토리에서 완전히 삭제하려면 `git filter-branch` 또는 `BFG Repo-Cleaner`를 사용해야 하지만, 이는 고급 작업이며 협업 시 주의가 필요합니다.
+
+#### 🚨 프로덕션 환경 보안 체크리스트
+
+운영 환경에 배포하기 전 반드시 확인하세요:
+
+- [ ] `.env` 파일이 Git에 포함되지 않았는지 확인 (`git ls-files | grep .env`)
+- [ ] 새로운 JWT 키를 생성했는지 확인 (개발용 키 사용 금지)
+- [ ] `DEBUG=False`로 설정했는지 확인
+- [ ] JWT 키가 최소 32자 이상인지 확인
+- [ ] CORS_ORIGINS에 실제 프론트엔드 도메인만 포함되어 있는지 확인
+- [ ] 데이터베이스를 PostgreSQL로 전환했는지 확인 (SQLite는 개발용)
+- [ ] HTTPS가 설정되어 있는지 확인
+
 ---
 
 ## 📁 프로젝트 구조
