@@ -26,6 +26,10 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+# Next.js env file priority: .env.local > .env.production/development > .env
+# .env - default values (can be committed if no secrets)
+# .env.local - local overrides with secrets (NEVER commit)
+.env.local
 .env*.local
 
 # vercel
