@@ -22,6 +22,7 @@ from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.database import init_db
 from app.core.limiter import limiter
+from app.core.response import success_response, error_response
 from app.routers import (
     auth_router,
     profiles_router,
@@ -61,55 +62,11 @@ app.add_middleware(
 
 
 # ==========================
-# 공통 응답 유틸리티
-# API_명세서.md 4.1, 4.2 기반
-# ==========================
-
-
-def success_response(data, status_code: int = 200):
-    """
-    성공 응답 포맷
-
-    Related: API_명세서.md 4.1
-    """
-    return JSONResponse(
-        status_code=status_code,
-        content={
-            "success": True,
-            "data": data,
-            "meta": {
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-                "request_id": str(uuid4()),
-            },
-        },
-    )
-
-
-def error_response(status_code: int, code: str, message: str, details=None):
-    """
-    에러 응답 포맷
-
-    Related: API_명세서.md 4.2, 5.2
-    """
-    return JSONResponse(
-        status_code=status_code,
-        content={
-            "success": False,
-            "error": {
-                "code": code,
-                "message": message,
-                "details": details,
-            },
-            "meta": {
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-                "request_id": str(uuid4()),
-            },
-        },
-    )
-
-
-# ==========================
 # Health Check
+# ==========================
+# NOTE: 공통 응답 유틸리티 (success_response, error_response)는
+#       app.core.response 모듈로 분리되었습니다.
+#       Related: API_명세서.md 4.1, 4.2
 # ==========================
 
 
