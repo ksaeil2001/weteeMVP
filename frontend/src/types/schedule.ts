@@ -89,6 +89,9 @@ export interface Schedule {
   // 취소/변경 사유
   cancelReason?: string;
   rescheduleReason?: string;
+
+  // F-005: 수업 기록 연결 (N+1 문제 해결)
+  lessonRecordId?: string; // 이 일정에 대한 수업 기록 ID
 }
 
 /**
