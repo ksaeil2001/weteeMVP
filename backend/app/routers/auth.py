@@ -104,7 +104,12 @@ def clear_auth_cookies(response: Response) -> None:
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("10/minute")
-def register(request: Request, payload: RegisterRequest, db: Session = Depends(get_db)):
+def register(
+    request: Request,
+    response: Response,
+    payload: RegisterRequest,
+    db: Session = Depends(get_db)
+):
     """
     회원가입 (선생님 일반 가입)
 
@@ -114,10 +119,13 @@ def register(request: Request, payload: RegisterRequest, db: Session = Depends(g
     - 선생님(TEACHER) 역할의 일반 회원가입
     - 이메일 중복 검사
     - 비밀번호 해싱 저장
+    - 가입 완료 후 자동 로그인 (토큰 발급)
     - 가입 완료 후 사용자 정보 반환
 
     **보안**:
     - Rate Limiting: 10회/분 (자동 가입 방지)
+    - HttpOnly Cookies: 토큰을 안전하게 쿠키로 저장 (XSS 방지)
+    - 회원가입 후 자동 로그인 지원
 
     **제한사항** (MVP 1차):
     - STUDENT/PARENT 초대 코드 가입은 추후 구현
@@ -175,7 +183,14 @@ def register(request: Request, payload: RegisterRequest, db: Session = Depends(g
         db.commit()
         db.refresh(new_user)
 
-        # 6. 응답 생성
+        # 6. JWT 토큰 생성 (회원가입 후 자동 로그인)
+        access_token = create_access_token(data={"sub": new_user.id})
+        refresh_token = create_refresh_token(data={"sub": new_user.id})
+
+        # 7. 토큰을 httpOnly 쿠키로 설정 (보안 강화)
+        set_auth_cookies(response, access_token, refresh_token)
+
+        # 8. 응답 생성 (토큰은 쿠키로만 전달, body에는 사용자 정보만 포함)
         # TODO: 이메일 인증 코드 발송 (F-001 6.1.2)
         return UserResponse(
             user_id=new_user.id,
