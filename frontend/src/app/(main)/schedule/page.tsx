@@ -27,6 +27,7 @@ import { useRouter } from 'next/navigation';
 import PageHeader from '@/components/common/PageHeader';
 import { fetchSchedules } from '@/lib/api/schedules';
 import type { Schedule, CalendarViewType } from '@/types/schedule';
+import { ScheduleCardSkeleton } from '@/components/ui/Skeleton';
 
 /**
  * 날짜 포맷 헬퍼
@@ -160,6 +161,7 @@ export default function SchedulePage() {
             type="button"
             onClick={() => router.push('/schedule/new')}
             className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
+            aria-label="새 수업 일정 추가"
           >
             + 일정 추가
           </button>
@@ -192,6 +194,8 @@ export default function SchedulePage() {
                 ? 'bg-primary-100 text-primary-700'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
+            aria-label="리스트 보기로 전환"
+            aria-pressed={viewType === 'list'}
           >
             리스트
           </button>
@@ -202,6 +206,8 @@ export default function SchedulePage() {
                 ? 'bg-primary-100 text-primary-700'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
+            aria-label="월간 보기로 전환"
+            aria-pressed={viewType === 'month'}
           >
             월간
           </button>
@@ -212,6 +218,8 @@ export default function SchedulePage() {
                 ? 'bg-primary-100 text-primary-700'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
+            aria-label="주간 보기로 전환"
+            aria-pressed={viewType === 'week'}
           >
             주간
           </button>
@@ -221,10 +229,13 @@ export default function SchedulePage() {
       {/* 오늘의 일정 요약 */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-bold text-gray-900 mb-4">
-          오늘의 일정 ({todaySchedules.length}개)
+          오늘의 일정 ({loading ? '...' : todaySchedules.length}개)
         </h2>
         {loading ? (
-          <div className="text-center py-8 text-gray-500">로딩 중...</div>
+          <div className="space-y-3" role="status" aria-label="일정 로딩 중">
+            <ScheduleCardSkeleton />
+            <ScheduleCardSkeleton />
+          </div>
         ) : todaySchedules.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             오늘 예정된 수업이 없습니다.
@@ -268,6 +279,7 @@ export default function SchedulePage() {
                   <button
                     type="button"
                     className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                    aria-label={`${schedule.title} 일정 상세 보기`}
                   >
                     상세 보기 →
                   </button>
@@ -281,10 +293,14 @@ export default function SchedulePage() {
       {/* 이번 주 일정 */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-bold text-gray-900 mb-4">
-          이번 주 일정 ({thisWeekSchedules.length}개)
+          이번 주 일정 ({loading ? '...' : thisWeekSchedules.length}개)
         </h2>
         {loading ? (
-          <div className="text-center py-8 text-gray-500">로딩 중...</div>
+          <div className="space-y-2" role="status" aria-label="주간 일정 로딩 중">
+            <ScheduleCardSkeleton />
+            <ScheduleCardSkeleton />
+            <ScheduleCardSkeleton />
+          </div>
         ) : thisWeekSchedules.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             이번 주에 예정된 수업이 없습니다.

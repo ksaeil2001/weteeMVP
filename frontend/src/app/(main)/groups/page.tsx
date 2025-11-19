@@ -27,6 +27,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { fetchGroups } from '@/lib/api/groups';
 import type { Group } from '@/types/group';
+import { GroupCardSkeleton } from '@/components/ui/Skeleton';
 
 export default function GroupsPage() {
   const router = useRouter();
@@ -79,13 +80,16 @@ export default function GroupsPage() {
               현재 운영 중인 과외 그룹을 관리합니다.
             </p>
           </div>
+          {currentRole === 'teacher' && (
+            <div className="w-32 h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+          )}
         </div>
 
-        <div className="flex justify-center items-center h-64">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-            <p className="mt-2 text-sm text-gray-500">그룹 목록을 불러오는 중...</p>
-          </div>
+        {/* 스켈레톤 UI - 그룹 카드 3개 표시 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <GroupCardSkeleton />
+          <GroupCardSkeleton />
+          <GroupCardSkeleton />
         </div>
       </div>
     );
@@ -131,6 +135,7 @@ export default function GroupsPage() {
             type="button"
             onClick={handleCreateGroup}
             className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
+            aria-label="새 과외 그룹 만들기"
           >
             + 새 그룹 만들기
           </button>
@@ -157,6 +162,7 @@ export default function GroupsPage() {
               type="button"
               onClick={handleCreateGroup}
               className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
+              aria-label="첫 번째 과외 그룹 만들기"
             >
               그룹 만들기
             </button>
@@ -223,6 +229,7 @@ export default function GroupsPage() {
                 <button
                   type="button"
                   className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                  aria-label={`${group.name} 그룹 상세 보기`}
                 >
                   상세 보기 →
                 </button>

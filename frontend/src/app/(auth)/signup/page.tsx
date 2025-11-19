@@ -171,10 +171,12 @@ export default function SignupPage() {
                 name="name"
                 type="text"
                 required
+                disabled={isLoading}
                 value={formData.name}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
                 placeholder="홍길동"
+                aria-label="이름 입력"
               />
             </div>
 
@@ -192,10 +194,12 @@ export default function SignupPage() {
                 type="email"
                 autoComplete="email"
                 required
+                disabled={isLoading}
                 value={formData.email}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
                 placeholder="email@example.com"
+                aria-label="이메일 주소 입력"
               />
             </div>
 
@@ -213,10 +217,12 @@ export default function SignupPage() {
                 type="password"
                 autoComplete="new-password"
                 required
+                disabled={isLoading}
                 value={formData.password}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
                 placeholder="••••••••"
+                aria-label="비밀번호 입력"
               />
             </div>
 
@@ -234,10 +240,12 @@ export default function SignupPage() {
                 type="password"
                 autoComplete="new-password"
                 required
+                disabled={isLoading}
                 value={formData.passwordConfirm}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
                 placeholder="••••••••"
+                aria-label="비밀번호 확인 입력"
               />
             </div>
 
@@ -255,10 +263,12 @@ export default function SignupPage() {
                 type="tel"
                 autoComplete="tel"
                 required
+                disabled={isLoading}
                 value={formData.phone}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
                 placeholder="010-1234-5678"
+                aria-label="전화번호 입력"
               />
             </div>
 
@@ -274,9 +284,11 @@ export default function SignupPage() {
                 id="role"
                 name="role"
                 required
+                disabled={isLoading}
                 value={formData.role}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                aria-label="역할 선택"
               >
                 <option value="teacher">선생님</option>
                 <option value="student">학생</option>
@@ -324,6 +336,7 @@ export default function SignupPage() {
               type="submit"
               disabled={isLoading}
               className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors mt-6"
+              aria-label={isLoading ? '회원가입 진행 중' : '회원가입'}
             >
               {isLoading ? '회원가입 중...' : '회원가입'}
             </button>
