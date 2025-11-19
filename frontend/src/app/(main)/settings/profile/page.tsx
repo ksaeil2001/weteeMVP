@@ -13,6 +13,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import {
   fetchUserProfile,
   updateUserProfile,
@@ -177,12 +178,13 @@ export default function ProfileSettingsPage() {
       <div className="bg-white border rounded-lg p-6">
         <h2 className="text-lg font-semibold mb-4">프로필 사진</h2>
         <div className="flex items-center space-x-6">
-          <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+          <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex-shrink-0 relative">
             {profile.profile_image_url ? (
-              <img
+              <Image
                 src={profile.profile_image_url}
                 alt="프로필"
-                className="w-full h-full object-cover"
+                fill
+                className="object-cover"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-gray-400">
