@@ -12,27 +12,30 @@ from dataclasses import dataclass, field
 API_BASE = "http://localhost:8000/api/v1"
 
 
-@dataclass
 class APIClient:
-    """HTTP client wrapper for API testing"""
-    base_url: str = API_BASE
-    token: Optional[str] = None
+    """HTTP client wrapper for API testing with cookie support"""
+
+    def __init__(self, base_url: str = API_BASE):
+        self.base_url = base_url
+        self.session = requests.Session()
+        self._token: Optional[str] = None
 
     def _headers(self) -> dict:
         headers = {"Content-Type": "application/json"}
-        if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
+        # Support both cookie-based and header-based auth
+        if self._token:
+            headers["Authorization"] = f"Bearer {self._token}"
         return headers
 
     def get(self, endpoint: str, **kwargs) -> requests.Response:
-        return requests.get(
+        return self.session.get(
             f"{self.base_url}{endpoint}",
             headers=self._headers(),
             **kwargs
         )
 
     def post(self, endpoint: str, json: dict = None, **kwargs) -> requests.Response:
-        return requests.post(
+        return self.session.post(
             f"{self.base_url}{endpoint}",
             headers=self._headers(),
             json=json,
@@ -40,7 +43,7 @@ class APIClient:
         )
 
     def put(self, endpoint: str, json: dict = None, **kwargs) -> requests.Response:
-        return requests.put(
+        return self.session.put(
             f"{self.base_url}{endpoint}",
             headers=self._headers(),
             json=json,
@@ -48,7 +51,7 @@ class APIClient:
         )
 
     def patch(self, endpoint: str, json: dict = None, **kwargs) -> requests.Response:
-        return requests.patch(
+        return self.session.patch(
             f"{self.base_url}{endpoint}",
             headers=self._headers(),
             json=json,
@@ -56,17 +59,24 @@ class APIClient:
         )
 
     def delete(self, endpoint: str, **kwargs) -> requests.Response:
-        return requests.delete(
+        return self.session.delete(
             f"{self.base_url}{endpoint}",
             headers=self._headers(),
             **kwargs
         )
 
     def set_token(self, token: str):
-        self.token = token
+        """Set token for header-based auth (optional, cookies are preferred)"""
+        self._token = token
 
     def clear_token(self):
-        self.token = None
+        """Clear token and cookies"""
+        self._token = None
+        self.session.cookies.clear()
+
+    def has_auth_cookies(self) -> bool:
+        """Check if authentication cookies are present"""
+        return "wetee_access_token" in self.session.cookies
 
 
 @dataclass
