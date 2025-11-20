@@ -49,6 +49,29 @@ class Settings(BaseSettings):
     TOSS_PAYMENTS_SECRET_KEY: str = ""  # 환경변수에서 로드 (개발: 빈 문자열, 운영: 실제 시크릿 키)
     TOSS_PAYMENTS_CLIENT_KEY: str = ""  # 개발용 클라이언트 키
 
+    # Email Service - F-008
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_FROM_NAME: str = "WeTee"
+    SMTP_USE_TLS: bool = True
+    EMAIL_ENABLED: bool = False
+
+    # SMS Service - F-008
+    SMS_PROVIDER: str = ""  # "aws_sns" or "naver_sens"
+    SMS_ENABLED: bool = False
+    # AWS SNS
+    AWS_REGION: str = "ap-northeast-2"
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    # NAVER SENS
+    NAVER_SENS_SERVICE_ID: str = ""
+    NAVER_SENS_ACCESS_KEY: str = ""
+    NAVER_SENS_SECRET_KEY: str = ""
+    NAVER_SENS_FROM_NUMBER: str = ""
+
     class Config:
         env_file = ".env"
         case_sensitive = True

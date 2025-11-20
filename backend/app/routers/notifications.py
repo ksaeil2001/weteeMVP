@@ -21,7 +21,10 @@ from app.schemas.notification import (
     FCMTokenResponse,
 )
 from app.services.notification_service import NotificationService
+from app.services.email_service import email_service
+from app.services.sms_service import sms_service
 from app.core.response import success_response
+from app.config import settings
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -305,6 +308,260 @@ def create_test_notification(
                 "message": "테스트 알림 생성 중 오류가 발생했습니다.",
             },
         )
+
+
+# ==========================
+# 고도화 기능 (이메일/SMS, 통계)
+# ==========================
+
+@router.get("/statistics")
+def get_notification_statistics(
+    days: int = Query(30, ge=1, le=365, description="통계 기간 (일)"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    알림 통계 조회
+
+    GET /api/v1/notifications/statistics
+
+    **기능**:
+    - 읽음률, 카테고리별/우선순위별 통계
+    - 일별 알림 추이
+    - 평균 읽기 시간
+
+    **Query Parameters**:
+    - days: 통계 기간 (기본: 30일, 최대: 365일)
+
+    **Response**:
+    - total_count: 총 알림 수
+    - read_count: 읽은 알림 수
+    - unread_count: 읽지 않은 알림 수
+    - read_rate: 읽음률 (%)
+    - by_category: 카테고리별 통계
+    - by_priority: 우선순위별 통계
+    - daily_trend: 일별 알림 추이
+    - avg_read_time: 평균 읽기 시간
+
+    Related: F-008 고도화
+    """
+    try:
+        statistics = NotificationService.get_notification_statistics(
+            db=db,
+            user_id=current_user.id,
+            days=days,
+        )
+        return success_response(data=statistics)
+    except Exception as e:
+        db.rollback()
+        print(f"🔥 Error fetching notification statistics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "NOTIFICATION006",
+                "message": "알림 통계를 가져오는 중 오류가 발생했습니다.",
+            },
+        )
+
+
+@router.post("/test-email", status_code=status.HTTP_200_OK)
+def send_test_email(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    테스트 이메일 발송
+
+    POST /api/v1/notifications/test-email
+
+    **기능**:
+    - 이메일 서비스 연동 테스트
+    - 현재 사용자의 이메일로 테스트 이메일 발송
+
+    **Response**:
+    - success: 발송 성공 여부
+    - message: 결과 메시지
+    - email_enabled: 이메일 서비스 활성화 여부
+
+    Related: F-008 고도화
+    """
+    if not settings.DEBUG:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "NOTIFICATION007",
+                "message": "테스트 이메일은 개발 환경에서만 사용할 수 있습니다.",
+            },
+        )
+
+    if not current_user.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "NOTIFICATION008",
+                "message": "사용자 이메일이 설정되지 않았습니다.",
+            },
+        )
+
+    is_enabled = email_service.is_enabled()
+    if not is_enabled:
+        return success_response(
+            data={
+                "success": False,
+                "message": "이메일 서비스가 비활성화되어 있습니다. 환경변수를 확인해주세요.",
+                "email_enabled": False,
+            }
+        )
+
+    success = email_service.send_test_email(current_user.email)
+    return success_response(
+        data={
+            "success": success,
+            "message": "테스트 이메일이 발송되었습니다." if success else "이메일 발송에 실패했습니다.",
+            "email_enabled": True,
+            "to_email": current_user.email,
+        }
+    )
+
+
+@router.post("/test-sms", status_code=status.HTTP_200_OK)
+def send_test_sms(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    테스트 SMS 발송
+
+    POST /api/v1/notifications/test-sms
+
+    **기능**:
+    - SMS 서비스 연동 테스트
+    - 현재 사용자의 전화번호로 테스트 SMS 발송
+
+    **Response**:
+    - success: 발송 성공 여부
+    - message: 결과 메시지
+    - sms_enabled: SMS 서비스 활성화 여부
+
+    Related: F-008 고도화
+    """
+    if not settings.DEBUG:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "NOTIFICATION009",
+                "message": "테스트 SMS는 개발 환경에서만 사용할 수 있습니다.",
+            },
+        )
+
+    if not current_user.phone:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "NOTIFICATION010",
+                "message": "사용자 전화번호가 설정되지 않았습니다.",
+            },
+        )
+
+    is_enabled = sms_service.is_enabled()
+    if not is_enabled:
+        return success_response(
+            data={
+                "success": False,
+                "message": "SMS 서비스가 비활성화되어 있습니다. 환경변수를 확인해주세요.",
+                "sms_enabled": False,
+            }
+        )
+
+    success = sms_service.send_test_sms(current_user.phone)
+    return success_response(
+        data={
+            "success": success,
+            "message": "테스트 SMS가 발송되었습니다." if success else "SMS 발송에 실패했습니다.",
+            "sms_enabled": True,
+            "to_phone": current_user.phone,
+        }
+    )
+
+
+@router.post("/cleanup", status_code=status.HTTP_200_OK)
+def cleanup_old_notifications(
+    read_retention_days: int = Query(30, ge=1, le=365, description="읽은 알림 보관 기간 (일)"),
+    unread_retention_days: int = Query(90, ge=1, le=365, description="읽지 않은 알림 보관 기간 (일)"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    오래된 알림 정리
+
+    POST /api/v1/notifications/cleanup
+
+    **기능**:
+    - 보관 기간이 지난 알림 삭제
+    - 읽은 알림: 기본 30일
+    - 읽지 않은 알림: 기본 90일
+
+    **Query Parameters**:
+    - read_retention_days: 읽은 알림 보관 기간
+    - unread_retention_days: 읽지 않은 알림 보관 기간
+
+    **Response**:
+    - deleted_count: 삭제된 알림 수
+
+    Related: F-008 고도화
+    """
+    try:
+        deleted_count = NotificationService.cleanup_old_notifications(
+            db=db,
+            user_id=current_user.id,
+            read_retention_days=read_retention_days,
+            unread_retention_days=unread_retention_days,
+        )
+        return success_response(
+            data={
+                "deleted_count": deleted_count,
+                "message": f"{deleted_count}개의 오래된 알림이 삭제되었습니다.",
+            }
+        )
+    except Exception as e:
+        db.rollback()
+        print(f"🔥 Error cleaning up notifications: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "NOTIFICATION011",
+                "message": "알림 정리 중 오류가 발생했습니다.",
+            },
+        )
+
+
+@router.get("/service-status")
+def get_notification_service_status(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    알림 서비스 상태 조회
+
+    GET /api/v1/notifications/service-status
+
+    **기능**:
+    - 이메일/SMS 서비스 활성화 상태 확인
+    - 서비스 설정 상태 확인
+
+    **Response**:
+    - email_enabled: 이메일 서비스 활성화 여부
+    - sms_enabled: SMS 서비스 활성화 여부
+    - sms_provider: SMS 프로바이더 (aws_sns / naver_sens)
+
+    Related: F-008 고도화
+    """
+    return success_response(
+        data={
+            "email_enabled": email_service.is_enabled(),
+            "sms_enabled": sms_service.is_enabled(),
+            "sms_provider": sms_service.config.provider if sms_service.is_enabled() else None,
+        }
+    )
 
 
 # ==========================
