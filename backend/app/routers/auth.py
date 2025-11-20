@@ -71,7 +71,7 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str) 
         max_age=COOKIE_MAX_AGE_ACCESS,
         httponly=True,
         secure=not settings.DEBUG,  # HTTPS only in production
-        samesite="strict",
+        samesite="lax",  # Lax allows cookies with top-level navigation
         path="/",
     )
 
@@ -82,7 +82,7 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str) 
         max_age=COOKIE_MAX_AGE_REFRESH,
         httponly=True,
         secure=not settings.DEBUG,  # HTTPS only in production
-        samesite="strict",
+        samesite="lax",  # Lax allows cookies with top-level navigation
         path="/",
     )
 
@@ -99,7 +99,7 @@ def clear_auth_cookies(response: Response) -> None:
         path="/",
         httponly=True,
         secure=not settings.DEBUG,
-        samesite="strict",
+        samesite="lax",
     )
 
     response.delete_cookie(
@@ -107,7 +107,7 @@ def clear_auth_cookies(response: Response) -> None:
         path="/",
         httponly=True,
         secure=not settings.DEBUG,
-        samesite="strict",
+        samesite="lax",
     )
 
 

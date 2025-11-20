@@ -43,10 +43,11 @@ def success_response(data, status_code: int = 200, response=None):
     )
 
     # Copy cookies from the original response if provided
+    # Use raw_headers to properly handle multiple Set-Cookie headers
     if response is not None:
-        for key, value in response.headers.items():
-            if key.lower() == "set-cookie":
-                json_response.headers.append(key, value)
+        for header_name, header_value in response.raw_headers:
+            if header_name.lower() == b"set-cookie":
+                json_response.raw_headers.append((header_name, header_value))
 
     return json_response
 
