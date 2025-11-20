@@ -56,7 +56,7 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str) 
     Security features:
     - HttpOnly: Prevents JavaScript access (XSS protection)
     - Secure: Only sent over HTTPS (disabled in development)
-    - SameSite=Strict: CSRF protection
+    - SameSite: None for cross-origin (dev), Lax for same-origin (prod)
     - Path=/: Available for all routes
 
     Args:
@@ -64,6 +64,11 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str) 
         access_token: JWT access token
         refresh_token: JWT refresh token
     """
+    # In development, use SameSite=None to allow cross-origin cookies
+    # (localhost:3000 -> localhost:8000 is cross-origin due to different ports)
+    # In production, use SameSite=Lax for better CSRF protection
+    samesite_value = "none" if settings.DEBUG else "lax"
+
     # Access Token cookie
     response.set_cookie(
         key=COOKIE_ACCESS_TOKEN_KEY,
@@ -71,7 +76,7 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str) 
         max_age=COOKIE_MAX_AGE_ACCESS,
         httponly=True,
         secure=not settings.DEBUG,  # HTTPS only in production
-        samesite="lax",  # Lax allows cookies with top-level navigation
+        samesite=samesite_value,
         path="/",
     )
 
@@ -82,7 +87,7 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str) 
         max_age=COOKIE_MAX_AGE_REFRESH,
         httponly=True,
         secure=not settings.DEBUG,  # HTTPS only in production
-        samesite="lax",  # Lax allows cookies with top-level navigation
+        samesite=samesite_value,
         path="/",
     )
 
@@ -94,12 +99,14 @@ def clear_auth_cookies(response: Response) -> None:
     Args:
         response: FastAPI Response object
     """
+    samesite_value = "none" if settings.DEBUG else "lax"
+
     response.delete_cookie(
         key=COOKIE_ACCESS_TOKEN_KEY,
         path="/",
         httponly=True,
         secure=not settings.DEBUG,
-        samesite="lax",
+        samesite=samesite_value,
     )
 
     response.delete_cookie(
@@ -107,7 +114,7 @@ def clear_auth_cookies(response: Response) -> None:
         path="/",
         httponly=True,
         secure=not settings.DEBUG,
-        samesite="lax",
+        samesite=samesite_value,
     )
 
 
