@@ -125,7 +125,24 @@ pip install -r requirements.txt
 pip install fastapi sqlalchemy uvicorn pydantic-settings passlib python-jose bcrypt
 ```
 
-### 3. "서버에 연결할 수 없습니다" (프론트엔드)
+### 3. bcrypt/passlib 호환성 에러
+
+**증상**: `'_bcrypt' object has no attribute '__about__'` 또는 유사한 bcrypt 관련 에러
+
+**원인**: bcrypt 5.x는 passlib 1.7.4와 호환되지 않습니다.
+
+**해결 방법**:
+```bash
+# bcrypt를 4.0.1로 다운그레이드
+pip install bcrypt==4.0.1
+
+# 버전 확인
+pip show bcrypt
+```
+
+**중요**: `requirements.txt`에는 이미 `bcrypt==4.0.1`이 명시되어 있습니다. 새로운 환경에서 설치할 때는 반드시 requirements.txt를 사용하세요.
+
+### 4. "서버에 연결할 수 없습니다" (프론트엔드)
 
 **원인**: 백엔드 서버가 실행 중이 아님
 
@@ -138,7 +155,7 @@ curl http://localhost:8000/api/v1/health
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 4. CORS 에러
+### 5. CORS 에러
 
 **원인**: 프론트엔드 URL이 CORS 허용 목록에 없음
 
