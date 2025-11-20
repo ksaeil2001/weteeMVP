@@ -291,7 +291,8 @@ def register(
 
         return success_response(
             data={"user": user_data.model_dump(mode='json')},
-            status_code=status.HTTP_201_CREATED
+            status_code=status.HTTP_201_CREATED,
+            response=response
         )
 
     except HTTPException:
@@ -436,7 +437,8 @@ def login(
     )
 
     return success_response(
-        data={"user": user_data.model_dump(mode='json')}
+        data={"user": user_data.model_dump(mode='json')},
+        response=response
     )
 
 
@@ -869,7 +871,8 @@ def refresh_tokens(request: Request, response: Response, db: Session = Depends(g
         set_auth_cookies(response, new_access_token, new_refresh_token)
 
         return success_response(
-            data={"message": "토큰이 갱신되었습니다."}
+            data={"message": "토큰이 갱신되었습니다."},
+            response=response
         )
 
     except HTTPException:
@@ -916,7 +919,8 @@ def logout(response: Response, current_user: User = Depends(get_current_user)):
     clear_auth_cookies(response)
 
     return success_response(
-        data={"message": "로그아웃되었습니다."}
+        data={"message": "로그아웃되었습니다."},
+        response=response
     )
 
 
