@@ -8,7 +8,7 @@ from uuid import uuid4
 from fastapi.responses import JSONResponse
 
 
-def success_response(data, status_code: int = 200):
+def success_response(data, status_code: int = 200, response=None):
     """
     성공 응답 포맷
 
@@ -17,6 +17,7 @@ def success_response(data, status_code: int = 200):
     Args:
         data: Response data (dict or any JSON-serializable object)
         status_code: HTTP status code (default: 200)
+        response: Optional existing Response object to copy cookies from
 
     Returns:
         JSONResponse with standardized format:
@@ -29,7 +30,7 @@ def success_response(data, status_code: int = 200):
             }
         }
     """
-    return JSONResponse(
+    json_response = JSONResponse(
         status_code=status_code,
         content={
             "success": True,
@@ -40,6 +41,14 @@ def success_response(data, status_code: int = 200):
             },
         },
     )
+
+    # Copy cookies from the original response if provided
+    if response is not None:
+        for key, value in response.headers.items():
+            if key.lower() == "set-cookie":
+                json_response.headers.append(key, value)
+
+    return json_response
 
 
 def error_response(status_code: int, code: str, message: str, details=None):
