@@ -193,3 +193,85 @@ class RefreshResponse(BaseModel):
     access_token: str = Field(..., description="새 액세스 토큰")
     refresh_token: str = Field(..., description="새 리프레시 토큰")
     token_type: str = Field(default="bearer", description="토큰 타입")
+
+
+# ============================================================================
+# Email Verification Schemas (F-001 6.1.2)
+# ============================================================================
+
+
+class EmailVerificationSendRequest(BaseModel):
+    """
+    이메일 인증 코드 발송 요청
+    POST /api/v1/auth/verify-email/send
+    """
+    email: EmailStr = Field(..., description="인증할 이메일 주소")
+
+
+class EmailVerificationConfirmRequest(BaseModel):
+    """
+    이메일 인증 코드 확인 요청
+    POST /api/v1/auth/verify-email/confirm
+    """
+    email: EmailStr = Field(..., description="이메일 주소")
+    code: str = Field(..., min_length=6, max_length=6, description="6자리 인증 코드")
+
+
+class EmailVerificationResponse(BaseModel):
+    """
+    이메일 인증 응답
+    """
+    message: str = Field(..., description="응답 메시지")
+    email: str = Field(..., description="이메일 주소")
+
+
+# ============================================================================
+# Password Reset Schemas (F-001 시나리오 5)
+# ============================================================================
+
+
+class PasswordResetRequestSchema(BaseModel):
+    """
+    비밀번호 재설정 요청
+    POST /api/v1/auth/password-reset/request
+    """
+    email: EmailStr = Field(..., description="가입된 이메일 주소")
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    """
+    비밀번호 재설정 확인
+    POST /api/v1/auth/password-reset/confirm
+    """
+    token: str = Field(..., description="비밀번호 재설정 토큰")
+    new_password: str = Field(..., min_length=8, description="새 비밀번호 (8자 이상)")
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        """
+        비밀번호 강도 검증 (RegisterRequest와 동일)
+        """
+        if len(v) < 8:
+            raise ValueError("비밀번호는 최소 8자 이상이어야 합니다")
+
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("비밀번호는 대문자를 최소 1개 포함해야 합니다")
+
+        if not re.search(r"[a-z]", v):
+            raise ValueError("비밀번호는 소문자를 최소 1개 포함해야 합니다")
+
+        if not re.search(r"\d", v):
+            raise ValueError("비밀번호는 숫자를 최소 1개 포함해야 합니다")
+
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
+            raise ValueError("비밀번호는 특수문자를 최소 1개 포함해야 합니다")
+
+        return v
+
+
+class PasswordResetResponse(BaseModel):
+    """
+    비밀번호 재설정 응답
+    """
+    message: str = Field(..., description="응답 메시지")

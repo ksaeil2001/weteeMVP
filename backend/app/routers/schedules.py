@@ -23,7 +23,7 @@ from app.core.response import success_response
 router = APIRouter(prefix="/schedules", tags=["schedules"])
 
 
-get@router.get("")
+@router.get("")
 def get_schedules(
     group_id: Optional[str] = Query(None, description="그룹 ID 필터"),
     type: Optional[str] = Query(None, description="일정 타입 필터 (REGULAR/MAKEUP/EXAM/HOLIDAY/OTHER)"),
@@ -90,7 +90,7 @@ def get_schedules(
         )
 
 
-post@router.post("/regular", status_code=status.HTTP_201_CREATED)
+@router.post("/regular", status_code=status.HTTP_201_CREATED)
 def create_regular_schedule(
     payload: CreateRegularSchedulePayload,
     current_user: User = Depends(get_current_user),
@@ -153,7 +153,7 @@ def create_regular_schedule(
         )
 
 
-post@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED)
 def create_schedule(
     payload: CreateSchedulePayload,
     current_user: User = Depends(get_current_user),
@@ -210,7 +210,7 @@ def create_schedule(
         )
 
 
-get@router.get("/{schedule_id}")
+@router.get("/{schedule_id}")
 def get_schedule_detail(
     schedule_id: str,
     current_user: User = Depends(get_current_user),
@@ -256,7 +256,7 @@ def get_schedule_detail(
         )
 
 
-patch@router.patch("/{schedule_id}")
+@router.patch("/{schedule_id}")
 def update_schedule(
     schedule_id: str,
     payload: UpdateSchedulePayload,
@@ -318,7 +318,7 @@ def update_schedule(
         )
 
 
-delete@router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_schedule(
     schedule_id: str,
     current_user: User = Depends(get_current_user),

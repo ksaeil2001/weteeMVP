@@ -45,7 +45,7 @@ invoices_router = APIRouter(prefix="/invoices", tags=["invoices"])
 # Dashboard API - F-006 시나리오 5
 # ==========================
 
-get@router.get("/dashboard")
+@router.get("/dashboard")
 def get_teacher_monthly_dashboard(
     year: int = Query(..., ge=2020, le=2100, description="조회 연도"),
     month: int = Query(..., ge=1, le=12, description="조회 월"),
@@ -111,7 +111,7 @@ def get_teacher_monthly_dashboard(
 # 정산 요약
 # ==========================
 
-get@router.get("/groups/{group_id}/summary")
+@router.get("/groups/{group_id}/summary")
 def get_group_monthly_settlement_summary(
     group_id: str = Path(..., description="그룹 ID"),
     year: int = Query(..., ge=2020, le=2100, description="정산 연도"),
@@ -178,7 +178,7 @@ def get_group_monthly_settlement_summary(
 # 청구서 생성
 # ==========================
 
-post@router.post("/groups/{group_id}/invoices", status_code=status.HTTP_201_CREATED)
+@router.post("/groups/{group_id}/invoices", status_code=status.HTTP_201_CREATED)
 def create_invoice_for_student(
     group_id: str = Path(..., description="그룹 ID"),
     payload: InvoiceCreateRequest = ...,
@@ -306,7 +306,7 @@ def get_invoice_detail(
 # 그룹별 청구서 목록 조회
 # ==========================
 
-get@router.get("/groups/{group_id}/invoices")
+@router.get("/groups/{group_id}/invoices")
 def list_group_invoices(
     group_id: str = Path(..., description="그룹 ID"),
     year: Optional[int] = Query(None, ge=2020, le=2100, description="필터: 연도"),
@@ -563,7 +563,7 @@ def cancel_invoice(
 # 학생별 정산 및 통계 - F-006
 # ==========================
 
-get@router.get("/students/{student_id}")
+@router.get("/students/{student_id}")
 def get_student_settlement_summary(
     student_id: str = Path(..., description="학생 ID"),
     year: int = Query(..., ge=2020, le=2100, description="조회 연도"),
@@ -618,7 +618,7 @@ def get_student_settlement_summary(
         )
 
 
-get@router.get("/statistics")
+@router.get("/statistics")
 def get_settlement_statistics(
     start_year: int = Query(..., ge=2020, le=2100, description="시작 연도"),
     start_month: int = Query(..., ge=1, le=12, description="시작 월"),
