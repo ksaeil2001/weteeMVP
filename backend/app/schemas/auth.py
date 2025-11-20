@@ -18,7 +18,7 @@ class RegisterRequest(BaseModel):
     회원가입 요청 스키마
     POST /api/v1/auth/register
 
-    Related: F-001, API_명세서.md 6.1.1
+    Related: F-001, F-002, API_명세서.md 6.1.1
     """
 
     email: EmailStr = Field(..., description="이메일 주소")
@@ -26,6 +26,7 @@ class RegisterRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, description="이름")
     phone: Optional[str] = Field(None, description="전화번호 (선택)")
     role: UserRoleType = Field(..., description="사용자 역할")
+    invite_code: Optional[str] = Field(None, description="초대 코드 (STUDENT/PARENT 필수)")
 
     @field_validator("password")
     @classmethod

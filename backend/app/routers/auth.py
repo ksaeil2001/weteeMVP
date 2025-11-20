@@ -12,6 +12,7 @@ from sqlalchemy.exc import OperationalError, IntegrityError
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User, UserRole
+from app.models.group import InviteCode, GroupMember, GroupMemberRole, GroupMemberInviteStatus
 from app.schemas.auth import (
     RegisterRequest,
     LoginRequest,
@@ -112,27 +113,29 @@ def register(
     db: Session = Depends(get_db)
 ):
     """
-    회원가입 (선생님 일반 가입)
+    회원가입
 
     POST /api/v1/auth/register
 
     **기능**:
-    - 선생님(TEACHER) 역할의 일반 회원가입
+    - 선생님(TEACHER): 일반 회원가입
+    - 학생/학부모(STUDENT/PARENT): 초대 코드 기반 가입
     - 이메일 중복 검사
     - 비밀번호 해싱 저장
     - 가입 완료 후 자동 로그인 (토큰 발급)
-    - 가입 완료 후 사용자 정보 반환
+    - 초대 코드 가입 시 해당 그룹에 자동 가입
+
+    **초대 코드 검증** (STUDENT/PARENT):
+    - 코드 존재 여부 (INVITE001)
+    - 만료 여부 (INVITE002)
+    - 사용 횟수 제한 (INVITE003)
+    - 역할 일치 여부 (INVITE004)
 
     **보안**:
     - Rate Limiting: 10회/분 (자동 가입 방지)
     - HttpOnly Cookies: 토큰을 안전하게 쿠키로 저장 (XSS 방지)
-    - 회원가입 후 자동 로그인 지원
 
-    **제한사항** (MVP 1차):
-    - STUDENT/PARENT 초대 코드 가입은 추후 구현
-    - 이메일 인증 코드 발송은 추후 구현 (현재는 is_email_verified=False)
-
-    Related: F-001, API_명세서.md 6.1.1, 3.2
+    Related: F-001, F-002, API_명세서.md 6.1.1, 3.2
     """
 
     try:
@@ -155,16 +158,76 @@ def register(
         }
         role = role_map.get(payload.role)
 
-        # 3. MVP 1차에서는 TEACHER만 가입 허용
-        # TODO: F-002에서 초대 코드 시스템 구현 후 STUDENT/PARENT 가입 활성화
-        if role != UserRole.TEACHER:
-            raise HTTPException(
-                status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                detail={
-                    "code": "COMMON001",
-                    "message": "학생/학부모 초대 코드 가입은 아직 구현되지 않았습니다. (TODO: F-002)",
-                },
-            )
+        # 3. STUDENT/PARENT는 초대 코드 필수
+        invite_code_obj = None
+        if role in (UserRole.STUDENT, UserRole.PARENT):
+            if not payload.invite_code:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "INVITE001",
+                        "message": "학생/학부모 가입에는 초대 코드가 필요합니다.",
+                    },
+                )
+
+            # 초대 코드 검증
+            invite_code_obj = db.query(InviteCode).filter(
+                InviteCode.code == payload.invite_code.upper()
+            ).first()
+
+            # 코드 존재 여부
+            if not invite_code_obj:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={
+                        "code": "INVITE001",
+                        "message": "존재하지 않는 초대 코드입니다.",
+                    },
+                )
+
+            # 만료 여부
+            if invite_code_obj.is_expired():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "INVITE002",
+                        "message": "만료된 초대 코드입니다.",
+                    },
+                )
+
+            # 사용 횟수 제한
+            if invite_code_obj.used_count >= invite_code_obj.max_uses:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "INVITE003",
+                        "message": "초대 코드 사용 횟수를 초과했습니다.",
+                    },
+                )
+
+            # 역할 일치 여부
+            role_match = {
+                UserRole.STUDENT: GroupMemberRole.STUDENT,
+                UserRole.PARENT: GroupMemberRole.PARENT,
+            }
+            if invite_code_obj.target_role != role_match.get(role):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "INVITE004",
+                        "message": f"이 초대 코드는 {invite_code_obj.target_role.value} 역할용입니다.",
+                    },
+                )
+
+            # 비활성화 상태 확인
+            if not invite_code_obj.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "INVITE001",
+                        "message": "사용할 수 없는 초대 코드입니다.",
+                    },
+                )
 
         # 4. 비밀번호 해싱
         password_hash = hash_password(payload.password)
@@ -184,14 +247,31 @@ def register(
         db.commit()
         db.refresh(new_user)
 
-        # 6. JWT 토큰 생성 (회원가입 후 자동 로그인)
+        # 6. 초대 코드 사용 시 그룹 멤버로 추가 및 사용 횟수 증가
+        if invite_code_obj:
+            # 그룹 멤버로 추가
+            group_member_role = GroupMemberRole.STUDENT if role == UserRole.STUDENT else GroupMemberRole.PARENT
+            new_member = GroupMember(
+                group_id=invite_code_obj.group_id,
+                user_id=new_user.id,
+                role=group_member_role,
+                invite_status=GroupMemberInviteStatus.ACCEPTED,
+            )
+            db.add(new_member)
+
+            # 초대 코드 사용 횟수 증가
+            invite_code_obj.increment_usage()
+
+            db.commit()
+
+        # 7. JWT 토큰 생성 (회원가입 후 자동 로그인)
         access_token = create_access_token(data={"sub": new_user.id})
         refresh_token = create_refresh_token(data={"sub": new_user.id})
 
-        # 7. 토큰을 httpOnly 쿠키로 설정 (보안 강화)
+        # 8. 토큰을 httpOnly 쿠키로 설정 (보안 강화)
         set_auth_cookies(response, access_token, refresh_token)
 
-        # 8. 응답 생성 (토큰은 쿠키로만 전달, body에는 사용자 정보만 포함)
+        # 9. 응답 생성 (토큰은 쿠키로만 전달, body에는 사용자 정보만 포함)
         # TODO: 이메일 인증 코드 발송 (F-001 6.1.2)
         user_data = UserResponse(
             user_id=new_user.id,
