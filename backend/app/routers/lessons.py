@@ -17,6 +17,7 @@ from app.schemas.lesson import (
     LessonRecordListResponse,
 )
 from app.services.lesson_service import LessonService
+from app.core.response import success_response
 
 router = APIRouter(prefix="/lesson-records", tags=["lessons"])
 
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/lesson-records", tags=["lessons"])
 # 수업 기록 작성
 # ==========================
 
-@router.post("/schedules/{schedule_id}", response_model=LessonRecordOut, status_code=status.HTTP_201_CREATED)
+post@router.post("/schedules/{schedule_id}", status_code=status.HTTP_201_CREATED)
 def create_lesson_record(
     schedule_id: str = Path(..., description="일정 ID"),
     payload: CreateLessonRecordPayload = ...,
@@ -61,8 +62,11 @@ def create_lesson_record(
             schedule_id=schedule_id,
             payload=payload
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json',
+            status_code=status.HTTP_201_CREATED
+        ) if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -81,7 +85,7 @@ def create_lesson_record(
 # 수업 기록 상세 조회
 # ==========================
 
-@router.get("/{lesson_record_id}", response_model=LessonRecordOut)
+get@router.get("/{lesson_record_id}")
 def get_lesson_record(
     lesson_record_id: str = Path(..., description="수업 기록 ID"),
     current_user: User = Depends(get_current_user),
@@ -108,8 +112,9 @@ def get_lesson_record(
             user=current_user,
             lesson_record_id=lesson_record_id
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -128,7 +133,7 @@ def get_lesson_record(
 # 수업 기록 수정
 # ==========================
 
-@router.patch("/{lesson_record_id}", response_model=LessonRecordOut)
+patch@router.patch("/{lesson_record_id}")
 def update_lesson_record(
     lesson_record_id: str = Path(..., description="수업 기록 ID"),
     payload: UpdateLessonRecordPayload = ...,
@@ -163,8 +168,9 @@ def update_lesson_record(
             lesson_record_id=lesson_record_id,
             payload=payload
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -183,7 +189,7 @@ def update_lesson_record(
 # 수업 기록 삭제
 # ==========================
 
-@router.delete("/{lesson_record_id}", status_code=status.HTTP_204_NO_CONTENT)
+delete@router.delete("/{lesson_record_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_lesson_record(
     lesson_record_id: str = Path(..., description="수업 기록 ID"),
     current_user: User = Depends(get_current_user),
@@ -211,7 +217,7 @@ def delete_lesson_record(
             user=current_user,
             lesson_record_id=lesson_record_id
         )
-        return None
+        return success_response(data={}, status_code=status.HTTP_204_NO_CONTENT)
 
     except HTTPException as e:
         raise e

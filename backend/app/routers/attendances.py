@@ -20,6 +20,7 @@ from app.schemas.attendance import (
     BatchAttendanceResponse,
 )
 from app.services.attendance_service import AttendanceService
+from app.core.response import success_response
 
 router = APIRouter(prefix="/attendances", tags=["attendances"])
 
@@ -28,7 +29,7 @@ router = APIRouter(prefix="/attendances", tags=["attendances"])
 # 출결 생성 (단일)
 # ==========================
 
-@router.post("", response_model=AttendanceOut, status_code=status.HTTP_201_CREATED)
+post@router.post("", status_code=status.HTTP_201_CREATED)
 def create_attendance(
     payload: CreateAttendancePayload,
     current_user: User = Depends(get_current_user),
@@ -63,8 +64,11 @@ def create_attendance(
             user=current_user,
             payload=payload
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json',
+            status_code=status.HTTP_201_CREATED
+        ) if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -83,7 +87,7 @@ def create_attendance(
 # 배치 출결 체크 (여러 학생 동시)
 # ==========================
 
-@router.post("/schedules/{schedule_id}/batch", response_model=BatchAttendanceResponse, status_code=status.HTTP_201_CREATED)
+post@router.post("/schedules/{schedule_id}/batch", status_code=status.HTTP_201_CREATED)
 def batch_create_attendances(
     schedule_id: str = Path(..., description="일정 ID"),
     payload: BatchCreateAttendancePayload = ...,
@@ -120,8 +124,11 @@ def batch_create_attendances(
             schedule_id=schedule_id,
             payload=payload
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json',
+            status_code=status.HTTP_201_CREATED
+        ) if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -140,7 +147,7 @@ def batch_create_attendances(
 # 출결 단건 조회
 # ==========================
 
-@router.get("/{attendance_id}", response_model=AttendanceOut)
+get@router.get("/{attendance_id}")
 def get_attendance(
     attendance_id: str = Path(..., description="출결 ID"),
     current_user: User = Depends(get_current_user),
@@ -169,8 +176,9 @@ def get_attendance(
             user=current_user,
             attendance_id=attendance_id
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -189,7 +197,7 @@ def get_attendance(
 # 출결 수정
 # ==========================
 
-@router.patch("/{attendance_id}", response_model=AttendanceOut)
+patch@router.patch("/{attendance_id}")
 def update_attendance(
     attendance_id: str = Path(..., description="출결 ID"),
     payload: UpdateAttendancePayload = ...,
@@ -227,8 +235,9 @@ def update_attendance(
             attendance_id=attendance_id,
             payload=payload
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -247,7 +256,7 @@ def update_attendance(
 # 일정별 출결 목록 조회
 # ==========================
 
-@router.get("/schedules/{schedule_id}", response_model=AttendanceListResponse)
+get@router.get("/schedules/{schedule_id}")
 def get_attendances_by_schedule(
     schedule_id: str = Path(..., description="일정 ID"),
     current_user: User = Depends(get_current_user),
@@ -277,8 +286,9 @@ def get_attendances_by_schedule(
             user=current_user,
             schedule_id=schedule_id
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -297,7 +307,7 @@ def get_attendances_by_schedule(
 # 학생별 출결 목록 조회
 # ==========================
 
-@router.get("/students/{student_id}", response_model=AttendanceListResponse)
+get@router.get("/students/{student_id}")
 def get_attendances_by_student(
     student_id: str = Path(..., description="학생 ID"),
     group_id: Optional[str] = Query(None, description="그룹 ID (선택)"),
@@ -339,8 +349,9 @@ def get_attendances_by_student(
             start_date=start_date,
             end_date=end_date,
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -359,7 +370,7 @@ def get_attendances_by_student(
 # 출결 통계 조회
 # ==========================
 
-@router.get("/groups/{group_id}/stats", response_model=AttendanceStatsResponse)
+get@router.get("/groups/{group_id}/stats")
 def get_attendance_stats(
     group_id: str = Path(..., description="그룹 ID"),
     student_id: Optional[str] = Query(None, description="학생 ID (선택, 특정 학생 통계)"),
@@ -404,8 +415,9 @@ def get_attendance_stats(
             start_date=start_date,
             end_date=end_date,
         )
-        return result
-
+        return success_response(
+            data=result.model_dump(mode='json') if hasattr(result, 'model_dump') else result
+        )
     except HTTPException as e:
         raise e
     except Exception as e:
