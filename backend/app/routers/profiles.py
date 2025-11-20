@@ -47,7 +47,7 @@ def get_my_profile(
     try:
         profile_data = ProfileService.get_user_profile(db, current_user)
 
-        return success_response(data=profile_data.model_dump(mode=\'json\') if hasattr(profile_data, \'model_dump\') else profile_data)
+        return success_response(data=profile_data.model_dump(mode='json') if hasattr(profile_data, 'model_dump') else profile_data)
     except Exception as e:
         db.rollback()
         raise HTTPException(
@@ -84,7 +84,7 @@ def update_my_profile(
     try:
         profile_data = ProfileService.update_user_profile(db, current_user, update_data)
 
-        return success_response(data=profile_data.model_dump(mode=\'json\') if hasattr(profile_data, \'model_dump\') else profile_data)
+        return success_response(data=profile_data.model_dump(mode='json') if hasattr(profile_data, 'model_dump') else profile_data)
     except HTTPException:
         raise
     except Exception as e:
@@ -187,7 +187,7 @@ def get_notification_settings(
     try:
         settings_data = ProfileService.get_notification_settings(db, current_user)
 
-        return success_response(data=settings_data.model_dump(mode=\'json\') if hasattr(settings_data, \'model_dump\') else settings_data)
+        return success_response(data=settings_data.model_dump(mode='json') if hasattr(settings_data, 'model_dump') else settings_data)
     except Exception as e:
         db.rollback()
         raise HTTPException(
@@ -226,7 +226,7 @@ def update_notification_settings(
     try:
         settings_data = ProfileService.update_notification_settings(db, current_user, update_data)
 
-        return success_response(data=settings_data.model_dump(mode=\'json\') if hasattr(settings_data, \'model_dump\') else settings_data)
+        return success_response(data=settings_data.model_dump(mode='json') if hasattr(settings_data, 'model_dump') else settings_data)
     except HTTPException:
         raise
     except Exception as e:

@@ -12,6 +12,7 @@ from app.models.attendance import Attendance
 from app.models.textbook import Textbook
 from app.models.lesson import LessonRecord, ProgressRecord
 from app.models.invoice import Invoice, Payment, Transaction
+from app.models.email_verification import EmailVerificationCode
 
 __all__ = [
     "User",
@@ -28,4 +29,5 @@ __all__ = [
     "Invoice",
     "Payment",
     "Transaction",
+    "EmailVerificationCode",
 ]

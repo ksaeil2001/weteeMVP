@@ -199,6 +199,66 @@ def get_user_id_from_token(token: str) -> Optional[str]:
 
 
 # ==============================================================================
+# Password Reset Token (F-001)
+# ==============================================================================
+
+
+def create_password_reset_token(user_id: str, email: str) -> str:
+    """
+    Create a JWT token for password reset
+
+    Args:
+        user_id: User's ID
+        email: User's email address
+
+    Returns:
+        Encoded JWT token string (valid for 1 hour)
+
+    Related: F-001 비밀번호 재설정
+    """
+    expire = datetime.utcnow() + timedelta(hours=1)
+
+    to_encode = {
+        "sub": user_id,
+        "email": email,
+        "exp": expire,
+        "type": "password_reset"
+    }
+
+    encoded_jwt = jwt.encode(
+        to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
+    )
+    return encoded_jwt
+
+
+def decode_password_reset_token(token: str) -> Optional[Dict[str, Any]]:
+    """
+    Decode and verify a password reset token
+
+    Args:
+        token: JWT password reset token string
+
+    Returns:
+        Decoded payload dict with user_id and email
+
+    Raises:
+        JWTError: If token is invalid or expired
+    """
+    try:
+        payload = jwt.decode(
+            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+        )
+
+        # Verify token type
+        if payload.get("type") != "password_reset":
+            raise JWTError("Invalid token type")
+
+        return payload
+    except JWTError:
+        raise
+
+
+# ==============================================================================
 # Toss Payments Webhook Signature Verification (F-006)
 # ==============================================================================
 

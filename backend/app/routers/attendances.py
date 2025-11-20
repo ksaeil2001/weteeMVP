@@ -29,7 +29,7 @@ router = APIRouter(prefix="/attendances", tags=["attendances"])
 # 출결 생성 (단일)
 # ==========================
 
-post@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED)
 def create_attendance(
     payload: CreateAttendancePayload,
     current_user: User = Depends(get_current_user),
@@ -87,7 +87,7 @@ def create_attendance(
 # 배치 출결 체크 (여러 학생 동시)
 # ==========================
 
-post@router.post("/schedules/{schedule_id}/batch", status_code=status.HTTP_201_CREATED)
+@router.post("/schedules/{schedule_id}/batch", status_code=status.HTTP_201_CREATED)
 def batch_create_attendances(
     schedule_id: str = Path(..., description="일정 ID"),
     payload: BatchCreateAttendancePayload = ...,
@@ -147,7 +147,7 @@ def batch_create_attendances(
 # 출결 단건 조회
 # ==========================
 
-get@router.get("/{attendance_id}")
+@router.get("/{attendance_id}")
 def get_attendance(
     attendance_id: str = Path(..., description="출결 ID"),
     current_user: User = Depends(get_current_user),
@@ -197,7 +197,7 @@ def get_attendance(
 # 출결 수정
 # ==========================
 
-patch@router.patch("/{attendance_id}")
+@router.patch("/{attendance_id}")
 def update_attendance(
     attendance_id: str = Path(..., description="출결 ID"),
     payload: UpdateAttendancePayload = ...,
@@ -256,7 +256,7 @@ def update_attendance(
 # 일정별 출결 목록 조회
 # ==========================
 
-get@router.get("/schedules/{schedule_id}")
+@router.get("/schedules/{schedule_id}")
 def get_attendances_by_schedule(
     schedule_id: str = Path(..., description="일정 ID"),
     current_user: User = Depends(get_current_user),
@@ -307,7 +307,7 @@ def get_attendances_by_schedule(
 # 학생별 출결 목록 조회
 # ==========================
 
-get@router.get("/students/{student_id}")
+@router.get("/students/{student_id}")
 def get_attendances_by_student(
     student_id: str = Path(..., description="학생 ID"),
     group_id: Optional[str] = Query(None, description="그룹 ID (선택)"),
@@ -370,7 +370,7 @@ def get_attendances_by_student(
 # 출결 통계 조회
 # ==========================
 
-get@router.get("/groups/{group_id}/stats")
+@router.get("/groups/{group_id}/stats")
 def get_attendance_stats(
     group_id: str = Path(..., description="그룹 ID"),
     student_id: Optional[str] = Query(None, description="학생 ID (선택, 특정 학생 통계)"),

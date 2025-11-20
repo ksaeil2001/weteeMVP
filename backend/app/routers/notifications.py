@@ -26,7 +26,7 @@ from app.core.response import success_response
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
-get@router.get("")
+@router.get("")
 def get_notifications(
     category: Optional[str] = Query(None, description="카테고리 필터 (all/schedule/attendance/payment/lesson/group/system)"),
     status: Optional[str] = Query("all", description="상태 필터 (all/read/unread)"),
@@ -83,7 +83,7 @@ def get_notifications(
         )
 
 
-get@router.get("/summary")
+@router.get("/summary")
 def get_notification_summary(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -129,7 +129,7 @@ def get_notification_summary(
         )
 
 
-patch@router.patch("/{notification_id}/read", status_code=status.HTTP_204_NO_CONTENT)
+@router.patch("/{notification_id}/read", status_code=status.HTTP_204_NO_CONTENT)
 def mark_notification_as_read(
     notification_id: str,
     current_user: User = Depends(get_current_user),
@@ -171,7 +171,7 @@ def mark_notification_as_read(
     return success_response(data={}, status_code=status.HTTP_204_NO_CONTENT)
 
 
-post@router.post("/read-all")
+@router.post("/read-all")
 def mark_all_notifications_as_read(
     payload: MarkAllReadRequest,
     current_user: User = Depends(get_current_user),
@@ -216,7 +216,7 @@ def mark_all_notifications_as_read(
         )
 
 
-delete@router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_notification(
     notification_id: str,
     current_user: User = Depends(get_current_user),
@@ -257,7 +257,7 @@ def delete_notification(
     return success_response(data={}, status_code=status.HTTP_204_NO_CONTENT)
 
 
-post@router.post("/test", status_code=status.HTTP_201_CREATED)
+@router.post("/test", status_code=status.HTTP_201_CREATED)
 def create_test_notification(
     payload: CreateTestNotificationRequest,
     current_user: User = Depends(get_current_user),
@@ -312,7 +312,7 @@ def create_test_notification(
 # MVP에서는 구현하지 않음
 # ==========================
 
-post@router.post("/fcm-token", status_code=status.HTTP_201_CREATED)
+@router.post("/fcm-token", status_code=status.HTTP_201_CREATED)
 def register_fcm_token(
     payload: FCMTokenRequest,
     current_user: User = Depends(get_current_user),
@@ -347,7 +347,7 @@ def register_fcm_token(
     )
 
 
-delete@router.delete("/fcm-token", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/fcm-token", status_code=status.HTTP_204_NO_CONTENT)
 def unregister_fcm_token(
     fcm_token: str = Query(..., description="FCM 토큰"),
     current_user: User = Depends(get_current_user),

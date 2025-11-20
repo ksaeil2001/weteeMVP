@@ -20,6 +20,10 @@ from app.schemas.auth import (
     UserResponse,
     RefreshRequest,
     RefreshResponse,
+    EmailVerificationSendRequest,
+    EmailVerificationConfirmRequest,
+    PasswordResetRequestSchema,
+    PasswordResetConfirmRequest,
 )
 from app.core.security import (
     hash_password,
@@ -27,7 +31,10 @@ from app.core.security import (
     create_access_token,
     create_refresh_token,
     decode_refresh_token,
+    create_password_reset_token,
+    decode_password_reset_token,
 )
+from app.models.email_verification import EmailVerificationCode
 from app.core.limiter import limiter
 from app.core.response import success_response
 from app.config import settings
@@ -470,21 +477,302 @@ def get_account(current_user: User = Depends(get_current_user)):
 # ============================================================================
 
 
-@router.post("/verify-email", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-def verify_email():
+@router.post("/verify-email/send", status_code=status.HTTP_200_OK)
+@limiter.limit("5/minute")
+def send_verification_email(
+    request: Request,
+    payload: EmailVerificationSendRequest,
+    db: Session = Depends(get_db)
+):
     """
-    이메일 인증
+    이메일 인증 코드 발송
 
-    POST /api/v1/auth/verify-email
+    POST /api/v1/auth/verify-email/send
 
-    **TODO**: F-001 6.1.2에서 구현 예정
-    - 이메일로 6자리 인증 코드 발송
-    - 코드 검증 및 is_email_verified 업데이트
+    **기능**:
+    - 6자리 랜덤 인증 코드 생성
+    - 이메일로 코드 발송 (MVP: 로그 출력만)
+    - 인증 코드 DB 저장 (유효기간 10분)
+
+    **보안**:
+    - Rate Limiting: 5회/분
+
+    Related: F-001 6.1.2
     """
-    return success_response(
-        data={"message": "이메일 인증 기능은 추후 구현 예정입니다. (TODO: F-001 6.1.2)"},
-        status_code=status.HTTP_501_NOT_IMPLEMENTED
-    )
+    try:
+        # 1. 사용자 조회
+        user = db.query(User).filter(User.email == payload.email.lower()).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "AUTH006",
+                    "message": "등록되지 않은 이메일입니다.",
+                },
+            )
+
+        # 2. 이미 인증된 경우
+        if user.is_email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "AUTH007",
+                    "message": "이미 인증된 이메일입니다.",
+                },
+            )
+
+        # 3. 기존 미사용 코드 무효화
+        db.query(EmailVerificationCode).filter(
+            EmailVerificationCode.user_id == user.id,
+            EmailVerificationCode.is_used == False
+        ).delete()
+
+        # 4. 새 인증 코드 생성
+        verification_code = EmailVerificationCode(
+            user_id=user.id,
+            email=user.email,
+            code=EmailVerificationCode.generate_code(),
+            expires_at=EmailVerificationCode.create_expiry(),
+        )
+        db.add(verification_code)
+        db.commit()
+
+        # 5. 이메일 발송 (MVP: 로그만 출력)
+        print(f"📧 [MVP] Email verification code for {user.email}: {verification_code.code}")
+        print(f"   └─ Valid until: {verification_code.expires_at}")
+
+        return success_response(
+            data={
+                "message": "인증 코드가 발송되었습니다.",
+                "email": user.email,
+            }
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error sending verification email: {e}")
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "INTERNAL_ERROR",
+                "message": "인증 코드 발송 중 오류가 발생했습니다.",
+            },
+        )
+
+
+@router.post("/verify-email/confirm", status_code=status.HTTP_200_OK)
+@limiter.limit("10/minute")
+def confirm_verification_email(
+    request: Request,
+    payload: EmailVerificationConfirmRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    이메일 인증 코드 확인
+
+    POST /api/v1/auth/verify-email/confirm
+
+    **기능**:
+    - 인증 코드 검증
+    - is_email_verified = True 업데이트
+    - 만료/불일치 시 에러
+
+    Related: F-001 6.1.2
+    """
+    try:
+        # 1. 사용자 조회
+        user = db.query(User).filter(User.email == payload.email.lower()).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "AUTH006",
+                    "message": "등록되지 않은 이메일입니다.",
+                },
+            )
+
+        # 2. 이미 인증된 경우
+        if user.is_email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "AUTH007",
+                    "message": "이미 인증된 이메일입니다.",
+                },
+            )
+
+        # 3. 최신 인증 코드 조회
+        verification = db.query(EmailVerificationCode).filter(
+            EmailVerificationCode.user_id == user.id,
+            EmailVerificationCode.is_used == False
+        ).order_by(EmailVerificationCode.created_at.desc()).first()
+
+        if not verification:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "AUTH008",
+                    "message": "인증 코드가 없습니다. 새로운 코드를 요청해주세요.",
+                },
+            )
+
+        # 4. 만료 확인
+        if verification.is_expired():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "AUTH009",
+                    "message": "인증 코드가 만료되었습니다. 새로운 코드를 요청해주세요.",
+                },
+            )
+
+        # 5. 코드 일치 확인
+        if verification.code != payload.code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "AUTH010",
+                    "message": "인증 코드가 일치하지 않습니다.",
+                },
+            )
+
+        # 6. 인증 완료 처리
+        verification.is_used = True
+        user.is_email_verified = True
+        user.email_verified_at = datetime.utcnow()
+        db.commit()
+
+        print(f"✅ Email verified for {user.email}")
+
+        return success_response(
+            data={
+                "message": "이메일 인증이 완료되었습니다.",
+                "email": user.email,
+            }
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error confirming verification: {e}")
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "INTERNAL_ERROR",
+                "message": "인증 확인 중 오류가 발생했습니다.",
+            },
+        )
+
+
+@router.post("/verify-email/resend", status_code=status.HTTP_200_OK)
+@limiter.limit("3/minute")
+def resend_verification_email(
+    request: Request,
+    payload: EmailVerificationSendRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    이메일 인증 코드 재발송
+
+    POST /api/v1/auth/verify-email/resend
+
+    **기능**:
+    - 1분 간격 제한
+    - 기존 코드 무효화 후 새 코드 발송
+
+    **보안**:
+    - Rate Limiting: 3회/분
+
+    Related: F-001 6.1.2
+    """
+    try:
+        # 1. 사용자 조회
+        user = db.query(User).filter(User.email == payload.email.lower()).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "AUTH006",
+                    "message": "등록되지 않은 이메일입니다.",
+                },
+            )
+
+        # 2. 이미 인증된 경우
+        if user.is_email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "AUTH007",
+                    "message": "이미 인증된 이메일입니다.",
+                },
+            )
+
+        # 3. 최근 발송 확인 (1분 제한)
+        recent_code = db.query(EmailVerificationCode).filter(
+            EmailVerificationCode.user_id == user.id,
+            EmailVerificationCode.is_used == False
+        ).order_by(EmailVerificationCode.created_at.desc()).first()
+
+        if recent_code and not recent_code.can_resend():
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "code": "AUTH011",
+                    "message": "인증 코드 재발송은 1분 후에 가능합니다.",
+                },
+            )
+
+        # 4. 기존 코드 무효화
+        db.query(EmailVerificationCode).filter(
+            EmailVerificationCode.user_id == user.id,
+            EmailVerificationCode.is_used == False
+        ).delete()
+
+        # 5. 새 인증 코드 생성
+        verification_code = EmailVerificationCode(
+            user_id=user.id,
+            email=user.email,
+            code=EmailVerificationCode.generate_code(),
+            expires_at=EmailVerificationCode.create_expiry(),
+        )
+        db.add(verification_code)
+        db.commit()
+
+        # 6. 이메일 발송 (MVP: 로그만 출력)
+        print(f"📧 [MVP] Email verification code resent for {user.email}: {verification_code.code}")
+        print(f"   └─ Valid until: {verification_code.expires_at}")
+
+        return success_response(
+            data={
+                "message": "인증 코드가 재발송되었습니다.",
+                "email": user.email,
+            }
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error resending verification email: {e}")
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "INTERNAL_ERROR",
+                "message": "인증 코드 재발송 중 오류가 발생했습니다.",
+            },
+        )
 
 
 @router.post("/refresh", status_code=status.HTTP_200_OK)
@@ -632,33 +920,158 @@ def logout(response: Response, current_user: User = Depends(get_current_user)):
     )
 
 
-@router.post("/password-reset/request", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-def request_password_reset():
+@router.post("/password-reset/request", status_code=status.HTTP_200_OK)
+@limiter.limit("3/minute")
+def request_password_reset(
+    request: Request,
+    payload: PasswordResetRequestSchema,
+    db: Session = Depends(get_db)
+):
     """
     비밀번호 재설정 요청
 
     POST /api/v1/auth/password-reset/request
 
-    **TODO**: F-001 시나리오 5에서 구현 예정
-    - 이메일로 재설정 링크 발송
+    **기능**:
+    - 이메일로 재설정 토큰 생성 (JWT, 1시간 유효)
+    - 재설정 링크 이메일 발송 (MVP: 로그만)
+
+    **보안**:
+    - Rate Limiting: 3회/분
+    - 사용자 존재 여부와 관계없이 동일한 응답 (정보 노출 방지)
+
+    Related: F-001 시나리오 5
     """
-    return success_response(
-        data={"message": "비밀번호 재설정 요청 기능은 추후 구현 예정입니다. (TODO: F-001 시나리오 5)"},
-        status_code=status.HTTP_501_NOT_IMPLEMENTED
-    )
+    try:
+        # 1. 사용자 조회 (존재 여부와 관계없이 동일 응답 - 보안)
+        user = db.query(User).filter(User.email == payload.email.lower()).first()
+
+        if user and user.is_active:
+            # 2. 비밀번호 재설정 토큰 생성
+            reset_token = create_password_reset_token(user.id, user.email)
+
+            # 3. 이메일 발송 (MVP: 로그만 출력)
+            # TODO: 실제 프로덕션에서는 이메일 서비스 연동
+            reset_link = f"http://localhost:3000/reset-password?token={reset_token}"
+            print(f"🔐 [MVP] Password reset link for {user.email}:")
+            print(f"   └─ {reset_link}")
+            print(f"   └─ Token (1h): {reset_token[:50]}...")
+
+        # 항상 동일한 응답 반환 (사용자 존재 여부 노출 방지)
+        return success_response(
+            data={
+                "message": "비밀번호 재설정 이메일이 발송되었습니다. 이메일을 확인해주세요.",
+            }
+        )
+
+    except Exception as e:
+        print(f"❌ Error requesting password reset: {e}")
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "INTERNAL_ERROR",
+                "message": "비밀번호 재설정 요청 중 오류가 발생했습니다.",
+            },
+        )
 
 
-@router.post("/password-reset/confirm", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-def confirm_password_reset():
+@router.post("/password-reset/confirm", status_code=status.HTTP_200_OK)
+@limiter.limit("5/minute")
+def confirm_password_reset(
+    request: Request,
+    payload: PasswordResetConfirmRequest,
+    db: Session = Depends(get_db)
+):
     """
     비밀번호 재설정 확인
 
     POST /api/v1/auth/password-reset/confirm
 
-    **TODO**: F-001 시나리오 5에서 구현 예정
-    - 재설정 토큰 검증 및 새 비밀번호 저장
+    **기능**:
+    - 토큰 검증
+    - 새 비밀번호 저장
+    - 기존 토큰 무효화 (JWT이므로 자동 만료)
+
+    Related: F-001 시나리오 5
     """
-    return success_response(
-        data={"message": "비밀번호 재설정 확인 기능은 추후 구현 예정입니다. (TODO: F-001 시나리오 5)"},
-        status_code=status.HTTP_501_NOT_IMPLEMENTED
-    )
+    try:
+        from jose import JWTError
+
+        # 1. 토큰 검증
+        try:
+            decoded = decode_password_reset_token(payload.token)
+        except JWTError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "AUTH012",
+                    "message": "유효하지 않거나 만료된 재설정 링크입니다.",
+                },
+            )
+
+        # 2. 사용자 ID 및 이메일 추출
+        user_id = decoded.get("sub")
+        email = decoded.get("email")
+
+        if not user_id or not email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "AUTH012",
+                    "message": "유효하지 않은 재설정 링크입니다.",
+                },
+            )
+
+        # 3. 사용자 조회
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "AUTH006",
+                    "message": "사용자를 찾을 수 없습니다.",
+                },
+            )
+
+        # 4. 계정 상태 확인
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": "AUTH005",
+                    "message": "비활성화된 계정입니다.",
+                },
+            )
+
+        # 5. 새 비밀번호 해싱 및 저장
+        user.password_hash = hash_password(payload.new_password)
+        user.updated_at = datetime.utcnow()
+        db.commit()
+
+        print(f"✅ Password reset completed for {user.email}")
+
+        # TODO: 기존 세션/토큰 무효화 (Redis 블랙리스트 등)
+
+        return success_response(
+            data={
+                "message": "비밀번호가 성공적으로 변경되었습니다. 새 비밀번호로 로그인해주세요.",
+            }
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error confirming password reset: {e}")
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "INTERNAL_ERROR",
+                "message": "비밀번호 재설정 중 오류가 발생했습니다.",
+            },
+        )

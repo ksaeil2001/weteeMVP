@@ -26,7 +26,7 @@ router = APIRouter(prefix="/lesson-records", tags=["lessons"])
 # 수업 기록 작성
 # ==========================
 
-post@router.post("/schedules/{schedule_id}", status_code=status.HTTP_201_CREATED)
+@router.post("/schedules/{schedule_id}", status_code=status.HTTP_201_CREATED)
 def create_lesson_record(
     schedule_id: str = Path(..., description="일정 ID"),
     payload: CreateLessonRecordPayload = ...,
@@ -85,7 +85,7 @@ def create_lesson_record(
 # 수업 기록 상세 조회
 # ==========================
 
-get@router.get("/{lesson_record_id}")
+@router.get("/{lesson_record_id}")
 def get_lesson_record(
     lesson_record_id: str = Path(..., description="수업 기록 ID"),
     current_user: User = Depends(get_current_user),
@@ -133,7 +133,7 @@ def get_lesson_record(
 # 수업 기록 수정
 # ==========================
 
-patch@router.patch("/{lesson_record_id}")
+@router.patch("/{lesson_record_id}")
 def update_lesson_record(
     lesson_record_id: str = Path(..., description="수업 기록 ID"),
     payload: UpdateLessonRecordPayload = ...,
@@ -189,7 +189,7 @@ def update_lesson_record(
 # 수업 기록 삭제
 # ==========================
 
-delete@router.delete("/{lesson_record_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{lesson_record_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_lesson_record(
     lesson_record_id: str = Path(..., description="수업 기록 ID"),
     current_user: User = Depends(get_current_user),
