@@ -33,6 +33,7 @@ class Settings(Base):
     # Notification Settings - F-007, F-008
     push_enabled = Column(Boolean, default=True, nullable=False)
     email_enabled = Column(Boolean, default=True, nullable=False)
+    sms_enabled = Column(Boolean, default=False, nullable=False)  # SMS는 기본 비활성화
 
     # Notification Categories (각 카테고리별 알림 on/off)
     # F-008: schedule, attendance, payment, group
@@ -73,6 +74,7 @@ class Settings(Base):
             "user_id": self.user_id,
             "push_enabled": self.push_enabled,
             "email_enabled": self.email_enabled,
+            "sms_enabled": self.sms_enabled,
             "notification_categories": self.notification_categories,
             "night_mode_enabled": self.night_mode_enabled,
             "night_mode_start": self.night_mode_start,
