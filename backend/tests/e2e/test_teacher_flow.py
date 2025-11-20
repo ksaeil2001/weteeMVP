@@ -24,17 +24,21 @@ class TestTeacherFlow:
         response = api_client.post("/auth/register", json=data)
         result = assert_success_response(response, "선생님 회원가입")
 
-        # Extract user ID from response
-        if "data" in result and "user" in result["data"]:
-            test_data.teacher_id = result["data"]["user"]["id"]
-        elif "user_id" in result:
-            test_data.teacher_id = result["user_id"]
+        # Extract user ID from response (standard format: data.user.user_id)
+        user_data = result.get("data", {}).get("user", {})
+        test_data.teacher_id = user_data.get("user_id", "")
 
         assert test_data.teacher_id, "Teacher ID not found in response"
+
+        # Verify auth cookies were set (auto-login after registration)
+        assert api_client.has_auth_cookies(), "Auth cookies not set after registration"
         print(f"\n✓ 선생님 회원가입 성공 - ID: {test_data.teacher_id}")
 
     def test_02_teacher_login(self, api_client: APIClient, test_data: TestData):
         """Step 2: 선생님 로그인"""
+        # Clear previous session to test fresh login
+        api_client.clear_token()
+
         data = {
             "email": test_data.teacher_email,
             "password": test_data.teacher_password
@@ -43,11 +47,12 @@ class TestTeacherFlow:
         response = api_client.post("/auth/login", json=data)
         result = assert_success_response(response, "선생님 로그인")
 
-        test_data.teacher_token = result["data"]["access_token"]
-        api_client.set_token(test_data.teacher_token)
+        # Verify cookies were set (token is in httpOnly cookie, not response body)
+        assert api_client.has_auth_cookies(), "Auth cookies not set after login"
 
-        assert test_data.teacher_token, "Access token not found"
-        print(f"\n✓ 선생님 로그인 성공 - Token: {test_data.teacher_token[:20]}...")
+        # Get user info from response
+        user_data = result.get("data", {}).get("user", {})
+        print(f"\n✓ 선생님 로그인 성공 - User: {user_data.get('email', 'N/A')}")
 
     def test_03_create_group(self, api_client: APIClient, test_data: TestData):
         """Step 3: 과외 그룹 생성"""

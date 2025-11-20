@@ -18,6 +18,7 @@ from app.schemas.textbook import (
 )
 from app.schemas.lesson import ProgressHistoryResponse
 from app.services.textbook_service import TextbookService
+from app.core.response import success_response
 
 router = APIRouter(prefix="/textbooks", tags=["textbooks"])
 
@@ -26,7 +27,7 @@ router = APIRouter(prefix="/textbooks", tags=["textbooks"])
 # 교재 등록
 # ==========================
 
-@router.post("/groups/{group_id}", response_model=TextbookOut, status_code=status.HTTP_201_CREATED)
+@router.post("/groups/{group_id}", status_code=status.HTTP_201_CREATED)
 def create_textbook(
     group_id: str = Path(..., description="그룹 ID"),
     payload: CreateTextbookPayload = ...,
@@ -61,7 +62,10 @@ def create_textbook(
             group_id=group_id,
             payload=payload
         )
-        return result
+        return success_response(
+            data={"textbook": result.model_dump(mode='json')},
+            status_code=status.HTTP_201_CREATED
+        )
 
     except HTTPException as e:
         raise e
@@ -80,7 +84,7 @@ def create_textbook(
 # 교재 목록 조회
 # ==========================
 
-@router.get("/groups/{group_id}", response_model=TextbookListResponse)
+@router.get("/groups/{group_id}")
 def get_textbooks(
     group_id: str = Path(..., description="그룹 ID"),
     include_inactive: bool = Query(False, description="비활성 교재 포함 여부"),
@@ -112,7 +116,9 @@ def get_textbooks(
             group_id=group_id,
             include_inactive=include_inactive
         )
-        return TextbookListResponse(items=textbooks)
+        return success_response(
+            data={"items": [t.model_dump(mode='json') for t in textbooks]}
+        )
 
     except HTTPException as e:
         raise e
@@ -131,7 +137,7 @@ def get_textbooks(
 # 교재 수정
 # ==========================
 
-@router.patch("/{textbook_id}", response_model=TextbookOut)
+@router.patch("/{textbook_id}")
 def update_textbook(
     textbook_id: str = Path(..., description="교재 ID"),
     payload: UpdateTextbookPayload = ...,
@@ -166,7 +172,9 @@ def update_textbook(
             textbook_id=textbook_id,
             payload=payload
         )
-        return result
+        return success_response(
+            data={"textbook": result.model_dump(mode='json')}
+        )
 
     except HTTPException as e:
         raise e
@@ -234,7 +242,7 @@ def delete_textbook(
 # 교재별 진도 요약 및 히스토리 조회
 # ==========================
 
-@router.get("/groups/{group_id}/progress/{textbook_id}", response_model=ProgressHistoryResponse)
+@router.get("/groups/{group_id}/progress/{textbook_id}")
 def get_progress_summary(
     group_id: str = Path(..., description="그룹 ID"),
     textbook_id: str = Path(..., description="교재 ID"),
@@ -263,7 +271,9 @@ def get_progress_summary(
             group_id=group_id,
             textbook_id=textbook_id
         )
-        return result
+        return success_response(
+            data={"progress": result.model_dump(mode='json')}
+        )
 
     except HTTPException as e:
         raise e

@@ -401,9 +401,10 @@ def verify_email():
     - 이메일로 6자리 인증 코드 발송
     - 코드 검증 및 is_email_verified 업데이트
     """
-    return {
-        "message": "이메일 인증 기능은 추후 구현 예정입니다. (TODO: F-001 6.1.2)"
-    }
+    return success_response(
+        data={"message": "이메일 인증 기능은 추후 구현 예정입니다. (TODO: F-001 6.1.2)"},
+        status_code=status.HTTP_501_NOT_IMPLEMENTED
+    )
 
 
 @router.post("/refresh", status_code=status.HTTP_200_OK)
@@ -561,9 +562,10 @@ def request_password_reset():
     **TODO**: F-001 시나리오 5에서 구현 예정
     - 이메일로 재설정 링크 발송
     """
-    return {
-        "message": "비밀번호 재설정 요청 기능은 추후 구현 예정입니다. (TODO: F-001 시나리오 5)"
-    }
+    return success_response(
+        data={"message": "비밀번호 재설정 요청 기능은 추후 구현 예정입니다. (TODO: F-001 시나리오 5)"},
+        status_code=status.HTTP_501_NOT_IMPLEMENTED
+    )
 
 
 @router.post("/password-reset/confirm", status_code=status.HTTP_501_NOT_IMPLEMENTED)
@@ -576,6 +578,7 @@ def confirm_password_reset():
     **TODO**: F-001 시나리오 5에서 구현 예정
     - 재설정 토큰 검증 및 새 비밀번호 저장
     """
-    return {
-        "message": "비밀번호 재설정 확인 기능은 추후 구현 예정입니다. (TODO: F-001 시나리오 5)"
-    }
+    return success_response(
+        data={"message": "비밀번호 재설정 확인 기능은 추후 구현 예정입니다. (TODO: F-001 시나리오 5)"},
+        status_code=status.HTTP_501_NOT_IMPLEMENTED
+    )
