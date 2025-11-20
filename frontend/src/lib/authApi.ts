@@ -67,23 +67,26 @@ export async function loginWithEmail(
 
   // API 호출 (토큰은 쿠키로 자동 설정됨)
   const responseData = await apiRequest<{
-    user_id: string;
-    email: string;
-    name: string;
-    role: string;
-    is_email_verified: boolean;
+    user: {
+      user_id: string;
+      email: string;
+      name: string;
+      role: string;
+      is_email_verified: boolean;
+    };
   }>('/auth/login', {
     method: 'POST',
     body: JSON.stringify(requestBody),
   });
 
   // snake_case → camelCase 변환
+  const user = responseData.user;
   const result: RegisterResponseData = {
-    userId: responseData.user_id,
-    email: responseData.email,
-    name: responseData.name,
-    role: responseData.role.toUpperCase() as 'TEACHER' | 'STUDENT' | 'PARENT',
-    emailVerified: responseData.is_email_verified,
+    userId: user.user_id,
+    email: user.email,
+    name: user.name,
+    role: user.role.toUpperCase() as 'TEACHER' | 'STUDENT' | 'PARENT',
+    emailVerified: user.is_email_verified,
   };
 
   return result;
@@ -144,24 +147,27 @@ export async function registerWithEmail(
 
   // API 호출
   const responseData = await apiRequest<{
-    user_id: string;
-    email: string;
-    name: string;
-    role: string;
-    is_email_verified: boolean;
-    created_at?: string; // 백엔드에서 반환하지만 현재 사용하지 않음
+    user: {
+      user_id: string;
+      email: string;
+      name: string;
+      role: string;
+      is_email_verified: boolean;
+      created_at?: string; // 백엔드에서 반환하지만 현재 사용하지 않음
+    };
   }>('/auth/register', {
     method: 'POST',
     body: JSON.stringify(requestBody),
   });
 
   // snake_case → camelCase 변환
+  const user = responseData.user;
   const result: RegisterResponseData = {
-    userId: responseData.user_id,
-    email: responseData.email,
-    name: responseData.name,
-    role: responseData.role.toUpperCase() as 'TEACHER' | 'STUDENT' | 'PARENT',
-    emailVerified: responseData.is_email_verified,
+    userId: user.user_id,
+    email: user.email,
+    name: user.name,
+    role: user.role.toUpperCase() as 'TEACHER' | 'STUDENT' | 'PARENT',
+    emailVerified: user.is_email_verified,
   };
 
   return result;
@@ -200,15 +206,15 @@ export async function refreshAccessToken(
   _payload: RefreshTokenRequestPayload,
 ): Promise<{ success: boolean }> {
   // API 호출 (refreshToken은 쿠키에서 자동 전송)
-  const responseData = await apiRequest<{
-    success: boolean;
+  await apiRequest<{
     message: string;
   }>('/auth/refresh', {
     method: 'POST',
     body: JSON.stringify({}), // body는 비워둠 (쿠키에서 토큰 읽음)
   });
 
-  return { success: responseData.success };
+  // 성공적으로 호출되면 true 반환 (에러 시 예외 발생)
+  return { success: true };
 }
 
 /**
@@ -241,22 +247,25 @@ export async function refreshAccessToken(
 export async function getCurrentAccount(): Promise<RegisterResponseData> {
   // API 호출 (쿠키에서 자동으로 토큰 전송)
   const responseData = await apiRequest<{
-    user_id: string;
-    email: string;
-    name: string;
-    role: string;
-    is_email_verified: boolean;
+    user: {
+      user_id: string;
+      email: string;
+      name: string;
+      role: string;
+      is_email_verified: boolean;
+    };
   }>('/auth/account', {
     method: 'GET',
   });
 
   // snake_case → camelCase 변환
+  const user = responseData.user;
   const result: RegisterResponseData = {
-    userId: responseData.user_id,
-    email: responseData.email,
-    name: responseData.name,
-    role: responseData.role.toUpperCase() as 'TEACHER' | 'STUDENT' | 'PARENT',
-    emailVerified: responseData.is_email_verified,
+    userId: user.user_id,
+    email: user.email,
+    name: user.name,
+    role: user.role.toUpperCase() as 'TEACHER' | 'STUDENT' | 'PARENT',
+    emailVerified: user.is_email_verified,
   };
 
   return result;
@@ -285,12 +294,12 @@ export async function getCurrentAccount(): Promise<RegisterResponseData> {
  */
 export async function logoutUser(): Promise<{ success: boolean }> {
   // API 호출 (쿠키 삭제는 백엔드에서 처리)
-  const responseData = await apiRequest<{
-    success: boolean;
+  await apiRequest<{
     message: string;
   }>('/auth/logout', {
     method: 'POST',
   });
 
-  return { success: responseData.success };
+  // 성공적으로 호출되면 true 반환 (에러 시 예외 발생)
+  return { success: true };
 }
