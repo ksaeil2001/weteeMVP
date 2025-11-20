@@ -315,7 +315,10 @@ export async function apiRequest<T>(
   }
 
   // 401 Unauthorized 처리 - 토큰 자동 갱신
-  if (response.status === 401 && _retry && path !== '/auth/refresh') {
+  // /auth/account는 인증 상태 확인용이므로 401시 refresh 시도하지 않음
+  // /auth/logout도 마찬가지로 refresh 불필요
+  const skipRefreshPaths = ['/auth/refresh', '/auth/account', '/auth/logout'];
+  if (response.status === 401 && _retry && !skipRefreshPaths.includes(path)) {
     if (isRefreshing) {
       // 이미 토큰 갱신 중이면 큐에 대기
       return new Promise((resolve, reject) => {
