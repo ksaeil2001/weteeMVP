@@ -144,16 +144,16 @@ export const Input: React.FC<InputProps> = ({
     onChange(newValue);
   };
 
-  // Base input styles with design tokens
-  const baseInputStyles = 'w-full px-4 py-3 rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2';
+  // Base input styles with new design tokens (larger rounded corners)
+  const baseInputStyles = 'w-full px-4 py-3 rounded-xl border-2 transition-all duration-200 focus:outline-none focus:ring-4';
 
-  // Border and state styles
-  let borderStyles = 'border-gray-300 focus:border-blue-500 focus:ring-blue-200';
+  // Border and state styles (updated colors to match DESIGN_STYLE_GUIDE.md)
+  let borderStyles = 'border-gray-200 focus:border-primary-500 focus:ring-primary-100';
 
   if (error || emailError) {
-    borderStyles = 'border-red-500 focus:border-red-500 focus:ring-red-200';
+    borderStyles = 'border-red-500 focus:border-red-500 focus:ring-red-100';
   } else if (success) {
-    borderStyles = 'border-green-500 focus:border-green-500 focus:ring-green-200';
+    borderStyles = 'border-green-500 focus:border-green-500 focus:ring-green-100';
   }
 
   if (disabled) {

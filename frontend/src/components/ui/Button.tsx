@@ -75,36 +75,36 @@ export const Button: React.FC<ButtonProps> = ({
   className = '',
   icon,
 }) => {
-  // Base styles: rounded corners, font weight, transition
-  const baseStyles = 'rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2';
+  // Base styles: large rounded corners, font weight, transition
+  const baseStyles = 'rounded-2xl font-semibold transition-all duration-200 ease-smooth flex items-center justify-center gap-2 focus:outline-none focus:ring-4';
 
-  // Size styles (height based on UX_UI design system)
+  // Size styles (height based on new design system)
   const sizeStyles = {
     small: 'h-10 px-4 text-sm',      // 40px height
-    medium: 'h-12 px-5 text-base',   // 48px height
+    medium: 'h-12 px-6 text-base',   // 48px height
     large: 'h-14 px-6 text-base',    // 56px height
   };
 
-  // Variant styles (colors based on design system)
+  // Variant styles (colors based on new design system - DESIGN_STYLE_GUIDE.md)
   const variantStyles = {
     primary: disabled || loading
-      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-      : 'bg-blue-500 text-white hover:bg-blue-700 active:bg-blue-800',
+      ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-sm'
+      : 'bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 shadow-md hover:shadow-lg focus:ring-primary-200 active:scale-95',
     secondary: disabled || loading
-      ? 'bg-transparent border border-gray-300 text-gray-400 cursor-not-allowed'
-      : 'bg-transparent border border-blue-500 text-blue-500 hover:bg-blue-50 active:bg-blue-100',
+      ? 'bg-white border-2 border-gray-300 text-gray-400 cursor-not-allowed shadow-sm'
+      : 'bg-white border-2 border-gray-300 text-gray-700 hover:bg-gray-50 active:bg-gray-100 shadow-sm hover:shadow-md focus:ring-gray-200 active:scale-95',
     outline: disabled || loading
-      ? 'bg-transparent border border-gray-300 text-gray-400 cursor-not-allowed'
-      : 'bg-transparent border border-blue-500 text-blue-500 hover:bg-blue-50 active:bg-blue-100',
+      ? 'bg-transparent border-2 border-gray-300 text-gray-400 cursor-not-allowed'
+      : 'bg-transparent border-2 border-gray-300 text-gray-700 hover:bg-gray-50 active:bg-gray-100 focus:ring-gray-200 active:scale-95',
     text: disabled || loading
       ? 'bg-transparent text-gray-400 cursor-not-allowed'
-      : 'bg-transparent text-blue-500 hover:bg-blue-50 active:bg-blue-100',
+      : 'bg-transparent text-primary-500 hover:bg-primary-50 active:bg-primary-100 focus:ring-primary-100',
     ghost: disabled || loading
       ? 'bg-transparent text-gray-400 cursor-not-allowed'
-      : 'bg-transparent text-gray-700 hover:bg-gray-100 active:bg-gray-200',
+      : 'bg-transparent text-gray-700 hover:bg-gray-100 active:bg-gray-200 focus:ring-gray-200',
     danger: disabled || loading
-      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-      : 'bg-red-500 text-white hover:bg-red-600 active:bg-red-700',
+      ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-sm'
+      : 'bg-red-500 text-white hover:bg-red-600 active:bg-red-700 shadow-md hover:shadow-lg focus:ring-red-200 active:scale-95',
   };
 
   const combinedStyles = `${baseStyles} ${sizeStyles[size]} ${variantStyles[variant]} ${className}`;
