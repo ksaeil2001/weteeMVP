@@ -170,6 +170,26 @@ export default function ScheduleDetailPage() {
         title="일정 상세"
         actions={
           <div className="flex items-center gap-2">
+            {/* 수업 기록 작성 버튼 - 완료된 일정에 대해 표시 */}
+            {(schedule.status === 'DONE' || schedule.status === 'SCHEDULED') && !schedule.lessonRecordId && (
+              <button
+                type="button"
+                onClick={() => router.push(`/lessons/new?scheduleId=${scheduleId}`)}
+                className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
+              >
+                수업 기록 작성
+              </button>
+            )}
+            {/* 수업 기록이 이미 있으면 보기 버튼 */}
+            {schedule.lessonRecordId && (
+              <button
+                type="button"
+                onClick={() => router.push(`/lessons/${schedule.lessonRecordId}`)}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+              >
+                수업 기록 보기
+              </button>
+            )}
             <button
               type="button"
               onClick={() => router.push(`/schedule/${scheduleId}/edit`)}

@@ -20,6 +20,7 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 
 // Mock 데이터
@@ -67,6 +68,7 @@ const mockRecentLessons = [
 ];
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { currentUser } = useAuth();
 
   return (
@@ -177,6 +179,7 @@ export default function DashboardPage() {
         <div className="lg:col-span-2 space-y-3">
           <button
             type="button"
+            onClick={() => router.push('/lessons')}
             className="w-full p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50/30 transition-all text-left group shadow-sm"
           >
             <div className="flex items-center gap-3">
@@ -194,6 +197,7 @@ export default function DashboardPage() {
 
           <button
             type="button"
+            onClick={() => router.push('/payments')}
             className="w-full p-3 bg-white border border-gray-200 rounded-lg hover:border-violet-300 hover:bg-violet-50/30 transition-all text-left group shadow-sm"
           >
             <div className="flex items-center gap-3">
@@ -211,6 +215,7 @@ export default function DashboardPage() {
 
           <button
             type="button"
+            onClick={() => router.push('/schedule/create')}
             className="w-full p-3 bg-white border border-gray-200 rounded-lg hover:border-emerald-300 hover:bg-emerald-50/30 transition-all text-left group shadow-sm"
           >
             <div className="flex items-center gap-3">
