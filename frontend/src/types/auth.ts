@@ -102,6 +102,7 @@ export interface LoginResponseData {
  * 참고:
  * - role은 반드시 대문자 형태('TEACHER' | 'STUDENT' | 'PARENT')로 전송
  * - profile은 선택 필드이며, 값이 없을 경우 요청 바디에서 생략 가능
+ * - inviteCode는 STUDENT/PARENT 역할일 때 필수
  */
 export interface RegisterRequestPayload {
   /** 이메일 주소 */
@@ -120,6 +121,12 @@ export interface RegisterRequestPayload {
   role: UserRoleCode;
 
   /**
+   * 초대 코드 (STUDENT/PARENT 필수)
+   * 선생님으로부터 받은 6자리 코드
+   */
+  inviteCode?: string;
+
+  /**
    * 프로필 추가 정보 (선택)
    * 선생님/학생의 경우 과목, 학교 정보 등을 포함
    */
@@ -130,6 +137,42 @@ export interface RegisterRequestPayload {
     /** 학교 이름 (재학 중인 학교 또는 출신 학교) */
     school?: string;
   };
+}
+
+/**
+ * 초대 코드 검증 요청 페이로드
+ *
+ * API 엔드포인트: POST /api/v1/auth/verify-invite-code
+ */
+export interface VerifyInviteCodeRequestPayload {
+  /** 6자리 초대 코드 */
+  code: string;
+
+  /** 가입하려는 역할 (STUDENT/PARENT) */
+  roleType: 'STUDENT' | 'PARENT';
+}
+
+/**
+ * 초대 코드 검증 응답 데이터
+ */
+export interface VerifyInviteCodeResponseData {
+  /** 코드 유효 여부 */
+  valid: boolean;
+
+  /** 그룹 ID */
+  groupId: string;
+
+  /** 그룹 이름 */
+  groupName: string;
+
+  /** 선생님 이름 */
+  teacherName: string;
+
+  /** 과목 */
+  subject: string;
+
+  /** 만료 시각 (ISO 8601) */
+  expiresAt: string;
 }
 
 /**

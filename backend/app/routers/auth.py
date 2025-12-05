@@ -35,9 +35,11 @@ from app.core.security import (
     decode_password_reset_token,
 )
 from app.models.email_verification import EmailVerificationCode
+from app.models.group import Group
 from app.core.limiter import limiter
 from app.core.response import success_response
 from app.config import settings
+from app.schemas.invite_code import InviteCodeVerifyRequest, InviteCodeVerifyResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -1084,5 +1086,147 @@ def confirm_password_reset(
             detail={
                 "code": "INTERNAL_ERROR",
                 "message": "비밀번호 재설정 중 오류가 발생했습니다.",
+            },
+        )
+
+
+# ============================================================================
+# Invite Code Verification (Public Endpoint - No Auth Required)
+# ============================================================================
+
+
+@router.post("/verify-invite-code", status_code=status.HTTP_200_OK)
+@limiter.limit("20/minute")
+def verify_invite_code(
+    request: Request,
+    payload: InviteCodeVerifyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    초대 코드 검증 (비인증 엔드포인트)
+
+    POST /api/v1/auth/verify-invite-code
+
+    **기능**:
+    - 회원가입 전 초대 코드의 유효성 검증
+    - 유효한 코드일 경우 그룹 및 선생님 정보 반환
+    - 비인증 엔드포인트 (로그인 없이 접근 가능)
+
+    **검증 항목**:
+    - 코드 존재 여부
+    - 코드 활성화 상태
+    - 만료 여부
+    - 사용 횟수 제한
+    - 역할 일치 여부 (STUDENT/PARENT)
+
+    **보안**:
+    - Rate Limiting: 20회/분 (무차별 대입 방지)
+
+    Related: F-001, F-002, API_명세서.md
+    """
+    try:
+        code_upper = payload.code.upper()
+
+        # 1. 초대 코드 조회
+        invite_code_obj = db.query(InviteCode).filter(
+            InviteCode.code == code_upper
+        ).first()
+
+        # 코드 존재 여부
+        if not invite_code_obj:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "INVITE001",
+                    "message": "유효하지 않은 초대 코드입니다.",
+                },
+            )
+
+        # 비활성화 상태 확인
+        if not invite_code_obj.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "INVITE001",
+                    "message": "사용할 수 없는 초대 코드입니다.",
+                },
+            )
+
+        # 만료 여부
+        if invite_code_obj.is_expired():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "INVITE002",
+                    "message": "만료된 초대 코드입니다. 선생님께 새 코드를 요청해주세요.",
+                },
+            )
+
+        # 사용 횟수 제한
+        if invite_code_obj.used_count >= invite_code_obj.max_uses:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "INVITE003",
+                    "message": "이미 사용된 초대 코드입니다. 선생님께 새 코드를 요청해주세요.",
+                },
+            )
+
+        # 역할 일치 여부
+        role_match = {
+            "STUDENT": GroupMemberRole.STUDENT,
+            "PARENT": GroupMemberRole.PARENT,
+        }
+        expected_role = role_match.get(payload.role_type)
+        if invite_code_obj.target_role != expected_role:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "INVITE004",
+                    "message": f"이 초대 코드는 {invite_code_obj.target_role.value} 역할용입니다.",
+                },
+            )
+
+        # 2. 그룹 정보 조회
+        group = db.query(Group).filter(Group.id == invite_code_obj.group_id).first()
+        if not group:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "GROUP001",
+                    "message": "그룹을 찾을 수 없습니다.",
+                },
+            )
+
+        # 3. 선생님 정보 조회
+        teacher = db.query(User).filter(User.id == invite_code_obj.created_by).first()
+        teacher_name = teacher.name if teacher else "선생님"
+
+        # 4. 응답 생성
+        response_data = InviteCodeVerifyResponse(
+            valid=True,
+            group_id=group.id,
+            group_name=group.name,
+            teacher_name=teacher_name,
+            subject=group.subject,
+            expires_at=invite_code_obj.expires_at.isoformat() if invite_code_obj.expires_at else "",
+        )
+
+        return success_response(
+            data=response_data.model_dump(mode='json')
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        print(f"❌ Error verifying invite code: {e}")
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "INTERNAL_ERROR",
+                "message": "초대 코드 검증 중 오류가 발생했습니다.",
             },
         )

@@ -24,6 +24,8 @@ import type {
   RegisterRequestPayload,
   RegisterResponseData,
   RefreshTokenRequestPayload,
+  VerifyInviteCodeRequestPayload,
+  VerifyInviteCodeResponseData,
 } from '@/types/auth';
 
 /**
@@ -131,19 +133,26 @@ export async function registerWithEmail(
   payload: RegisterRequestPayload,
 ): Promise<RegisterResponseData> {
   // 백엔드 API 요청 형식 (snake_case)으로 변환
-  const requestBody = {
+  const requestBody: Record<string, unknown> = {
     email: payload.email,
     password: payload.password,
     name: payload.name,
     phone: payload.phone,
     role: payload.role, // 'TEACHER' | 'STUDENT' | 'PARENT'
-    profile: payload.profile
-      ? {
-          subjects: payload.profile.subjects,
-          school: payload.profile.school,
-        }
-      : undefined,
   };
+
+  // 초대 코드가 있으면 추가 (STUDENT/PARENT 필수)
+  if (payload.inviteCode) {
+    requestBody.invite_code = payload.inviteCode;
+  }
+
+  // 프로필이 있으면 추가
+  if (payload.profile) {
+    requestBody.profile = {
+      subjects: payload.profile.subjects,
+      school: payload.profile.school,
+    };
+  }
 
   // API 호출
   const responseData = await apiRequest<{
@@ -302,4 +311,71 @@ export async function logoutUser(): Promise<{ success: boolean }> {
 
   // 성공적으로 호출되면 true 반환 (에러 시 예외 발생)
   return { success: true };
+}
+
+/**
+ * 초대 코드 검증 API 호출 (비인증 엔드포인트)
+ *
+ * 회원가입 전 초대 코드의 유효성을 검증합니다.
+ * 로그인 없이 호출 가능한 공개 API입니다.
+ *
+ * @param payload 초대 코드 검증 요청 (code, roleType)
+ * @returns 검증 성공 시 그룹 및 선생님 정보
+ *
+ * @throws {ApiError} 검증 실패 시 에러 발생
+ * - INVITE001: 유효하지 않은 코드
+ * - INVITE002: 만료된 코드
+ * - INVITE003: 이미 사용된 코드
+ * - INVITE004: 역할 불일치
+ *
+ * @example
+ * ```ts
+ * try {
+ *   const result = await verifyInviteCode({
+ *     code: 'AB12CD',
+ *     roleType: 'STUDENT',
+ *   });
+ *   console.log(result.groupName); // 그룹 이름
+ *   console.log(result.teacherName); // 선생님 이름
+ * } catch (error) {
+ *   const err = error as ApiError;
+ *   if (err.code === 'INVITE002') {
+ *     alert('만료된 초대 코드입니다.');
+ *   }
+ * }
+ * ```
+ */
+export async function verifyInviteCode(
+  payload: VerifyInviteCodeRequestPayload,
+): Promise<VerifyInviteCodeResponseData> {
+  // 백엔드 API 요청 형식 (snake_case)으로 변환
+  const requestBody = {
+    code: payload.code.toUpperCase(),
+    role_type: payload.roleType,
+  };
+
+  // API 호출
+  const responseData = await apiRequest<{
+    valid: boolean;
+    group_id: string;
+    group_name: string;
+    teacher_name: string;
+    subject: string;
+    expires_at: string;
+  }>('/auth/verify-invite-code', {
+    method: 'POST',
+    body: JSON.stringify(requestBody),
+  });
+
+  // snake_case → camelCase 변환
+  const result: VerifyInviteCodeResponseData = {
+    valid: responseData.valid,
+    groupId: responseData.group_id,
+    groupName: responseData.group_name,
+    teacherName: responseData.teacher_name,
+    subject: responseData.subject,
+    expiresAt: responseData.expires_at,
+  };
+
+  return result;
 }
