@@ -95,3 +95,160 @@ select:focus:not(:focus-visible) {
     text-wrap: balance;
   }
 }
+
+/**
+ * react-big-calendar 커스텀 스타일
+ * Feature: F-003 수업 일정 관리
+ * Based on: UX_UI_설계서.md 디자인 시스템
+ */
+
+/* 달력 전체 스타일 */
+.rbc-calendar {
+  font-family: inherit;
+}
+
+/* 헤더 스타일 (요일 표시) */
+.rbc-header {
+  padding: 12px 4px;
+  font-weight: 600;
+  color: #374151; /* gray-700 */
+  background-color: #f9fafb; /* gray-50 */
+  border-bottom: 2px solid #e5e7eb; /* gray-200 */
+}
+
+/* 오늘 날짜 강조 */
+.rbc-today {
+  background-color: #dbeafe !important; /* blue-100 */
+}
+
+/* 이벤트 스타일 */
+.rbc-event {
+  padding: 2px 4px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  border: none !important;
+}
+
+.rbc-event:hover {
+  opacity: 0.85;
+}
+
+/* 선택된 이벤트 */
+.rbc-event.rbc-selected {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5); /* blue-500 shadow */
+}
+
+/* 주말 배경색 (월간 뷰) */
+.rbc-month-view .rbc-day-bg:nth-child(1),
+.rbc-month-view .rbc-day-bg:nth-child(7) {
+  background-color: #fef2f2; /* red-50 */
+}
+
+/* 비활성 날짜 (다른 달) */
+.rbc-off-range-bg {
+  background-color: #f9fafb; /* gray-50 */
+}
+
+.rbc-off-range {
+  color: #9ca3af; /* gray-400 */
+}
+
+/* 날짜 셀 */
+.rbc-date-cell {
+  padding: 4px 8px;
+  font-size: 0.875rem;
+}
+
+.rbc-date-cell > a {
+  color: #374151; /* gray-700 */
+}
+
+/* 시간 슬롯 (주간 뷰) */
+.rbc-time-slot {
+  min-height: 40px;
+}
+
+.rbc-time-gutter {
+  font-size: 0.75rem;
+  color: #6b7280; /* gray-500 */
+}
+
+/* 더보기 링크 */
+.rbc-show-more {
+  color: #2563eb; /* blue-600 */
+  font-size: 0.75rem;
+  font-weight: 500;
+  background-color: transparent;
+  padding: 2px 4px;
+}
+
+.rbc-show-more:hover {
+  color: #1d4ed8; /* blue-700 */
+  text-decoration: underline;
+}
+
+/* 팝업 오버레이 */
+.rbc-overlay {
+  background-color: white;
+  border: 1px solid #e5e7eb; /* gray-200 */
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.rbc-overlay-header {
+  font-weight: 600;
+  color: #111827; /* gray-900 */
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+/* 현재 시간 표시선 (주간 뷰) */
+.rbc-current-time-indicator {
+  background-color: #ef4444; /* red-500 */
+  height: 2px;
+}
+
+/* 선택 영역 (날짜 클릭 시) */
+.rbc-slot-selection {
+  background-color: rgba(59, 130, 246, 0.2); /* blue-500 with opacity */
+  border: 1px dashed #3b82f6;
+}
+
+/* 월간 뷰 행 높이 조정 */
+.rbc-month-row {
+  min-height: 100px;
+}
+
+/* 모바일 반응형 */
+@media (max-width: 768px) {
+  .rbc-calendar {
+    font-size: 0.75rem;
+  }
+
+  .rbc-header {
+    padding: 8px 2px;
+    font-size: 0.75rem;
+  }
+
+  .rbc-event {
+    font-size: 0.625rem;
+    padding: 1px 2px;
+  }
+
+  .rbc-date-cell {
+    padding: 2px 4px;
+    font-size: 0.75rem;
+  }
+
+  .rbc-month-row {
+    min-height: 80px;
+  }
+
+  .rbc-show-more {
+    font-size: 0.625rem;
+  }
+}
