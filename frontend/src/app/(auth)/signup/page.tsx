@@ -1,393 +1,194 @@
 /**
  * Signup Page - WeTee MVP
- * Screen: S-004 (회원가입 화면)
+ * Screen: S-001, S-003, S-002/S-006/S-007 (회원가입 3단계 플로우)
  *
  * Based on: F-001_회원가입_및_로그인.md
  *
- * 현재 상태: Step 12 - 실제 회원가입 API 연동 완료
- *
  * 구현 사항:
- * - POST /api/v1/auth/register 실제 API 연동
- * - 로딩 상태 관리
- * - 에러/성공 메시지 표시
- * - 회원가입 성공 시 로그인 페이지로 이동
+ * - 3단계 회원가입 플로우:
+ *   1. 역할 선택 (선생님/학생/학부모)
+ *   2. 초대 코드 입력 (학생/학부모만)
+ *   3. 정보 입력 및 회원가입
  *
- * TODO (향후):
- * - 이메일 인증 플로우
- * - 비밀번호 강도 체크 UI
- * - 실시간 이메일 중복 검사
- * - 폼 필드별 상세 검증 메시지
+ * 보안 요구사항:
+ * - 선생님: 초대 코드 없이 독립 가입 가능
+ * - 학생/학부모: 반드시 초대 코드를 통해서만 가입 가능
+ * - 가입 즉시 해당 그룹에 자동 추가됨
  */
 
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { registerWithEmail } from '@/lib/authApi';
-import { isApiError, type ApiError } from '@/lib/apiClient';
-import type { UserRoleCode } from '@/types/auth';
+import {
+  RoleSelectionStep,
+  InviteCodeStep,
+  SignupFormStep,
+  type UserRole,
+} from '@/components/auth';
+import type { VerifyInviteCodeResponseData } from '@/types/auth';
 
-type UserRole = 'teacher' | 'student' | 'parent';
+type SignupStep = 'role' | 'inviteCode' | 'form';
 
 export default function SignupPage() {
-  const router = useRouter();
+  // 현재 단계
+  const [currentStep, setCurrentStep] = useState<SignupStep>('role');
 
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    passwordConfirm: '',
-    phone: '',
-    role: 'teacher' as UserRole,
-  });
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorDetails, setErrorDetails] = useState<ApiError | null>(null);
+  // 선택한 역할
+  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  // 초대 코드 정보 (학생/학부모)
+  const [inviteCodeData, setInviteCodeData] = useState<
+    (VerifyInviteCodeResponseData & { code: string }) | null
+  >(null);
+
+  // 역할 선택 핸들러
+  const handleRoleSelect = (role: UserRole) => {
+    setSelectedRole(role);
+
+    if (role === 'teacher') {
+      // 선생님은 바로 가입 폼으로
+      setCurrentStep('form');
+    } else {
+      // 학생/학부모는 초대 코드 입력으로
+      setCurrentStep('inviteCode');
+    }
   };
 
-  /**
-   * 회원가입 처리 핸들러
-   * POST /api/v1/auth/register 실제 API 호출
-   */
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // 초대 코드 검증 성공 핸들러
+  const handleInviteCodeVerified = (
+    data: VerifyInviteCodeResponseData & { code: string }
+  ) => {
+    setInviteCodeData(data);
+    setCurrentStep('form');
+  };
 
-    // 이전 메시지 초기화
-    setErrorMessage(null);
-    setSuccessMessage(null);
-    setErrorDetails(null);
+  // 역할 선택으로 돌아가기
+  const handleBackToRole = () => {
+    setSelectedRole(null);
+    setInviteCodeData(null);
+    setCurrentStep('role');
+  };
 
-    // 클라이언트 검증
-    if (formData.password !== formData.passwordConfirm) {
-      setErrorMessage('비밀번호와 비밀번호 확인이 일치하지 않습니다.');
-      return;
+  // 초대 코드 입력으로 돌아가기
+  const handleBackToInviteCode = () => {
+    setInviteCodeData(null);
+    setCurrentStep('inviteCode');
+  };
+
+  // 뒤로가기 핸들러 (form 단계에서)
+  const handleBackFromForm = () => {
+    if (selectedRole === 'teacher') {
+      handleBackToRole();
+    } else {
+      handleBackToInviteCode();
     }
+  };
 
-    setIsLoading(true);
-
-    try {
-      // 역할 코드 매핑: 'teacher' → 'TEACHER'
-      const roleCode = formData.role.toUpperCase() as UserRoleCode;
-
-      // 회원가입 API 호출
-      await registerWithEmail({
-        email: formData.email,
-        password: formData.password,
-        name: formData.name,
-        phone: formData.phone,
-        role: roleCode,
-        // profile은 현재 폼에서 수집하지 않으므로 생략
-        // 추후 확장 시 선택적으로 추가
-      });
-
-      // 성공 메시지 표시
-      setSuccessMessage(
-        '회원가입이 완료되었습니다. 이메일로 전송된 인증 메일을 확인한 후 로그인해 주세요.'
-      );
-
-      // 2초 후 로그인 페이지로 이동
-      setTimeout(() => {
-        router.push('/login');
-      }, 2000);
-    } catch (error) {
-      // 개발 환경에서는 콘솔에 전체 에러 출력
-      if (process.env.NODE_ENV === 'development') {
-        console.error('회원가입 에러:', error);
-      }
-
-      // ApiError 타입 가드로 에러 타입 검증
-      if (isApiError(error)) {
-        // 에러 상세 정보 저장 (개발 환경용)
-        setErrorDetails(error);
-
-        // HTTP 상태 코드별 에러 메시지 처리
-        if (error.status === 409) {
-          // ✅ 중복 이메일 전용 메시지 (사용자 친화적)
-          setErrorMessage('이미 가입된 이메일입니다. 다른 이메일을 사용해 주세요.');
-        } else if (error.status === 400 || error.status === 422) {
-          // 입력값 검증 실패
-          setErrorMessage(error.message ?? '입력값을 다시 확인해 주세요.');
-        } else if (error.status === 500) {
-          // 서버 내부 오류
-          const detailMsg =
-            process.env.NODE_ENV === 'development' && error.code
-              ? ` (에러 코드: ${error.code})`
-              : '';
-          setErrorMessage(
-            `서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.${detailMsg}`
-          );
-        } else if (error.status === undefined) {
-          // 네트워크 오류 (서버 미응답, 백엔드 다운 등)
-          setErrorMessage(
-            '서버에 연결할 수 없습니다. 백엔드가 실행 중인지 확인해 주세요.'
-          );
-        } else {
-          // 기타 HTTP 에러 (401, 403, 404 등)
-          setErrorMessage(
-            error.message ?? '회원가입 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
-          );
-        }
-      } else {
-        // ApiError가 아닌 일반 에러 (예: 예상치 못한 클라이언트 에러)
-        console.error('예상치 못한 에러:', error);
-        setErrorMessage('알 수 없는 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
-      }
-    } finally {
-      setIsLoading(false);
+  // 현재 단계 번호 계산
+  const getCurrentStepNumber = () => {
+    if (currentStep === 'role') return 1;
+    if (currentStep === 'inviteCode') return 2;
+    if (currentStep === 'form') {
+      return selectedRole === 'teacher' ? 2 : 3;
     }
+    return 1;
+  };
+
+  // 총 단계 수
+  const getTotalSteps = () => {
+    return selectedRole === 'teacher' ? 2 : 3;
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12">
-      <div className="max-w-md w-full space-y-8">
+      <div className="max-w-md w-full">
         {/* 로고 & 타이틀 */}
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-blue-600">WeTee</h1>
+        <div className="text-center mb-6">
+          <Link href="/">
+            <h1 className="text-4xl font-bold text-blue-600">WeTee</h1>
+          </Link>
           <p className="mt-2 text-gray-600">과외의 모든 것, 하나로</p>
-          <h2 className="mt-4 text-2xl font-bold text-gray-900">회원가입</h2>
         </div>
 
-        {/* 회원가입 폼 */}
-        <div className="bg-white p-8 rounded-lg shadow-lg border border-gray-200">
-          <form onSubmit={handleSignup} className="space-y-5">
-            {/* 이름 */}
-            <div>
-              <label
-                htmlFor="name"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                이름
-              </label>
-              <input
-                id="name"
-                name="name"
-                type="text"
-                required
-                disabled={isLoading}
-                value={formData.name}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-                placeholder="홍길동"
-                aria-label="이름 입력"
-              />
-            </div>
-
-            {/* 이메일 */}
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                이메일
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                disabled={isLoading}
-                value={formData.email}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-                placeholder="email@example.com"
-                aria-label="이메일 주소 입력"
-              />
-            </div>
-
-            {/* 비밀번호 */}
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                비밀번호
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                disabled={isLoading}
-                value={formData.password}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-                placeholder="••••••••"
-                aria-label="비밀번호 입력"
-              />
-            </div>
-
-            {/* 비밀번호 확인 */}
-            <div>
-              <label
-                htmlFor="passwordConfirm"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                비밀번호 확인
-              </label>
-              <input
-                id="passwordConfirm"
-                name="passwordConfirm"
-                type="password"
-                autoComplete="new-password"
-                required
-                disabled={isLoading}
-                value={formData.passwordConfirm}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-                placeholder="••••••••"
-                aria-label="비밀번호 확인 입력"
-              />
-            </div>
-
-            {/* 전화번호 */}
-            <div>
-              <label
-                htmlFor="phone"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                전화번호
-              </label>
-              <input
-                id="phone"
-                name="phone"
-                type="tel"
-                autoComplete="tel"
-                required
-                disabled={isLoading}
-                value={formData.phone}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-                placeholder="010-1234-5678"
-                aria-label="전화번호 입력"
-              />
-            </div>
-
-            {/* 역할 선택 */}
-            <div>
-              <label
-                htmlFor="role"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                역할
-              </label>
-              <select
-                id="role"
-                name="role"
-                required
-                disabled={isLoading}
-                value={formData.role}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-                aria-label="역할 선택"
-              >
-                <option value="teacher">선생님</option>
-                <option value="student">학생</option>
-                <option value="parent">학부모</option>
-              </select>
-            </div>
-
-            {/* 에러 메시지 */}
-            {errorMessage && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-600">{errorMessage}</p>
-
-                {/* 개발 환경에서만 상세 정보 표시 */}
-                {process.env.NODE_ENV === 'development' && errorDetails && (
-                  <details className="mt-2">
-                    <summary className="text-xs text-red-500 cursor-pointer hover:text-red-700">
-                      🔍 개발자 정보 (상세)
-                    </summary>
-                    <pre className="mt-2 p-2 bg-red-100 rounded text-xs text-red-800 overflow-auto max-h-40">
-                      {JSON.stringify(
-                        {
-                          status: errorDetails.status,
-                          code: errorDetails.code,
-                          message: errorDetails.message,
-                          details: errorDetails.details,
-                        },
-                        null,
-                        2
-                      )}
-                    </pre>
-                  </details>
-                )}
-              </div>
-            )}
-
-            {/* 성공 메시지 */}
-            {successMessage && (
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-sm text-green-700">{successMessage}</p>
-              </div>
-            )}
-
-            {/* 회원가입 버튼 */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors mt-6"
-              aria-label={isLoading ? '회원가입 진행 중' : '회원가입'}
+        {/* 진행 상태 표시 */}
+        <div className="mb-8">
+          <div className="flex items-center justify-center gap-2">
+            {/* 단계 1 */}
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                getCurrentStepNumber() >= 1
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-200 text-gray-600'
+              }`}
             >
-              {isLoading ? '회원가입 중...' : '회원가입'}
-            </button>
-          </form>
+              1
+            </div>
 
-          {/* 로그인 링크 */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              이미 계정이 있으신가요?{' '}
-              <Link
-                href="/login"
-                className="font-medium text-blue-600 hover:text-blue-700 hover:underline"
-              >
-                로그인
-              </Link>
-            </p>
+            {/* 선생님이 아닌 경우에만 2단계 표시 */}
+            {(selectedRole !== 'teacher' || !selectedRole) && (
+              <>
+                <div
+                  className={`w-8 h-1 transition-colors ${
+                    getCurrentStepNumber() >= 2 ? 'bg-blue-600' : 'bg-gray-200'
+                  }`}
+                />
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                    getCurrentStepNumber() >= 2
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 text-gray-600'
+                  }`}
+                >
+                  2
+                </div>
+              </>
+            )}
+
+            <div
+              className={`w-8 h-1 transition-colors ${
+                getCurrentStepNumber() >= getTotalSteps()
+                  ? 'bg-blue-600'
+                  : 'bg-gray-200'
+              }`}
+            />
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                getCurrentStepNumber() >= getTotalSteps()
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-200 text-gray-600'
+              }`}
+            >
+              {getTotalSteps()}
+            </div>
+          </div>
+          <div className="mt-2 text-center text-sm text-gray-600">
+            {currentStep === 'role' && '역할 선택'}
+            {currentStep === 'inviteCode' && '초대 코드 입력'}
+            {currentStep === 'form' && '정보 입력'}
           </div>
         </div>
 
-        {/* 개발자용 안내 */}
-        <details className="text-center">
-          <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
-            개발자 테스트 안내
-          </summary>
-          <div className="mt-2 p-3 bg-gray-50 rounded text-xs text-gray-600 text-left space-y-2">
-            <p>
-              <strong>현재 상태:</strong> Step 12 - 회원가입 API 연동 완료
-            </p>
-            <p>
-              <strong>API 엔드포인트:</strong> POST /api/v1/auth/register
-            </p>
-            <p>
-              <strong>기능:</strong> 실제 백엔드 API 호출, 로딩 상태 관리, 에러/성공 메시지 표시
-            </p>
-            <p>
-              <strong>주의:</strong> 백엔드가 실행 중이지 않으면 네트워크 에러 발생
-            </p>
-            <div className="pt-2 border-t border-gray-300">
-              <p className="font-semibold mb-1">테스트 시나리오:</p>
-              <ul className="list-disc list-inside space-y-1 pl-2">
-                <li>정상 회원가입: 모든 필드 입력 후 제출</li>
-                <li>이메일 중복(409): 이미 가입된 이메일 사용</li>
-                <li>입력값 오류(400): 잘못된 형식의 이메일/비밀번호</li>
-                <li>비밀번호 불일치: 비밀번호 확인 불일치 시 클라이언트 검증</li>
-              </ul>
-            </div>
-            <p className="pt-2 border-t border-gray-300">
-              <strong>다음 단계:</strong> 이메일 인증, 비밀번호 강도 체크 UI, 토큰 관리 고도화
-            </p>
-          </div>
-        </details>
+        {/* 단계별 컴포넌트 */}
+        {currentStep === 'role' && (
+          <RoleSelectionStep onSelect={handleRoleSelect} />
+        )}
+
+        {currentStep === 'inviteCode' && selectedRole && selectedRole !== 'teacher' && (
+          <InviteCodeStep
+            role={selectedRole as 'student' | 'parent'}
+            onVerified={handleInviteCodeVerified}
+            onBack={handleBackToRole}
+          />
+        )}
+
+        {currentStep === 'form' && selectedRole && (
+          <SignupFormStep
+            role={selectedRole}
+            inviteCodeData={inviteCodeData ?? undefined}
+            onBack={handleBackFromForm}
+          />
+        )}
       </div>
     </div>
   );

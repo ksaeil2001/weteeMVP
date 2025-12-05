@@ -26,8 +26,9 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { fetchGroupById, createInviteCode } from '@/lib/api/groups';
-import type { Group, InviteCode } from '@/types/group';
+import { fetchGroupById } from '@/lib/api/groups';
+import type { Group } from '@/types/group';
+import { InviteCodeManagement } from '@/components/groups';
 
 export default function GroupDetailPage() {
   const router = useRouter();
@@ -39,10 +40,6 @@ export default function GroupDetailPage() {
   const [group, setGroup] = useState<Group | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [generatedCode, setGeneratedCode] = useState<InviteCode | null>(null);
-  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
 
   // 그룹 상세 로드
   useEffect(() => {
@@ -67,37 +64,6 @@ export default function GroupDetailPage() {
       loadGroup();
     }
   }, [groupId, isAuthenticated]);
-
-  // 학생 초대 코드 생성
-  const handleCreateStudentInvite = async () => {
-    if (!group) return;
-
-    try {
-      setIsGeneratingCode(true);
-
-      const newCode = await createInviteCode({
-        groupId: group.groupId,
-        role: 'student',
-        maxUses: 1,
-      });
-
-      setGeneratedCode(newCode);
-      setShowInviteModal(true);
-    } catch (err) {
-      console.error('[GroupDetailPage] 초대 코드 생성 실패:', err);
-      alert('초대 코드 생성에 실패했습니다.');
-    } finally {
-      setIsGeneratingCode(false);
-    }
-  };
-
-  // 초대 코드 복사
-  const handleCopyInviteCode = () => {
-    if (generatedCode) {
-      navigator.clipboard.writeText(generatedCode.inviteCode);
-      alert(`초대 코드 "${generatedCode.inviteCode}"가 복사되었습니다!`);
-    }
-  };
 
   // 뒤로 가기
   const handleBack = () => {
@@ -141,39 +107,25 @@ export default function GroupDetailPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* 페이지 헤더 */}
-      <div className="flex justify-between items-start">
-        <div>
-          <button
-            type="button"
-            onClick={handleBack}
-            className="text-sm text-gray-600 hover:text-gray-900 mb-2"
-          >
-            ← 그룹 목록
-          </button>
-          <h1 className="text-2xl font-bold text-gray-900">{group.name}</h1>
-          <div className="mt-2 flex gap-2">
-            <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded">
-              {group.subject}
+      <div>
+        <button
+          type="button"
+          onClick={handleBack}
+          className="text-sm text-gray-600 hover:text-gray-900 mb-2"
+        >
+          &larr; 그룹 목록
+        </button>
+        <h1 className="text-2xl font-bold text-gray-900">{group.name}</h1>
+        <div className="mt-2 flex gap-2">
+          <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded">
+            {group.subject}
+          </span>
+          {group.level && (
+            <span className="inline-block px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded">
+              {group.level}
             </span>
-            {group.level && (
-              <span className="inline-block px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded">
-                {group.level}
-              </span>
-            )}
-          </div>
+          )}
         </div>
-
-        {/* 선생님만 초대 버튼 표시 */}
-        {currentRole === 'teacher' && (
-          <button
-            type="button"
-            onClick={handleCreateStudentInvite}
-            disabled={isGeneratingCode}
-            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isGeneratingCode ? '생성 중...' : '+ 학생 초대하기'}
-          </button>
-        )}
       </div>
 
       {/* 그룹 기본 정보 */}
@@ -225,9 +177,17 @@ export default function GroupDetailPage() {
         )}
       </div>
 
+      {/* 초대 코드 관리 (선생님만 표시) */}
+      {currentRole === 'teacher' && (
+        <InviteCodeManagement
+          groupId={group.groupId}
+          groupName={group.name}
+        />
+      )}
+
       {/* 학생 목록 */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">학생 목록</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">그룹 멤버</h2>
 
         {group.members && group.members.length > 0 ? (
           <div className="space-y-3">
@@ -252,56 +212,15 @@ export default function GroupDetailPage() {
           </div>
         ) : (
           <div className="text-center py-8">
-            <p className="text-sm text-gray-500">아직 학생이 없습니다.</p>
+            <p className="text-sm text-gray-500">아직 그룹 멤버가 없습니다.</p>
             {currentRole === 'teacher' && (
               <p className="text-xs text-gray-400 mt-1">
-                학생 초대 버튼을 눌러 초대 코드를 생성하세요.
+                위 초대 코드 관리에서 코드를 생성하여 학생/학부모를 초대하세요.
               </p>
             )}
           </div>
         )}
       </div>
-
-      {/* 초대 코드 모달 */}
-      {showInviteModal && generatedCode && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              초대 코드가 생성되었습니다
-            </h3>
-
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
-              <p className="text-sm text-gray-600 mb-2">초대 코드</p>
-              <p className="text-3xl font-mono font-bold text-primary-600">
-                {generatedCode.inviteCode}
-              </p>
-            </div>
-
-            <div className="text-sm text-gray-600 space-y-1">
-              <p>• 유효 기간: {new Date(generatedCode.expiresAt).toLocaleDateString()}</p>
-              <p>• 사용 횟수: {generatedCode.maxUses}회</p>
-              <p>• 역할: {generatedCode.role === 'student' ? '학생' : '학부모'}</p>
-            </div>
-
-            <div className="flex gap-3 pt-4">
-              <button
-                type="button"
-                onClick={() => setShowInviteModal(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-              >
-                닫기
-              </button>
-              <button
-                type="button"
-                onClick={handleCopyInviteCode}
-                className="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
-              >
-                코드 복사
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 개발 안내 */}
       <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
