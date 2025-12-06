@@ -116,8 +116,9 @@ export default function LessonsPage() {
   }
 
   // 수업 기록 작성 페이지로 이동
+  // URL: /lessons/new?scheduleId=... (프롬프트 요구사항에 따른 query parameter 방식)
   function handleCreateLessonRecord(scheduleId: string) {
-    router.push(`/lessons/create/${scheduleId}`);
+    router.push(`/lessons/new?scheduleId=${scheduleId}`);
   }
 
   // 수업 기록 상세 페이지로 이동
