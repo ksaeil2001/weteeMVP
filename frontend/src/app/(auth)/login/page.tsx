@@ -165,7 +165,7 @@ export default function LoginPage() {
             {/* 비밀번호 찾기 */}
             <div className="text-right">
               <Link
-                href="/reset-password"
+                href="/forgot-password"
                 className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
               >
                 비밀번호를 잊으셨나요?
