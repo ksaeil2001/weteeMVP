@@ -228,3 +228,138 @@ export interface RefreshTokenResponseData {
   accessToken: string;
   refreshToken: string;
 }
+
+// ==========================================
+// 이메일 인증 관련 타입
+// ==========================================
+
+/**
+ * 이메일 인증 요청 페이로드
+ *
+ * API 엔드포인트: POST /api/v1/auth/verify-email
+ */
+export interface VerifyEmailRequestPayload {
+  /** 이메일 주소 */
+  email: string;
+
+  /** 6자리 인증 코드 */
+  code: string;
+}
+
+/**
+ * 이메일 인증 응답 데이터
+ */
+export interface VerifyEmailResponseData {
+  /** 인증 성공 여부 */
+  verified: boolean;
+
+  /** 메시지 */
+  message: string;
+}
+
+/**
+ * 이메일 인증 코드 재발송 요청 페이로드
+ *
+ * API 엔드포인트: POST /api/v1/auth/resend-verification
+ */
+export interface ResendVerificationRequestPayload {
+  /** 이메일 주소 */
+  email: string;
+}
+
+/**
+ * 이메일 인증 코드 재발송 응답 데이터
+ */
+export interface ResendVerificationResponseData {
+  /** 발송 성공 여부 */
+  sent: boolean;
+
+  /** 메시지 */
+  message: string;
+}
+
+// ==========================================
+// 비밀번호 재설정 관련 타입
+// ==========================================
+
+/**
+ * 비밀번호 재설정 요청 페이로드
+ *
+ * API 엔드포인트: POST /api/v1/auth/password-reset/request
+ */
+export interface PasswordResetRequestPayload {
+  /** 이메일 주소 */
+  email: string;
+}
+
+/**
+ * 비밀번호 재설정 요청 응답 데이터
+ */
+export interface PasswordResetRequestResponseData {
+  /** 요청 성공 여부 */
+  sent: boolean;
+
+  /** 메시지 */
+  message: string;
+}
+
+/**
+ * 비밀번호 재설정 확인 페이로드
+ *
+ * API 엔드포인트: POST /api/v1/auth/password-reset/confirm
+ */
+export interface PasswordResetConfirmPayload {
+  /** 재설정 토큰 (이메일 링크에서 추출) */
+  token: string;
+
+  /** 새 비밀번호 */
+  newPassword: string;
+}
+
+/**
+ * 비밀번호 재설정 확인 응답 데이터
+ */
+export interface PasswordResetConfirmResponseData {
+  /** 재설정 성공 여부 */
+  reset: boolean;
+
+  /** 메시지 */
+  message: string;
+}
+
+// ==========================================
+// 학생/학부모 특화 필드 타입
+// ==========================================
+
+/**
+ * 학년 옵션
+ */
+export type StudentGrade =
+  | '중1'
+  | '중2'
+  | '중3'
+  | '고1'
+  | '고2'
+  | '고3'
+  | '재수생'
+  | '기타';
+
+/**
+ * 학부모-자녀 관계 옵션
+ */
+export type ParentRelationship = '부모' | '조부모' | '기타';
+
+/**
+ * 회원가입 요청 페이로드 (확장 버전)
+ * 기존 RegisterRequestPayload에 역할별 특화 필드 추가
+ */
+export interface RegisterRequestPayloadExtended extends RegisterRequestPayload {
+  /** 학생 학년 (STUDENT 역할 필수) */
+  grade?: StudentGrade;
+
+  /** 학생 학교 (STUDENT 역할 선택) */
+  studentSchool?: string;
+
+  /** 학부모-자녀 관계 (PARENT 역할 필수) */
+  relationship?: ParentRelationship;
+}

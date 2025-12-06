@@ -26,6 +26,14 @@ import type {
   RefreshTokenRequestPayload,
   VerifyInviteCodeRequestPayload,
   VerifyInviteCodeResponseData,
+  VerifyEmailRequestPayload,
+  VerifyEmailResponseData,
+  ResendVerificationRequestPayload,
+  ResendVerificationResponseData,
+  PasswordResetRequestPayload,
+  PasswordResetRequestResponseData,
+  PasswordResetConfirmPayload,
+  PasswordResetConfirmResponseData,
 } from '@/types/auth';
 
 /**
@@ -378,4 +386,195 @@ export async function verifyInviteCode(
   };
 
   return result;
+}
+
+// ==========================================
+// 이메일 인증 API
+// ==========================================
+
+/**
+ * 이메일 인증 코드 확인 API 호출
+ *
+ * 회원가입 후 이메일로 발송된 6자리 인증 코드를 확인합니다.
+ *
+ * @param payload 이메일 인증 요청 (email, code)
+ * @returns 인증 성공 여부
+ *
+ * @throws {ApiError} 인증 실패 시 에러 발생
+ * - 400: 잘못된 인증 코드
+ * - 410: 만료된 인증 코드
+ *
+ * @example
+ * ```ts
+ * try {
+ *   const result = await verifyEmail({
+ *     email: 'user@example.com',
+ *     code: '123456',
+ *   });
+ *   if (result.verified) {
+ *     console.log('이메일 인증 완료!');
+ *   }
+ * } catch (error) {
+ *   console.error('인증 실패:', error);
+ * }
+ * ```
+ */
+export async function verifyEmail(
+  payload: VerifyEmailRequestPayload,
+): Promise<VerifyEmailResponseData> {
+  const requestBody = {
+    email: payload.email,
+    code: payload.code,
+  };
+
+  const responseData = await apiRequest<{
+    verified: boolean;
+    message: string;
+  }>('/auth/verify-email', {
+    method: 'POST',
+    body: JSON.stringify(requestBody),
+  });
+
+  return {
+    verified: responseData.verified,
+    message: responseData.message,
+  };
+}
+
+/**
+ * 이메일 인증 코드 재발송 API 호출
+ *
+ * @param payload 재발송 요청 (email)
+ * @returns 발송 성공 여부
+ *
+ * @throws {ApiError} 발송 실패 시 에러 발생
+ * - 429: 요청 횟수 초과 (잠시 후 다시 시도)
+ * - 404: 등록되지 않은 이메일
+ *
+ * @example
+ * ```ts
+ * try {
+ *   const result = await resendVerificationEmail({
+ *     email: 'user@example.com',
+ *   });
+ *   console.log('인증 코드가 재발송되었습니다.');
+ * } catch (error) {
+ *   console.error('재발송 실패:', error);
+ * }
+ * ```
+ */
+export async function resendVerificationEmail(
+  payload: ResendVerificationRequestPayload,
+): Promise<ResendVerificationResponseData> {
+  const requestBody = {
+    email: payload.email,
+  };
+
+  const responseData = await apiRequest<{
+    sent: boolean;
+    message: string;
+  }>('/auth/resend-verification', {
+    method: 'POST',
+    body: JSON.stringify(requestBody),
+  });
+
+  return {
+    sent: responseData.sent,
+    message: responseData.message,
+  };
+}
+
+// ==========================================
+// 비밀번호 재설정 API
+// ==========================================
+
+/**
+ * 비밀번호 재설정 요청 API 호출
+ *
+ * 이메일로 비밀번호 재설정 링크를 발송합니다.
+ * 보안상 이메일 존재 여부와 관계없이 동일한 응답을 반환합니다.
+ *
+ * @param payload 재설정 요청 (email)
+ * @returns 발송 성공 여부
+ *
+ * @example
+ * ```ts
+ * try {
+ *   await requestPasswordReset({
+ *     email: 'user@example.com',
+ *   });
+ *   console.log('재설정 이메일이 발송되었습니다.');
+ * } catch (error) {
+ *   console.error('요청 실패:', error);
+ * }
+ * ```
+ */
+export async function requestPasswordReset(
+  payload: PasswordResetRequestPayload,
+): Promise<PasswordResetRequestResponseData> {
+  const requestBody = {
+    email: payload.email,
+  };
+
+  const responseData = await apiRequest<{
+    sent: boolean;
+    message: string;
+  }>('/auth/password-reset/request', {
+    method: 'POST',
+    body: JSON.stringify(requestBody),
+  });
+
+  return {
+    sent: responseData.sent,
+    message: responseData.message,
+  };
+}
+
+/**
+ * 비밀번호 재설정 확인 API 호출
+ *
+ * 이메일 링크에 포함된 토큰과 새 비밀번호로 비밀번호를 재설정합니다.
+ *
+ * @param payload 재설정 확인 (token, newPassword)
+ * @returns 재설정 성공 여부
+ *
+ * @throws {ApiError} 재설정 실패 시 에러 발생
+ * - 400: 유효하지 않은 토큰
+ * - 410: 만료된 토큰
+ *
+ * @example
+ * ```ts
+ * try {
+ *   const result = await confirmPasswordReset({
+ *     token: 'abc123...',
+ *     newPassword: 'NewSecurePassword123!',
+ *   });
+ *   if (result.reset) {
+ *     console.log('비밀번호가 변경되었습니다!');
+ *   }
+ * } catch (error) {
+ *   console.error('재설정 실패:', error);
+ * }
+ * ```
+ */
+export async function confirmPasswordReset(
+  payload: PasswordResetConfirmPayload,
+): Promise<PasswordResetConfirmResponseData> {
+  const requestBody = {
+    token: payload.token,
+    new_password: payload.newPassword,
+  };
+
+  const responseData = await apiRequest<{
+    reset: boolean;
+    message: string;
+  }>('/auth/password-reset/confirm', {
+    method: 'POST',
+    body: JSON.stringify(requestBody),
+  });
+
+  return {
+    reset: responseData.reset,
+    message: responseData.message,
+  };
 }
