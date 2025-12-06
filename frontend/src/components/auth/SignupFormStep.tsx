@@ -154,7 +154,7 @@ export default function SignupFormStep({ role, inviteCodeData, onBack }: SignupF
         email: formData.email,
         password: formData.password,
         name: formData.name,
-        phone: formData.phone || undefined, // 빈 문자열이면 undefined
+        phone: formData.phone || '', // 빈 문자열 허용
         role: roleCode,
         inviteCode: inviteCodeData?.code,
         profile: Object.keys(profile).length > 0 ? profile as { subjects?: string[]; school?: string } : undefined,
