@@ -1087,7 +1087,7 @@ class SettlementService:
         ).all()
 
         # 학생별 통계 생성
-        student_stats = {}  # student_id -> StudentDashboardItem
+        student_stats = {}  # student_id -> dict
 
         for invoice in invoices:
             student_id = invoice.student_id
@@ -1102,19 +1102,41 @@ class SettlementService:
                     "student_name": student.name if student else "Unknown",
                     "group_id": invoice.group_id,
                     "group_name": group.name if group else "Unknown",
+                    "expected_lessons": 0,
+                    "actual_lessons": 0,
                     "total_lessons": 0,
                     "amount_charged": 0,
                     "amount_paid": 0,
+                    # 청구서 정보 (가장 최근 것 사용)
+                    "invoice_id": None,
+                    "invoice_number": None,
+                    "invoice_status": None,
+                    "issued_at": None,
+                    "contracted_lessons": 0,
                 }
 
             # 누적 계산
             student_stats[student_id]["total_lessons"] += invoice.attended_lessons
+            student_stats[student_id]["actual_lessons"] += invoice.attended_lessons
             student_stats[student_id]["amount_charged"] += invoice.amount_due
             student_stats[student_id]["amount_paid"] += invoice.amount_paid
+
+            # 약정 수업 횟수 (청구서의 contracted_lessons 사용)
+            if invoice.contracted_lessons and invoice.contracted_lessons > student_stats[student_id]["expected_lessons"]:
+                student_stats[student_id]["expected_lessons"] = invoice.contracted_lessons
+                student_stats[student_id]["contracted_lessons"] = invoice.contracted_lessons
+
+            # 청구서 정보 업데이트 (가장 최근 청구서 사용)
+            if student_stats[student_id]["invoice_id"] is None or (invoice.sent_at and invoice.sent_at > (student_stats[student_id]["issued_at"] or datetime.min)):
+                student_stats[student_id]["invoice_id"] = invoice.id
+                student_stats[student_id]["invoice_number"] = invoice.invoice_number
+                student_stats[student_id]["invoice_status"] = invoice.status.value
+                student_stats[student_id]["issued_at"] = invoice.sent_at
 
         # 결제 상태 판정 및 StudentDashboardItem 생성
         students = []
         for stats in student_stats.values():
+            # 결제 상태 판정
             if stats["amount_charged"] == 0:
                 payment_status = "unpaid"
             elif stats["amount_paid"] >= stats["amount_charged"]:
@@ -1124,15 +1146,38 @@ class SettlementService:
             else:
                 payment_status = "unpaid"
 
+            # 경고 메시지 생성 (약정 vs 실제 차이)
+            has_warning = False
+            warning_message = None
+
+            expected = stats["expected_lessons"]
+            actual = stats["actual_lessons"]
+
+            if expected > 0 and expected != actual:
+                has_warning = True
+                diff = actual - expected
+                if diff > 0:
+                    warning_message = f"약정보다 {abs(diff)}회 더 진행했습니다."
+                else:
+                    warning_message = f"약정보다 {abs(diff)}회 부족합니다."
+
             students.append(StudentDashboardItem(
                 student_id=stats["student_id"],
                 student_name=stats["student_name"],
                 group_id=stats["group_id"],
                 group_name=stats["group_name"],
+                expected_lessons=stats["expected_lessons"],
+                actual_lessons=stats["actual_lessons"],
                 total_lessons=stats["total_lessons"],
                 amount_charged=stats["amount_charged"],
                 amount_paid=stats["amount_paid"],
-                payment_status=payment_status
+                payment_status=payment_status,
+                invoice_id=stats["invoice_id"],
+                invoice_number=stats["invoice_number"],
+                invoice_status=stats["invoice_status"],
+                issued_at=stats["issued_at"],
+                has_warning=has_warning,
+                warning_message=warning_message
             ))
 
         # 전체 통계 계산

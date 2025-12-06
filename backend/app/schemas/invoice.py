@@ -436,15 +436,33 @@ class InvoiceCreateResponse(BaseModel):
 class StudentDashboardItem(BaseModel):
     """
     학생별 대시보드 통계 항목
+
+    프론트엔드 BillingDashboardCard와 매핑
     """
     student_id: str = Field(..., description="학생 ID")
     student_name: str = Field(..., description="학생 이름")
     group_id: str = Field(..., description="그룹 ID")
     group_name: str = Field(..., description="그룹 이름")
-    total_lessons: int = Field(..., ge=0, description="총 수업 횟수")
+
+    # 수업 횟수
+    expected_lessons: int = Field(..., ge=0, description="약정 수업 횟수")
+    actual_lessons: int = Field(..., ge=0, description="실제 진행 수업 횟수")
+    total_lessons: int = Field(..., ge=0, description="총 수업 횟수 (actual_lessons와 동일)")
+
+    # 금액
     amount_charged: int = Field(..., ge=0, description="청구 금액 (원)")
     amount_paid: int = Field(..., ge=0, description="결제 완료 금액 (원)")
     payment_status: str = Field(..., description="결제 상태 (paid/unpaid/partial)")
+
+    # 청구서 정보
+    invoice_id: Optional[str] = Field(None, description="청구서 ID")
+    invoice_number: Optional[str] = Field(None, description="청구서 번호 (예: TUT-2025-001)")
+    invoice_status: Optional[str] = Field(None, description="청구서 상태 (DRAFT/SENT/PAID/...)")
+    issued_at: Optional[datetime] = Field(None, description="청구서 발행일")
+
+    # 경고 메시지
+    has_warning: bool = Field(False, description="약정과 실제 수업 횟수 차이 경고")
+    warning_message: Optional[str] = Field(None, description="경고 메시지")
 
     class Config:
         json_schema_extra = {

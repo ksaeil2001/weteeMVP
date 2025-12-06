@@ -55,19 +55,105 @@ export async function fetchBillingOverview(_params: {
 /**
  * 선생님용 정산 대시보드 카드 목록 조회 (S-027)
  *
+ * GET /api/v1/settlements/dashboard?year=YYYY&month=MM
+ *
  * 각 그룹별 월간 정산 요약을 카드 형태로 조회
  *
- * @param teacherId - 선생님 ID
+ * @param teacherId - 선생님 ID (현재는 사용하지 않음, JWT 토큰으로 자동 인증)
  * @param month - 조회 월 (YYYY-MM)
  * @returns 학생별 정산 카드 목록
  */
 export async function fetchBillingDashboard(
   _teacherId: string,
-  _month: string
+  month: string
 ): Promise<BillingDashboardCard[]> {
-  // TODO(v2): 백엔드에 /api/v1/settlements/dashboard 엔드포인트 추가
-  // 현재는 임시로 빈 배열 반환
-  return [];
+  try {
+    // month: "2025-12" → year: 2025, month: 12
+    const [year, monthNum] = month.split('-');
+
+    const response = await apiRequest<{
+      year: number;
+      month: number;
+      total_lessons: number;
+      total_charged: number;
+      total_paid: number;
+      total_unpaid: number;
+      total_students: number;
+      paid_students: number;
+      unpaid_students: number;
+      students: Array<{
+        student_id: string;
+        student_name: string;
+        group_id: string;
+        group_name: string;
+        expected_lessons: number;
+        actual_lessons: number;
+        total_lessons: number;
+        amount_charged: number;
+        amount_paid: number;
+        payment_status: string;
+        invoice_id?: string;
+        invoice_number?: string;
+        invoice_status?: string;
+        issued_at?: string;
+        has_warning: boolean;
+        warning_message?: string;
+      }>;
+      monthly_comparison: Array<{
+        year: number;
+        month: number;
+        total_lessons: number;
+        total_charged: number;
+        total_paid: number;
+      }>;
+    }>(`/settlements/dashboard?year=${parseInt(year)}&month=${parseInt(monthNum)}`);
+
+    // 백엔드 응답 → 프론트엔드 BillingDashboardCard 타입 매핑
+    return response.students.map((student) => {
+      // 청구서 상태 매핑 (백엔드: DRAFT/SENT/PAID → 프론트엔드: BillingStatus)
+      let status: BillingDashboardCard['status'] = 'DRAFT';
+      if (student.invoice_status === 'PAID') {
+        status = 'PAID';
+      } else if (student.invoice_status === 'SENT') {
+        status = 'ISSUED';
+      } else if (student.invoice_status === 'DRAFT') {
+        status = 'DRAFT';
+      } else if (student.invoice_status === 'PARTIALLY_PAID') {
+        status = 'ISSUED'; // 부분 결제는 발행됨으로 표시
+      } else if (student.invoice_status === 'CANCELED') {
+        status = 'CANCELED';
+      }
+
+      // TODO: 연체 판정 로직 (발행일로부터 30일 경과)
+      // if (student.issued_at) {
+      //   const issuedDate = new Date(student.issued_at);
+      //   const now = new Date();
+      //   const diffDays = (now.getTime() - issuedDate.getTime()) / (1000 * 60 * 60 * 24);
+      //   if (diffDays > 30 && status === 'ISSUED') {
+      //     status = 'OVERDUE';
+      //   }
+      // }
+
+      return {
+        groupId: student.group_id,
+        groupName: student.group_name,
+        studentId: student.student_id,
+        studentName: student.student_name,
+        month: month,
+        expectedLessons: student.expected_lessons,
+        actualLessons: student.actual_lessons,
+        amount: student.amount_charged,
+        status: status,
+        hasWarning: student.has_warning,
+        warningMessage: student.warning_message,
+        statementId: student.invoice_id,
+        issuedAt: student.issued_at,
+      };
+    });
+  } catch (error) {
+    console.error('정산 대시보드 조회 실패:', error);
+    throw error;
+  }
 }
 
 /**
