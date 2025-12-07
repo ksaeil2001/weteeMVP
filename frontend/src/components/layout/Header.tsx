@@ -7,19 +7,19 @@
  * 높이: 56px (--height-navbar)
  *
  * 구조:
- * - 좌측: 로고/서비스 이름
- * - 가운데: 그룹 선택 드롭다운 (나중 구현)
+ * - 좌측: 햄버거 메뉴 (모바일) + 로고/서비스 이름
+ * - 가운데: 그룹 선택 드롭다운 (데스크톱만, 나중 구현)
  * - 우측: 알림 아이콘 + 프로필 (이름 + 역할 뱃지)
+ *
+ * 반응형:
+ * - 모바일 (<1024px): 햄버거 메뉴 + 로고 + 알림/프로필 (간소화)
+ * - 데스크톱 (>=1024px): 전체 요소 표시
  *
  * 변경 이력:
  * - Step 2: 정적 레이아웃 구조
  * - Step 4: useAuth로 사용자 정보 표시 추가
  * - Step 14: 프로필 드롭다운 메뉴 추가 (설정, 로그아웃)
- *
- * TODO (Step 5):
- * - 그룹 선택 드롭다운 실제 연동
- * - 알림 뱃지 표시 (읽지 않은 알림 개수)
- * - 프로필 아바타 이미지
+ * - 반응형: 햄버거 메뉴 추가, 모바일 최적화
  */
 
 'use client';
@@ -28,6 +28,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/hooks/useAuth';
+import { useNavigation } from '@/contexts/NavigationContext';
 import { fetchNotificationSummary, fetchRecentNotifications, markNotificationAsRead } from '@/lib/api/notifications';
 import { NotificationSummary, NotificationItem, NOTIFICATION_ICON_MAP } from '@/types/notifications';
 
@@ -41,6 +42,7 @@ const roleLabels = {
 export const Header: React.FC = () => {
   const router = useRouter();
   const { currentUser, currentRole } = useAuth();
+  const { toggleSidebar, isMobile } = useNavigation();
 
   // Step 14: 프로필 드롭다운 상태 관리
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
@@ -184,24 +186,40 @@ export const Header: React.FC = () => {
       style={{ height: 'var(--height-navbar)' }}
     >
       <div className="h-full px-4 flex items-center justify-between">
-        {/* 좌측: 로고/서비스 이름 */}
-        <div className="flex items-center gap-2">
-          <div className="text-xl font-bold text-primary-500">
-            WeTee
+        {/* 좌측: 햄버거 메뉴 (모바일) + 로고/서비스 이름 */}
+        <div className="flex items-center gap-3">
+          {/* 햄버거 메뉴 버튼 (모바일만) */}
+          {isMobile && (
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors lg:hidden"
+              aria-label="메뉴 열기"
+            >
+              <span className="text-2xl" aria-hidden="true">☰</span>
+            </button>
+          )}
+
+          {/* 로고 */}
+          <div className="flex items-center gap-2">
+            <div className="text-xl font-bold text-primary-500">
+              WeTee
+            </div>
+            {/* 서브타이틀 (데스크톱만) */}
+            <span className="hidden md:inline text-sm text-gray-600">
+              과외의 모든 것, 하나로
+            </span>
           </div>
-          <span className="text-sm text-gray-600">
-            과외의 모든 것, 하나로
-          </span>
         </div>
 
-        {/* 가운데: 그룹 선택 (placeholder) */}
-        <div className="flex items-center gap-2 text-gray-600">
+        {/* 가운데: 그룹 선택 (데스크톱만) */}
+        <div className="hidden lg:flex items-center gap-2 text-gray-600">
           <span className="text-sm">📋 그룹 선택</span>
           <span className="text-xs">▼</span>
         </div>
 
         {/* 우측: 알림 + 프로필 */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           {/* F-008: 알림 아이콘 + 드롭다운 */}
           <div className="relative" ref={notificationMenuRef}>
             <button
@@ -211,7 +229,7 @@ export const Header: React.FC = () => {
               aria-label={`알림 ${notificationSummary && notificationSummary.total_unread > 0 ? `읽지 않은 알림 ${notificationSummary.total_unread}개` : ''}`}
               aria-expanded={isNotificationMenuOpen}
             >
-              <span className="text-xl" aria-hidden="true">🔔</span>
+              <span className="text-xl md:text-xl" aria-hidden="true">🔔</span>
               {/* 읽지 않은 알림 뱃지 */}
               {notificationSummary && notificationSummary.total_unread > 0 && (
                 <span
@@ -306,7 +324,8 @@ export const Header: React.FC = () => {
                   aria-label="프로필 메뉴"
                   aria-expanded={isProfileMenuOpen}
                 >
-                  <div className="text-right">
+                  {/* 프로필 정보 (데스크톱만) */}
+                  <div className="hidden md:block text-right">
                     <div className="text-sm font-medium text-gray-900">
                       {currentUser.name}
                     </div>

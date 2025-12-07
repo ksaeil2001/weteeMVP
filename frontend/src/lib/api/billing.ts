@@ -158,11 +158,16 @@ export async function fetchBillingDashboard(
         issuedAt: student.issued_at,
       };
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('정산 대시보드 조회 실패:', error);
 
+    // 에러 타입 체크
+    const isAxiosError = (err: unknown): err is { response?: { status: number; data?: { detail?: { message?: string } } }; request?: unknown } => {
+      return typeof err === 'object' && err !== null && ('response' in err || 'request' in err);
+    };
+
     // 에러 타입별 상세 처리
-    if (error?.response) {
+    if (isAxiosError(error) && error.response) {
       // HTTP 에러 응답이 있는 경우
       const status = error.response.status;
       const detail = error.response.data?.detail;
@@ -184,12 +189,13 @@ export async function fetchBillingDashboard(
         const message = detail?.message || '정산 대시보드를 불러올 수 없습니다.';
         throw new Error(message);
       }
-    } else if (error?.request) {
+    } else if (isAxiosError(error) && error.request) {
       // 요청은 보냈지만 응답을 받지 못한 경우 (네트워크 오류)
       throw new Error('네트워크 연결을 확인해주세요. 인터넷 연결이 불안정합니다.');
     } else {
       // 요청 설정 중 오류 발생
-      throw new Error(error?.message || '정산 대시보드를 불러오는 중 오류가 발생했습니다.');
+      const errorMessage = error instanceof Error ? error.message : '정산 대시보드를 불러오는 중 오류가 발생했습니다.';
+      throw new Error(errorMessage);
     }
   }
 }

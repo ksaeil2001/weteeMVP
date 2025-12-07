@@ -8,21 +8,23 @@
  *
  * 구조:
  * - Header (상단 고정, 56px)
- * - Sidebar (좌측 고정, 240px)
+ * - Sidebar (좌측, 데스크톱 고정 240px / 모바일 토글)
  * - Main Content (우측, flex-1)
+ * - BottomTabBar (모바일만, 하단 고정 64px)
  *
- * TODO (Step 3-4):
- * - Route Guard 추가 (로그인 체크)
- * - 역할별(선생님/학생/학부모) 레이아웃 분기
- * - 전역 상태 관리 Provider 추가 (Zustand)
- * - React Query Provider 추가
+ * 반응형:
+ * - 모바일 (<1024px): 사이드바 오버레이, 하단 탭바 표시
+ * - 데스크톱 (>=1024px): 사이드바 고정, 하단 탭바 숨김
  *
- * 현재: 정적 레이아웃 구조만 구현
+ * 변경 이력:
+ * - 반응형: NavigationProvider, BottomTabBar 추가
  */
 
 import React from 'react';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
+import BottomTabBar from '@/components/layout/BottomTabBar';
+import { NavigationProvider } from '@/contexts/NavigationContext';
 
 export default function MainLayout({
   children,
@@ -30,25 +32,34 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header - 상단 고정 (56px) */}
-      <Header />
+    <NavigationProvider>
+      <div className="min-h-screen bg-gray-50">
+        {/* Header - 상단 고정 (56px) */}
+        <Header />
 
-      {/* Sidebar - 좌측 고정 (240px) */}
-      <Sidebar />
+        {/* Sidebar - 좌측 (데스크톱 고정 240px / 모바일 토글) */}
+        <Sidebar />
 
-      {/* Main Content - 우측 영역 */}
-      <main
-        className="pt-[56px] pl-[240px]"
-        style={{
-          minHeight: '100vh',
-        }}
-      >
-        {/* Content Area with padding */}
-        <div className="p-6">
-          {children}
-        </div>
-      </main>
-    </div>
+        {/* Main Content - 우측 영역 */}
+        <main
+          className="
+            pt-[56px]
+            pb-[64px] lg:pb-0
+            lg:pl-[240px]
+          "
+          style={{
+            minHeight: '100vh',
+          }}
+        >
+          {/* Content Area with responsive padding */}
+          <div className="p-4 md:p-6">
+            {children}
+          </div>
+        </main>
+
+        {/* BottomTabBar - 모바일만 표시 */}
+        <BottomTabBar />
+      </div>
+    </NavigationProvider>
   );
 }
