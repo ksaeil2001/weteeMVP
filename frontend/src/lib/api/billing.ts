@@ -124,15 +124,23 @@ export async function fetchBillingDashboard(
         status = 'CANCELED';
       }
 
-      // TODO: 연체 판정 로직 (발행일로부터 30일 경과)
-      // if (student.issued_at) {
-      //   const issuedDate = new Date(student.issued_at);
-      //   const now = new Date();
-      //   const diffDays = (now.getTime() - issuedDate.getTime()) / (1000 * 60 * 60 * 24);
-      //   if (diffDays > 30 && status === 'ISSUED') {
-      //     status = 'OVERDUE';
-      //   }
-      // }
+      // 연체 판정 로직 (발행일로부터 30일 경과)
+      // F-006: 청구서 발송 후 30일 경과 시 OVERDUE 상태로 변경
+      if (student.issued_at && status === 'ISSUED') {
+        try {
+          const issuedDate = new Date(student.issued_at);
+          const now = new Date();
+          const diffDays = Math.floor((now.getTime() - issuedDate.getTime()) / (1000 * 60 * 60 * 24));
+
+          // 30일 경과 && 아직 미결제 상태인 경우
+          if (diffDays > 30 && student.amount_paid < student.amount_charged) {
+            status = 'OVERDUE';
+          }
+        } catch (error) {
+          console.warn('연체 판정 중 날짜 파싱 오류:', error);
+          // 날짜 파싱 실패 시 기본 상태 유지
+        }
+      }
 
       return {
         groupId: student.group_id,
@@ -150,9 +158,39 @@ export async function fetchBillingDashboard(
         issuedAt: student.issued_at,
       };
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('정산 대시보드 조회 실패:', error);
-    throw error;
+
+    // 에러 타입별 상세 처리
+    if (error?.response) {
+      // HTTP 에러 응답이 있는 경우
+      const status = error.response.status;
+      const detail = error.response.data?.detail;
+
+      if (status === 401) {
+        // 인증 실패 - 로그인 필요
+        throw new Error('로그인이 필요합니다. 다시 로그인해주세요.');
+      } else if (status === 403) {
+        // 권한 없음 - 선생님 계정이 아님
+        throw new Error('정산 대시보드는 선생님 계정만 접근할 수 있습니다.');
+      } else if (status === 404) {
+        // 리소스 없음
+        throw new Error('정산 정보를 찾을 수 없습니다.');
+      } else if (status >= 500) {
+        // 서버 오류
+        throw new Error('서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      } else {
+        // 기타 HTTP 에러
+        const message = detail?.message || '정산 대시보드를 불러올 수 없습니다.';
+        throw new Error(message);
+      }
+    } else if (error?.request) {
+      // 요청은 보냈지만 응답을 받지 못한 경우 (네트워크 오류)
+      throw new Error('네트워크 연결을 확인해주세요. 인터넷 연결이 불안정합니다.');
+    } else {
+      // 요청 설정 중 오류 발생
+      throw new Error(error?.message || '정산 대시보드를 불러오는 중 오류가 발생했습니다.');
+    }
   }
 }
 
