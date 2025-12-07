@@ -30,7 +30,7 @@ from app.models.group import Group, GroupMember, GroupMemberRole, GroupMemberInv
 from app.models.schedule import Schedule, ScheduleType, ScheduleStatus
 from app.models.attendance import Attendance, AttendanceStatus
 from app.models.invoice import Invoice, InvoiceStatus, BillingType, Payment, PaymentStatus, PaymentMethod, Transaction, TransactionType
-from app.core.security import get_password_hash
+from app.core.security import hash_password
 import uuid
 
 
@@ -69,7 +69,7 @@ def create_test_users(db):
     teacher = User(
         id=str(uuid.uuid4()),
         email='teacher.test@wetee.com',
-        password_hash=get_password_hash('password123'),
+        password_hash=hash_password('password123'),
         name='김선생',
         phone='010-1234-5678',
         role=UserRole.TEACHER,
@@ -84,7 +84,7 @@ def create_test_users(db):
         student = User(
             id=str(uuid.uuid4()),
             email=f'student{i}.test@wetee.com',
-            password_hash=get_password_hash('password123'),
+            password_hash=hash_password('password123'),
             name=f'학생{i}',
             phone=f'010-2000-000{i}',
             role=UserRole.STUDENT,
@@ -198,7 +198,7 @@ def create_test_schedules_and_attendance(db, groups, students):
             title=f'{lesson_date.strftime("%m/%d")} 수학 수업',
             start_at=datetime.combine(lesson_date, datetime.min.time().replace(hour=16, minute=0)),
             end_at=datetime.combine(lesson_date, datetime.min.time().replace(hour=18, minute=0)),
-            schedule_type=ScheduleType.REGULAR,
+            type=ScheduleType.REGULAR,
             status=ScheduleStatus.DONE,
             created_at=datetime.utcnow()
         )
@@ -236,7 +236,7 @@ def create_test_schedules_and_attendance(db, groups, students):
             title=f'{lesson_date.strftime("%m/%d")} 영어 수업',
             start_at=datetime.combine(lesson_date, datetime.min.time().replace(hour=19, minute=0)),
             end_at=datetime.combine(lesson_date, datetime.min.time().replace(hour=21, minute=0)),
-            schedule_type=ScheduleType.REGULAR,
+            type=ScheduleType.REGULAR,
             status=ScheduleStatus.DONE,
             created_at=datetime.utcnow()
         )
