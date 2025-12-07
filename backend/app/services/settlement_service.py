@@ -1078,6 +1078,38 @@ class SettlementService:
                 monthly_comparison=[]
             )
 
+        # 선생님의 모든 그룹 멤버 조회 (학생만)
+        all_students = db.query(GroupMember).join(User).join(Group).filter(
+            Group.owner_id == user.id,
+            GroupMember.role == GroupMemberRole.STUDENT,
+            GroupMember.invite_status == GroupMemberInviteStatus.ACCEPTED
+        ).all()
+
+        # 학생별 통계 초기화 (모든 학생 포함)
+        student_stats = {}  # student_id -> dict
+
+        for member in all_students:
+            student = db.query(User).filter(User.id == member.user_id).first()
+            group = db.query(Group).filter(Group.id == member.group_id).first()
+
+            if student and group:
+                student_stats[student.id] = {
+                    "student_id": student.id,
+                    "student_name": student.name,
+                    "group_id": group.id,
+                    "group_name": group.name,
+                    "expected_lessons": 0,
+                    "actual_lessons": 0,
+                    "total_lessons": 0,
+                    "amount_charged": 0,
+                    "amount_paid": 0,
+                    "invoice_id": None,
+                    "invoice_number": None,
+                    "invoice_status": None,
+                    "issued_at": None,
+                    "contracted_lessons": 0,
+                }
+
         # 해당 월의 모든 청구서 조회
         invoices = db.query(Invoice).filter(
             Invoice.teacher_id == user.id,
@@ -1086,35 +1118,57 @@ class SettlementService:
             Invoice.status != InvoiceStatus.CANCELED  # 취소된 청구서 제외
         ).all()
 
-        # 학생별 통계 생성
-        student_stats = {}  # student_id -> StudentDashboardItem
-
+        # 청구서 정보로 학생 통계 업데이트
         for invoice in invoices:
             student_id = invoice.student_id
 
-            if student_id not in student_stats:
-                # 학생 정보 조회
+            # 청구서가 있는 학생만 업데이트 (이미 초기화된 학생 중)
+            if student_id in student_stats:
+                # 누적 계산
+                student_stats[student_id]["total_lessons"] += invoice.attended_lessons
+                student_stats[student_id]["actual_lessons"] += invoice.attended_lessons
+                student_stats[student_id]["amount_charged"] += invoice.amount_due
+                student_stats[student_id]["amount_paid"] += invoice.amount_paid
+
+                # 약정 수업 횟수 (청구서의 contracted_lessons 사용)
+                if invoice.contracted_lessons and invoice.contracted_lessons > student_stats[student_id]["expected_lessons"]:
+                    student_stats[student_id]["expected_lessons"] = invoice.contracted_lessons
+                    student_stats[student_id]["contracted_lessons"] = invoice.contracted_lessons
+
+                # 청구서 정보 업데이트 (가장 최근 청구서 사용)
+                if student_stats[student_id]["invoice_id"] is None or (invoice.sent_at and invoice.sent_at > (student_stats[student_id]["issued_at"] or datetime.min)):
+                    student_stats[student_id]["invoice_id"] = invoice.id
+                    student_stats[student_id]["invoice_number"] = invoice.invoice_number
+                    student_stats[student_id]["invoice_status"] = invoice.status.value
+                    student_stats[student_id]["issued_at"] = invoice.sent_at
+            else:
+                # 그룹에 속하지 않은 학생의 청구서인 경우 (예: 탈퇴한 학생)
+                # 해당 학생도 통계에 포함
                 student = db.query(User).filter(User.id == student_id).first()
                 group = db.query(Group).filter(Group.id == invoice.group_id).first()
 
-                student_stats[student_id] = {
-                    "student_id": student_id,
-                    "student_name": student.name if student else "Unknown",
-                    "group_id": invoice.group_id,
-                    "group_name": group.name if group else "Unknown",
-                    "total_lessons": 0,
-                    "amount_charged": 0,
-                    "amount_paid": 0,
-                }
-
-            # 누적 계산
-            student_stats[student_id]["total_lessons"] += invoice.attended_lessons
-            student_stats[student_id]["amount_charged"] += invoice.amount_due
-            student_stats[student_id]["amount_paid"] += invoice.amount_paid
+                if student and group:
+                    student_stats[student_id] = {
+                        "student_id": student_id,
+                        "student_name": student.name,
+                        "group_id": invoice.group_id,
+                        "group_name": group.name,
+                        "expected_lessons": invoice.contracted_lessons or 0,
+                        "actual_lessons": invoice.attended_lessons,
+                        "total_lessons": invoice.attended_lessons,
+                        "amount_charged": invoice.amount_due,
+                        "amount_paid": invoice.amount_paid,
+                        "invoice_id": invoice.id,
+                        "invoice_number": invoice.invoice_number,
+                        "invoice_status": invoice.status.value,
+                        "issued_at": invoice.sent_at,
+                        "contracted_lessons": invoice.contracted_lessons or 0,
+                    }
 
         # 결제 상태 판정 및 StudentDashboardItem 생성
         students = []
         for stats in student_stats.values():
+            # 결제 상태 판정
             if stats["amount_charged"] == 0:
                 payment_status = "unpaid"
             elif stats["amount_paid"] >= stats["amount_charged"]:
@@ -1124,15 +1178,38 @@ class SettlementService:
             else:
                 payment_status = "unpaid"
 
+            # 경고 메시지 생성 (약정 vs 실제 차이)
+            has_warning = False
+            warning_message = None
+
+            expected = stats["expected_lessons"]
+            actual = stats["actual_lessons"]
+
+            if expected > 0 and expected != actual:
+                has_warning = True
+                diff = actual - expected
+                if diff > 0:
+                    warning_message = f"약정보다 {abs(diff)}회 더 진행했습니다."
+                else:
+                    warning_message = f"약정보다 {abs(diff)}회 부족합니다."
+
             students.append(StudentDashboardItem(
                 student_id=stats["student_id"],
                 student_name=stats["student_name"],
                 group_id=stats["group_id"],
                 group_name=stats["group_name"],
+                expected_lessons=stats["expected_lessons"],
+                actual_lessons=stats["actual_lessons"],
                 total_lessons=stats["total_lessons"],
                 amount_charged=stats["amount_charged"],
                 amount_paid=stats["amount_paid"],
-                payment_status=payment_status
+                payment_status=payment_status,
+                invoice_id=stats["invoice_id"],
+                invoice_number=stats["invoice_number"],
+                invoice_status=stats["invoice_status"],
+                issued_at=stats["issued_at"],
+                has_warning=has_warning,
+                warning_message=warning_message
             ))
 
         # 전체 통계 계산
